@@ -1,7 +1,7 @@
 import { AmbientBackground } from './components/demo/AmbientBackground';
 import { HeroSection } from './components/demo/HeroSection';
 import { ComponentShowcase } from './components/demo/ComponentShowcase';
-import './App.css'
+
 
 function App() {
   return (
