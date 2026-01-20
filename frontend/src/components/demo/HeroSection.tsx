@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FileText, Sparkles, UploadCloud } from "lucide-react";
 
@@ -52,6 +53,20 @@ const LogoStreaks = () => {
 };
 
 export function HeroSection() {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            console.log("Files selected:", files);
+            // Handle file upload logic here likely passing it up to a parent or context
+        }
+    };
+
     return (
         <section className="relative z-10 flex flex-col items-center justify-center min-h-screen min-w-screen px-4 pt-20 pb-16 text-center bg-[#09090b] overflow-hidden">
 
@@ -85,6 +100,7 @@ export function HeroSection() {
                     <Button
                         size="lg"
                         className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group"
+                        onClick={handleUploadClick}
                     >
                         <UploadCloud className="mr-2 size-5 text-[hsl(var(--accent))]" />
                         <span className="text-white font-medium">Upload your .md notes</span>
@@ -93,6 +109,16 @@ export function HeroSection() {
                         Turn your Markdown notes into a searchable,<br /> intelligent knowledge base.
                     </p>
                 </div>
+
+                {/* Hidden File Input */}
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept=".md,.markdown,.txt"
+                    multiple
+                />
             </motion.div>
 
             {/* Minimal Demo */}
