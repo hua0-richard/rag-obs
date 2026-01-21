@@ -59,11 +59,32 @@ export function HeroSection() {
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files && files.length > 0) {
             console.log("Files selected:", files);
-            // Handle file upload logic here likely passing it up to a parent or context
+            const uploadUrl = `${(import.meta.env as any).SERVER_URL}/document-upload`;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const formData = new FormData();
+                formData.append("file", file);
+
+                try {
+                    const response = await fetch(uploadUrl, {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    if (response.ok) {
+                        console.log(`Successfully uploaded: ${file.name}`);
+                    } else {
+                        console.error(`Failed to upload ${file.name}:`, response.statusText);
+                    }
+                } catch (error) {
+                    console.error(`Error uploading ${file.name}:`, error);
+                }
+            }
         }
     };
 

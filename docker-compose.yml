@@ -9,13 +9,16 @@ services:
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
+      OLLAMA_HOST: "http://host.docker.internal:11434"
+      VECTOR_DB: "postgresql+psycopg2://raguser:ragpass@db:5432/ragobs"
+
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
     depends_on:
       - db
-
+    
   frontend:
     build:
       context: ./frontend
@@ -25,6 +28,7 @@ services:
       - "5173:5173"
     environment:
       CHOKIDAR_USEPOLLING: "true"
+      SERVER_URL: "http://localhost:8000"
     volumes:
       - ./frontend:/app
       - /app/node_modules

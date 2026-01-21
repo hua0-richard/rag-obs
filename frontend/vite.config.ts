@@ -9,5 +9,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-  }
+  },
+  define: {
+    "import.meta.env.SERVER_URL": JSON.stringify(process.env.SERVER_URL || "http://localhost:8000"),
+  },
 })

@@ -5,7 +5,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "infra": "docker compose up --build",
+    "ollama": "OLLAMA_HOST=localhost:11434 ollama serve",
+    "dev:full": "pnpm run infra & pnpm run ollama"
   },
   "keywords": [],
   "author": "",

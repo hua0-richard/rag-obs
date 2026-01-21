@@ -1,3 +1,13 @@
 fastapi
 uvicorn[standard]
 langchain
+python-multipart
+langchain
+langchain-core
+langchain-community
+# langchain-openai
+langchain-text-splitters
+sentence-transformers 
+faiss-cpu 
+numpy
+ollama
