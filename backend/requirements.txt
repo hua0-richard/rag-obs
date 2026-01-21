@@ -11,3 +11,5 @@ sentence-transformers
 faiss-cpu 
 numpy
 ollama
+sqlalchemy>=2.0
+psycopg2-binary
