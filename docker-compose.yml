@@ -10,7 +10,7 @@ services:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
       OLLAMA_HOST: "http://host.docker.internal:11434"
-      VECTOR_DB: "postgresql+psycopg2://raguser:ragpass@db:5432/ragobs"
+      DATABASE_URL: "postgresql+psycopg2://raguser:ragpass@db:5432/ragobs"
 
     volumes:
       - ./backend:/app
@@ -45,6 +45,18 @@ services:
       POSTGRES_PASSWORD: ragpass
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+  
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - db
     restart: unless-stopped
 
 volumes:

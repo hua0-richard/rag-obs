@@ -4,6 +4,11 @@
 
 ---
 
+## Build
+```
+pnpm run dev:full
+```
+
 ## Overview
 
 This project ingests an Obsidian vault (Markdown files), builds a structured knowledge index, and enables **question-answering with citations** to exact notes and sections.  
