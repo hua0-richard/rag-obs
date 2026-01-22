@@ -4,6 +4,9 @@
 
 ---
 
+![Demo](demo.png)
+
+
 ## Build
 ```
 pnpm run dev:full
