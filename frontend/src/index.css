@@ -149,6 +149,20 @@ body {
     @apply border-[hsl(var(--accent))] ring-1 ring-[hsl(var(--accent))];
     box-shadow: 0 0 20px -2px hsl(var(--accent) / 0.5);
   }
+
+  /* 3D Utilities */
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .transform-style-3d {
+    transform-style: preserve-3d;
+  }
+  
+  .backface-hidden {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
 }
 
 @theme inline {
