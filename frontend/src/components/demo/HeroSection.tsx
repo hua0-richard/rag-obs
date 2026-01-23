@@ -379,7 +379,7 @@ export function HeroSection() {
                                 disabled={isUploading || completedFiles < totalFiles}
                                 className="group inline-flex h-14 items-center rounded-r-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                                View Cards
+                                Flashcards
                                 <span className="ml-2 text-white/70 transition-transform duration-300 group-hover:translate-x-1">→</span>
                             </button>
                         </div>

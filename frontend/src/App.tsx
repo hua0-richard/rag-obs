@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { AmbientBackground } from './components/demo/AmbientBackground';
 import { HeroSection } from './components/demo/HeroSection';
 import { FlashcardsPage } from './components/flashcards/FlashcardsPage';
+import { FlashcardsLabPage } from './components/flashcards/FlashcardsLabPage';
 
 function Home() {
   return (
@@ -17,6 +18,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/flashcards" element={<FlashcardsPage />} />
+      <Route path="/flashcards-lab" element={<FlashcardsLabPage />} />
     </Routes>
   )
 }
