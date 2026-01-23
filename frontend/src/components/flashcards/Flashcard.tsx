@@ -57,12 +57,12 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
             }}
         >
             <motion.div
-                className="relative w-full h-full text-center transition-all duration-500 transform-style-3d will-change-transform"
+                className="relative w-full h-full text-center transform-style-3d will-change-transform"
                 initial={false}
                 animate={{ rotateX: isFlipped ? 180 : 0 }}
                 transition={{
-                    duration: 0.5,
-                    ease: [0.23, 1, 0.32, 1] // Quartic ease out
+                    duration: 0.2,
+                    ease: "linear"
                 }}
                 onAnimationComplete={() => setIsAnimating(false)}
             >
@@ -70,15 +70,14 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                 <div className="absolute inset-0 w-full h-full backface-hidden">
                     <div className="flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
                                     border border-white/3 rounded-2xl 
-                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-2px_6px_rgba(0,0,0,0.35),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
-                                    group-hover:border-[hsl(var(--accent)_/_0.2)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),inset_0_-2px_6px_rgba(0,0,0,0.3),0_26px_60px_-26px_rgba(0,0,0,0.75),0_0_30px_-8px_hsl(var(--accent)_/_0.35)]
+                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
+                                    group-hover:border-[hsl(var(--accent)_/_0.2)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_26px_60px_-26px_rgba(0,0,0,0.75),0_0_30px_-8px_hsl(var(--accent)_/_0.35)]
                                     transition-all duration-300">
 
-                        {/* Top sheen + bottom falloff for depth */}
+                        {/* Top sheen */}
                         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent opacity-70" />
-                        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/28 via-black/10 to-transparent pointer-events-none" />
 
-                        <div className="max-h-48 overflow-y-auto pr-2 [mask-image:linear-gradient(to_bottom,black_85%,transparent)]">
+                        <div className="max-h-48 overflow-y-auto pr-2">
                             <p className="text-2xl md:text-3xl font-medium text-white/90 select-none tracking-tight">
                                 {front}
                             </p>
@@ -98,13 +97,13 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                 >
                     <div className="flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
                                     border border-[hsl(var(--accent)_/_0.18)] rounded-2xl 
-                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-2px_6px_rgba(0,0,0,0.35),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
+                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
                                     relative overflow-hidden">
 
                         {/* Soft ambient glow */}
                         <div className="absolute inset-0 bg-[hsl(var(--accent))/5] pointer-events-none" />
 
-                        <div className="max-h-48 overflow-y-auto pr-2 [mask-image:linear-gradient(to_bottom,black_85%,transparent)] relative z-10">
+                        <div className="max-h-48 overflow-y-auto pr-2 relative z-10">
                             <p className="text-xl md:text-2xl text-white/80 leading-relaxed select-none font-normal">
                                 {back}
                             </p>
