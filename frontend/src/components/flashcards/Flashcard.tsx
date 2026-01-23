@@ -68,11 +68,14 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
             >
                 {/* Front */}
                 <div className="absolute inset-0 w-full h-full backface-hidden">
-                    <div className="flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
-                                    border border-white/3 rounded-2xl 
+                    <div className="relative flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
+                                    border border-white/10 rounded-2xl overflow-hidden
                                     shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
-                                    group-hover:border-[hsl(var(--accent)_/_0.2)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_26px_60px_-26px_rgba(0,0,0,0.75),0_0_30px_-8px_hsl(var(--accent)_/_0.35)]
+                                    group-hover:border-[hsl(var(--accent)_/_0.22)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_26px_60px_-26px_rgba(0,0,0,0.75),0_0_30px_-8px_hsl(var(--accent)_/_0.35)]
                                     transition-all duration-300">
+
+                        <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-[hsl(var(--accent)/0.8)] to-transparent" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.06),transparent_45%)] pointer-events-none" />
 
                         {/* Top sheen */}
                         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent opacity-70" />
@@ -95,13 +98,15 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                     className="absolute inset-0 w-full h-full backface-hidden"
                     style={{ transform: "rotateX(180deg)" }}
                 >
-                    <div className="flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
-                                    border border-[hsl(var(--accent)_/_0.18)] rounded-2xl 
+                    <div className="relative flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
+                                    border border-[hsl(var(--accent)_/_0.22)] rounded-2xl overflow-hidden
                                     shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
-                                    relative overflow-hidden">
+                                    relative">
 
                         {/* Soft ambient glow */}
                         <div className="absolute inset-0 bg-[hsl(var(--accent))/5] pointer-events-none" />
+                        <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-[hsl(var(--accent)/0.8)] to-transparent" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_45%)] pointer-events-none" />
 
                         <div className="max-h-48 overflow-y-auto pr-2 relative z-10">
                             <p className="text-xl md:text-2xl text-white/80 leading-relaxed select-none font-normal">

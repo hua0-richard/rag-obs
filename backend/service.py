@@ -27,6 +27,15 @@ class DocumentEmbedding(Base):
     embedding = Column(Vector(VECTOR_DIM), nullable=False)
 
 
+class Flashcard(Base):
+    __tablename__ = "flashcards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(512), nullable=False)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+
+
 def init_db() -> None:
     # Import models before create_all so metadata is populated.
     # from . import models  # noqa: F401

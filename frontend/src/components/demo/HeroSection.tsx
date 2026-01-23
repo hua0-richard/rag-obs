@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, UploadCloud } from "lucide-react";
+import { FileText, Sparkles, UploadCloud, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const LogoStreaks = () => {
     return (
@@ -53,7 +54,68 @@ const LogoStreaks = () => {
 };
 
 export function HeroSection() {
+    const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState("");
+    const [totalFiles, setTotalFiles] = useState(0);
+    const [completedFiles, setCompletedFiles] = useState(0);
+    const [pulseComplete, setPulseComplete] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [isClosing, setIsClosing] = useState(false);
+    const [isHoveringToast, setIsHoveringToast] = useState(false);
+    const pulseTimeoutRef = useRef<number | null>(null);
+    const closeTimeoutRef = useRef<number | null>(null);
+
+    const closeToast = () => {
+        setIsClosing(true);
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+        }
+        closeTimeoutRef.current = window.setTimeout(() => {
+            setShowToast(false);
+            setIsClosing(false);
+        }, 320);
+    };
+
+    const scheduleAutoClose = () => {
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+        }
+        closeTimeoutRef.current = window.setTimeout(() => {
+            if (!isHoveringToast) {
+                closeToast();
+            }
+        }, 3000);
+    };
+
+    useEffect(() => {
+        if (showToast && !isUploading && totalFiles > 0 && completedFiles >= totalFiles) {
+            if (!isHoveringToast) {
+                scheduleAutoClose();
+            }
+        }
+        return () => {
+            if (closeTimeoutRef.current) {
+                window.clearTimeout(closeTimeoutRef.current);
+            }
+        };
+    }, [showToast, isUploading, completedFiles, totalFiles, isHoveringToast]);
+
+    useEffect(() => {
+        if (!showToast) {
+            return;
+        }
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                closeToast();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [showToast]);
 
     const handleUploadClick = () => {
         fileInputRef.current?.click();
@@ -62,34 +124,207 @@ export function HeroSection() {
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files && files.length > 0) {
-            console.log("Files selected:", files);
-            const uploadUrl = `${(import.meta.env as any).SERVER_URL}/document-upload`;
+            const uploadUrl = `${(import.meta.env as any).SERVER_URL}/upload-files`;
+            const fileList = Array.from(files);
+            const formData = new FormData();
 
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const formData = new FormData();
-                formData.append("file", file);
+            fileList.forEach((file) => {
+                formData.append("files", file);
+            });
 
-                try {
-                    const response = await fetch(uploadUrl, {
-                        method: "POST",
-                        body: formData,
-                    });
+            setIsUploading(true);
+            setShowToast(true);
+            setIsClosing(false);
+            setCompletedFiles(0);
+            setTotalFiles(fileList.length);
+            setLoadingMessage(`Embedding ${fileList.length} document${fileList.length > 1 ? "s" : ""}...`);
 
-                    if (response.ok) {
-                        console.log(`Successfully uploaded: ${file.name}`);
-                    } else {
-                        console.error(`Failed to upload ${file.name}:`, response.statusText);
-                    }
-                } catch (error) {
-                    console.error(`Error uploading ${file.name}:`, error);
+            try {
+                const response = await fetch(uploadUrl, {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok || !response.body) {
+                    setLoadingMessage("Upload failed. Please try again.");
+                    setIsUploading(false);
+                    return;
                 }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
+
+                    lines.forEach((line) => {
+                        if (!line.startsWith("data: ")) {
+                            return;
+                        }
+
+                        const payloadText = line.replace("data: ", "").trim();
+                        if (!payloadText) {
+                            return;
+                        }
+
+                        try {
+                            const payload = JSON.parse(payloadText);
+                            if (payload?.status === "embedded") {
+                                setCompletedFiles((prev) => {
+                                    const next = prev + 1;
+                                    setLoadingMessage(
+                                        `Embedded ${payload.filename} (${next}/${fileList.length})`
+                                    );
+                                    return next;
+                                });
+                                setPulseComplete(true);
+                                if (pulseTimeoutRef.current) {
+                                    window.clearTimeout(pulseTimeoutRef.current);
+                                }
+                                pulseTimeoutRef.current = window.setTimeout(() => {
+                                    setPulseComplete(false);
+                                }, 900);
+                            }
+                        } catch {
+                            // Ignore malformed payloads
+                        }
+                    });
+                }
+
+                setLoadingMessage("All documents embedded.");
+            } catch (error) {
+                console.error("Error uploading files:", error);
+                setLoadingMessage("Upload failed. Please try again.");
+            } finally {
+                setIsUploading(false);
             }
         }
     };
 
     return (
         <section className="relative z-10 flex flex-col items-center justify-center min-h-screen min-w-screen px-4 pt-20 pb-16 text-center bg-[#09090b] overflow-hidden">
+            <style>
+                {`
+                .loading-border {
+                    border: 1px solid hsl(var(--accent) / 0.45);
+                    box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2);
+                    animation: borderPulse 2.2s ease-in-out infinite;
+                }
+
+                .completion-pulse {
+                    animation: completionPulse 0.9s ease-out;
+                }
+
+                .status-shell {
+                    background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) padding-box,
+                        linear-gradient(135deg, hsl(var(--accent) / 0.45), transparent 60%, hsl(var(--accent) / 0.2)) border-box;
+                    border: 1px solid transparent;
+                }
+
+                .status-glow {
+                    animation: glowPulse 3s ease-in-out infinite;
+                }
+
+                .status-sheen {
+                    background: linear-gradient(
+                        120deg,
+                        transparent 0%,
+                        rgba(255,255,255,0.12) 45%,
+                        rgba(255,255,255,0.03) 55%,
+                        transparent 100%
+                    );
+                    animation: sheenSweep 2.8s ease-in-out infinite;
+                }
+
+                .status-card {
+                    background: radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 45%),
+                        #18181b;
+                    border: 1px solid rgba(255,255,255,0.08);
+                }
+
+                .accent-strip {
+                    background: linear-gradient(180deg, hsl(var(--accent) / 0.9), transparent 90%);
+                }
+
+                .progress-flow {
+                    background: linear-gradient(
+                        90deg,
+                        hsl(var(--accent) / 0.15),
+                        hsl(var(--accent) / 0.65),
+                        hsl(var(--accent) / 0.15)
+                    );
+                    animation: progressSweep 1.6s ease-in-out infinite;
+                }
+
+                @keyframes borderPulse {
+                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
+                    50% { box-shadow: 0 0 14px 2px hsl(var(--accent) / 0.45); }
+                    100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
+                }
+
+                @keyframes completionPulse {
+                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.6); }
+                    100% { box-shadow: 0 0 0 18px transparent; }
+                }
+
+                @keyframes glowPulse {
+                    0% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
+                    50% { box-shadow: 0 0 36px hsl(var(--accent) / 0.25); }
+                    100% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
+                }
+
+                @keyframes sheenSweep {
+                    0% { transform: translateX(-120%); opacity: 0; }
+                    30% { opacity: 0.7; }
+                    60% { opacity: 0.4; }
+                    100% { transform: translateX(120%); opacity: 0; }
+                }
+
+                @keyframes progressSweep {
+                    0% { transform: translateX(-40%); opacity: 0.4; }
+                    50% { transform: translateX(40%); opacity: 0.9; }
+                    100% { transform: translateX(140%); opacity: 0.4; }
+                }
+
+                @keyframes toastIn {
+                    0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
+                    100% { opacity: 1; transform: translateY(0) scale(1); }
+                }
+
+                @keyframes toastOut {
+                    0% { opacity: 1; transform: translateY(0) scale(1); }
+                    100% { opacity: 0; transform: translateY(-8px) scale(0.98); }
+                }
+
+                .toast-enter {
+                    animation: toastIn 320ms ease-out;
+                }
+
+                .toast-exit {
+                    animation: toastOut 320ms ease-in;
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .loading-border,
+                    .completion-pulse,
+                    .status-glow,
+                    .status-sheen,
+                    .progress-flow,
+                    .toast-enter,
+                    .toast-exit {
+                        animation: none !important;
+                    }
+                }
+                `}
+            </style>
 
             {/* Central Focal Point */}
             <div className="relative z-10 mb-12 group perspective-1000">
@@ -118,14 +353,37 @@ export function HeroSection() {
                 className="relative z-20 space-y-8 max-w-2xl mx-auto"
             >
                 <div className="space-y-4">
-                    <Button
-                        size="lg"
-                        className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group"
-                        onClick={handleUploadClick}
-                    >
-                        <UploadCloud className="mr-2 size-5 text-[hsl(var(--accent))]" />
-                        <span className="text-white font-medium">Upload your .md notes</span>
-                    </Button>
+                    {totalFiles === 0 ? (
+                        <Button
+                            size="lg"
+                            className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group"
+                            onClick={handleUploadClick}
+                        >
+                            <UploadCloud className="mr-2 size-5 text-[hsl(var(--accent))]" />
+                            <span className="text-white font-medium">Upload your .md notes</span>
+                        </Button>
+                    ) : (
+                        <div className="group luminous-btn inline-flex h-14 items-center rounded-full overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={handleUploadClick}
+                                className="inline-flex h-14 items-center gap-2 rounded-l-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35]"
+                            >
+                                <UploadCloud className="size-5 text-white drop-shadow-[0_0_8px_hsl(var(--accent)/0.8)]" />
+                                <span className="font-medium">Upload</span>
+                            </button>
+                            <div className="h-10 w-[2px] bg-white/55 shadow-[0_0_10px_rgba(255,255,255,0.18)]" />
+                            <button
+                                type="button"
+                                onClick={() => navigate("/flashcards")}
+                                disabled={isUploading || completedFiles < totalFiles}
+                                className="group inline-flex h-14 items-center rounded-r-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                View Cards
+                                <span className="ml-2 text-white/70 transition-transform duration-300 group-hover:translate-x-1">→</span>
+                            </button>
+                        </div>
+                    )}
                     <p className="text-white/40 text-sm md:text-base font-light tracking-wide max-w-sm mx-auto">
                         Turn your Markdown notes into a searchable,<br /> intelligent knowledge base.
                     </p>
@@ -140,6 +398,60 @@ export function HeroSection() {
                     accept=".md,.markdown,.txt"
                     multiple
                 />
+
+                {showToast ? (
+                    <div
+                        className="fixed right-6 top-6 z-50 w-[min(84vw,320px)]"
+                        role="status"
+                        aria-live="polite"
+                        onMouseEnter={() => setIsHoveringToast(true)}
+                        onMouseLeave={() => setIsHoveringToast(false)}
+                        onFocusCapture={() => setIsHoveringToast(true)}
+                        onBlurCapture={() => setIsHoveringToast(false)}
+                    >
+                        <div
+                            className={`status-shell status-glow relative overflow-hidden rounded-[18px] ${
+                                isUploading ? "loading-border" : ""
+                            } ${pulseComplete ? "completion-pulse" : ""} ${
+                                isClosing ? "toast-exit" : "toast-enter"
+                            }`}
+                        >
+                            <div className="absolute inset-0 status-sheen pointer-events-none" />
+                            <div className="status-card relative rounded-[16px] px-4 py-3 text-left text-sm text-white/80 backdrop-blur-xl">
+                                <div className="accent-strip absolute left-0 top-0 h-full w-1.5" />
+                                <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.24em] text-white/45">
+                                    <span>Embedding</span>
+                                    <button
+                                        type="button"
+                                        onClick={closeToast}
+                                        className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] tracking-[0.16em] text-white/50 transition hover:text-white"
+                                    >
+                                        <span>Close</span>
+                                        <X className="size-3" />
+                                    </button>
+                                </div>
+                                <div className="mt-2 text-[13px] font-medium text-white">
+                                    {loadingMessage || "Preparing embeddings..."}
+                                </div>
+                                {isUploading ? (
+                                    <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
+                                        <div className="progress-flow h-full w-[60%] rounded-full" />
+                                    </div>
+                                ) : null}
+                                <div className="mt-2.5 flex items-center justify-between text-[10px] text-white/45">
+                                    <div className="flex items-center gap-2">
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--accent)/0.6)] opacity-75" />
+                                            <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(var(--accent)/0.9)]" />
+                                        </span>
+                                        <span>Storing vector embeddings</span>
+                                    </div>
+                                    <span>{completedFiles}/{totalFiles}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
             </motion.div>
 
             {/* Minimal Demo */}
