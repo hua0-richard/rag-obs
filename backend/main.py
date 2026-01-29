@@ -1,8 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from typing import List
-import json
-import re
 import numpy as np
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.document_loaders import TextLoader
@@ -36,13 +34,11 @@ app.add_middleware(
 def root():
     return {"status": "ok"}
 
-
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
 
-
-@app.post("/document-upload")
+@app.post("/upload-files")
 async def document_upload(file: UploadFile = File(...)):
     ensure_db_ready()
     content = await file.read()
@@ -82,44 +78,12 @@ async def document_upload(file: UploadFile = File(...)):
     }
 
 
-    ensure_db_ready()
-
-    async def event_stream():
-        model = SentenceTransformer("all-MiniLM-L6-v2")
-        for file in files:
-            content = await file.read()
-
-            try:
-                text = content.decode("utf-8")
-            except UnicodeDecodeError:
-                text = content.decode("utf-8", errors="replace")
-
-            num_chunks = _embed_and_store_document(
-                filename=file.filename,
-                content_type=file.content_type,
-                text=text,
-                model=model,
-            )
-
-            payload = {
-                "filename": file.filename,
-                "status": "embedded",
-                "num_chunks": num_chunks,
-            }
-            yield f"data: {json.dumps(payload)}\n\n"
-
-        yield "event: done\ndata: {}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
-
-
 @app.get("/ollama-hi")
 def ollama_hi():
     response = ollama.chat(model="llama3.1", messages=[
                            {"role": "user", "content": "Tell a bedtime story"}])
     print(response["message"]["content"])
     return {"response": response["message"]["content"]}
-
 
 @app.get("/search")
 def search(query: str, k: int = 5):
@@ -192,7 +156,6 @@ def _embed_and_store_document(
         session.close()
 
     return len(document_chunks)
-
 
 def _select_kmeans_representatives(
     contents: List[str],
