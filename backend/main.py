@@ -1,18 +1,23 @@
-from fastapi import FastAPI, UploadFile, File
+import json
+from models import Files, Embeddings, Sessions
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
 from typing import List
-import numpy as np
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_community.document_loaders import TextLoader
+import ollama
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
 
 from sentence_transformers import SentenceTransformer
-import ollama
 
-from service import ensure_db_ready, SessionLocal, DocumentEmbedding, Flashcard, VECTOR_DIM
-from sqlalchemy import bindparam, text as sql_text
-from pgvector.sqlalchemy import Vector
+from service import SessionLocal, launch_db
+from starlette.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
+from sqlalchemy import text as sql_text
+from prompt import FLASHCARD_PROMPT
+
+import uuid
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
 app = FastAPI()
 
@@ -29,174 +34,159 @@ app.add_middleware(
 )
 
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 @app.get("/")
 def root():
     return {"status": "ok"}
 
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+@app.get("/session-id")
+def session_id(db: Session = Depends(get_db)):
+    """Create a new session row and return its integer id."""
+    launch_db()
+    session_row = Sessions()
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+    return {"session_id": session_row.id}
 
+# This Stream is Blocking
 @app.post("/upload-files")
-async def document_upload(file: UploadFile = File(...)):
-    ensure_db_ready()
-    content = await file.read()
-
-    try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        text = content.decode("utf-8", errors="replace")
-
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    num_chunks = _embed_and_store_document(
-        filename=file.filename,
-        content_type=file.content_type,
-        text=text,
-        model=model,
-    )
-
-    summary_source = text[:4000]
-    summary_prompt = (
-        "Summarize the following document in 5-8 bullet points. "
-        "Be concise and capture key facts.\n\n"
-        f"{summary_source}"
-    )
-    summary_response = ollama.chat(
-        model="llama3.1",
-        messages=[{"role": "user", "content": summary_prompt}],
-    )
-    summary_text = summary_response["message"]["content"]
-
-    print(file.filename, "split into", num_chunks, "chunks")
+async def document_upload(
+    files: List[UploadFile] = File(...),
+    session_id: int | None = Query(None, description="Existing session_id; if omitted a new one is created"),
+    db: Session = Depends(get_db),
+):
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
     
-    return {
-        "filename": file.filename,
-        "status": "successfully uploaded",
-        "num_chunks": num_chunks,
-        "summary": summary_text,
-    }
-
-
-@app.get("/ollama-hi")
-def ollama_hi():
-    response = ollama.chat(model="llama3.1", messages=[
-                           {"role": "user", "content": "Tell a bedtime story"}])
-    print(response["message"]["content"])
-    return {"response": response["message"]["content"]}
-
-@app.get("/search")
-def search(query: str, k: int = 5):
-    ensure_db_ready()
-    if k < 1:
-        return {"results": []}
-
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    query_embedding = model.encode([query], normalize_embeddings=True)[0].tolist()
-
-    session = SessionLocal()
-    try:
-        results = session.execute(
-            sql_text(
-                "SELECT filename, content_type, chunk_index, content, "
-                "embedding <=> :query_embedding AS distance "
-                "FROM document_embeddings "
-                "ORDER BY embedding <=> :query_embedding "
-                "LIMIT :k"
-            ).bindparams(bindparam("query_embedding", type_=Vector(VECTOR_DIM))),
-            {"query_embedding": query_embedding, "k": k},
-        ).mappings().all()
-    finally:
-        session.close()
-
-    return {"results": results}
-
-
-def _embed_and_store_document(
-    filename: str,
-    content_type: str,
-    text: str,
-    model: SentenceTransformer,
-):
-    documents = [
-        Document(
-            page_content=text,
-            metadata={
-                "filename": filename,
-                "content_type": content_type,
-            },
-        )
-    ]
-
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    document_chunks = splitter.split_documents(documents)
-
-    chunk_texts = [chunk.page_content for chunk in document_chunks]
-    embeddings = model.encode(
-        chunk_texts,
-        normalize_embeddings=True,
-        batch_size=32,
-        show_progress_bar=True
-    )
-
-    session = SessionLocal()
-    try:
-        for idx, (chunk, embedding) in enumerate(zip(document_chunks, embeddings)):
-            session.add(
-                DocumentEmbedding(
-                    filename=filename,
-                    content_type=content_type,
-                    chunk_index=idx,
-                    content=chunk.page_content,
-                    embedding=embedding.tolist(),
-                )
-            )
-        session.commit()
-    finally:
-        session.close()
-
-    return len(document_chunks)
-
-def _select_kmeans_representatives(
-    contents: List[str],
-    embeddings: List[List[float]],
-    clusters: int,
-    max_iters: int = 10,
-    seed: int = 42,
-):
-    if len(contents) <= clusters:
-        return contents
-
-    vectors = np.array(embeddings, dtype=np.float32)
-    rng = np.random.default_rng(seed)
-    indices = rng.choice(len(vectors), size=clusters, replace=False)
-    centroids = vectors[indices]
-
-    for _ in range(max_iters):
-        distances = np.linalg.norm(vectors[:, None, :] - centroids[None, :, :], axis=2)
-        labels = np.argmin(distances, axis=1)
-        new_centroids = []
-        for idx in range(clusters):
-            members = vectors[labels == idx]
-            if len(members) == 0:
-                new_centroids.append(centroids[idx])
+    # Need to tune
+    splitter = RecursiveCharacterTextSplitter(chunk_size = 512)
+    
+    async def event_stream():
+        launch_db()
+        try:
+            # create or reuse session
+            if session_id is not None:
+                session_row = db.get(Sessions, session_id)
+                if session_row is None:
+                    raise HTTPException(status_code=404, detail="session_id not found")
             else:
-                new_centroids.append(members.mean(axis=0))
-        new_centroids = np.vstack(new_centroids)
-        if np.allclose(centroids, new_centroids, atol=1e-4):
-            centroids = new_centroids
-            break
-        centroids = new_centroids
+                session_row = Sessions()
+                db.add(session_row)
+                db.flush()
+                session_id = session_row.id
 
-    distances = np.linalg.norm(vectors[:, None, :] - centroids[None, :, :], axis=2)
-    labels = np.argmin(distances, axis=1)
-    selected = []
-    for idx in range(clusters):
-        members_idx = np.where(labels == idx)[0]
-        if len(members_idx) == 0:
-            continue
-        member_vectors = vectors[members_idx]
-        member_distances = np.linalg.norm(member_vectors - centroids[idx], axis=1)
-        best_idx = members_idx[int(np.argmin(member_distances))]
-        selected.append(contents[best_idx])
-    return selected
+            for uploaded in files:
+                raw_bytes = await uploaded.read()
+                text = raw_bytes.decode("utf-8")
+                chunks = splitter.split_text(text)
+                
+                # non-blocking
+                vectors = await run_in_threadpool(model.encode, chunks, convert_to_numpy=True)
+                file_row = Files(session_id=session_id)
+                db.add(file_row)
+                db.flush()
+
+                db.bulk_save_objects([
+                    Embeddings(
+                        files_id=file_row.id,
+                        session_id=session_id,
+                        filename=uploaded.filename,
+                        content_type="text/markdown",
+                        chunk_index=i,
+                        content=chunk,
+                        embedding=vec.tolist(),
+                    )
+                    for i, (chunk, vec) in enumerate(zip(chunks, vectors))
+                ])
+                
+                payload = {"status": "embedded", "filename": uploaded.filename}
+                yield f"data: {json.dumps(payload)}\n\n"
+
+            db.commit()
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            db.rollback()
+            payload = {"status": "error", "detail": str(e)}
+            yield f"data: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+@app.get("/llm")
+async def llm_flashcards(prompt: str, k: int = 5, session_id: int | None = None, db: Session = Depends(get_db)):
+    """
+    Retrieve top-k chunks via pgvector and ask Ollama (llama3.1) to generate flashcards.
+    """
+    launch_db()
+
+    # Embed the prompt off the event loop
+    qvec = (await run_in_threadpool(model.encode, [prompt], convert_to_numpy=True))[0]
+
+    if session_id is not None and db.get(Sessions, session_id) is None:
+        raise HTTPException(status_code=404, detail="session_id not found")
+
+    base_query = (
+        "SELECT filename, chunk_index, content "
+        "FROM embeddings "
+    )
+    clauses = []
+    params = {"qvec": qvec.tolist(), "k": k}
+    if session_id is not None:
+        clauses.append("session_id = :sid")
+        params["sid"] = session_id
+    if clauses:
+        base_query += "WHERE " + " AND ".join(clauses) + " "
+    base_query += "ORDER BY embedding <=> (:qvec)::vector LIMIT :k"
+
+    rows = db.execute(sql_text(base_query), params).fetchall()
+
+    context_lines = []
+    sources = []
+    for i, row in enumerate(rows):
+        context_lines.append(f"[{i}] {row.filename} (chunk {row.chunk_index}): {row.content}")
+        sources.append(
+            {
+                "tag": i,
+                "filename": row.filename,
+                "chunk_index": row.chunk_index,
+            }
+        )
+    context = "\n\n".join(context_lines)
+
+    llm_prompt = FLASHCARD_PROMPT.format(context=context)
+
+    resp = await run_in_threadpool(
+        ollama.chat,
+        model="llama3.1",
+        messages=[{"role": "user", "content": llm_prompt}],
+    )
+    content = resp["message"]["content"]
+
+    flashcards = None
+    try:
+        parsed = json.loads(content)
+        # Attach file source info when source_tag is provided
+        if isinstance(parsed, list):
+            by_tag = {s["tag"]: s for s in sources}
+            for card in parsed:
+                tag = card.get("source_tag")
+                if tag in by_tag:
+                    card["source"] = by_tag[tag]
+        flashcards = parsed
+    except Exception:
+        # leave flashcards as None; return raw text for visibility
+        pass
+
+    return {
+        "prompt": prompt,
+        "flashcards": flashcards,
+        "sources": sources,
+        "raw": content,
+    }

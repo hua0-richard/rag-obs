@@ -37,4 +37,8 @@ Primary use cases:
 
 ## Architecture
 
-    
+
+GitHub Models LLM on Prod
+Ollama models on Local
+
+`all-MiniLM-L6-v2` Embeddings

@@ -67,6 +67,33 @@ export function HeroSection() {
     const pulseTimeoutRef = useRef<number | null>(null);
     const closeTimeoutRef = useRef<number | null>(null);
 
+    useEffect(() => {
+        const sessionKey = "session-id";
+        if (localStorage.getItem(sessionKey)) {
+            return;
+        }
+
+        const fetchSessionId = async () => {
+            try {
+                const response = await fetch(`${(import.meta.env as any).SERVER_URL}/session-id`);
+                if (!response.ok) {
+                    console.error("Failed to fetch session id:", response.statusText);
+                    return;
+                }
+
+                const data = await response.json();
+                const sessionId = data?.["session-id"];
+                if (sessionId) {
+                    localStorage.setItem(sessionKey, sessionId);
+                }
+            } catch (error) {
+                console.error("Error fetching session id:", error);
+            }
+        };
+
+        fetchSessionId();
+    }, []);
+
     const closeToast = () => {
         setIsClosing(true);
         if (closeTimeoutRef.current) {
@@ -90,6 +117,7 @@ export function HeroSection() {
     };
 
     useEffect(() => {
+        
         if (showToast && !isUploading && totalFiles > 0 && completedFiles >= totalFiles) {
             if (!isHoveringToast) {
                 scheduleAutoClose();
