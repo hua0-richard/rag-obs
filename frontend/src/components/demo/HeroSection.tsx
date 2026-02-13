@@ -68,11 +68,11 @@ export function HeroSection() {
     const closeTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const sessionKey = "session-id";
+        const sessionKey = "session_id";
         if (localStorage.getItem(sessionKey)) {
             return;
         }
-
+        console.log("Fetching new session id");
         const fetchSessionId = async () => {
             try {
                 const response = await fetch(`${(import.meta.env as any).SERVER_URL}/session-id`);
@@ -82,7 +82,8 @@ export function HeroSection() {
                 }
 
                 const data = await response.json();
-                const sessionId = data?.["session-id"];
+                const sessionId = data?.["session_id"];
+                console.log(sessionId);
                 if (sessionId) {
                     localStorage.setItem(sessionKey, sessionId);
                 }
@@ -90,7 +91,6 @@ export function HeroSection() {
                 console.error("Error fetching session id:", error);
             }
         };
-
         fetchSessionId();
     }, []);
 
@@ -152,7 +152,11 @@ export function HeroSection() {
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files && files.length > 0) {
-            const uploadUrl = `${(import.meta.env as any).SERVER_URL}/upload-files`;
+            const sessionId = localStorage.getItem("session_id");
+            const uploadUrlBase = `${(import.meta.env as any).SERVER_URL}/upload-files`;
+            const uploadUrl = sessionId
+                ? `${uploadUrlBase}?session_id=${encodeURIComponent(sessionId)}`
+                : uploadUrlBase;
             const fileList = Array.from(files);
             const formData = new FormData();
 
@@ -173,7 +177,21 @@ export function HeroSection() {
                     body: formData,
                 });
 
-                if (!response.ok || !response.body) {
+                if (!response.ok) {
+                    let detail = "Upload failed. Please try again.";
+                    try {
+                        const data = await response.json();
+                        if (data?.detail) {
+                            detail = data.detail;
+                        }
+                    } catch {
+                        // ignore parse errors
+                    }
+                    setLoadingMessage(detail);
+                    setIsUploading(false);
+                    return;
+                }
+                if (!response.body) {
                     setLoadingMessage("Upload failed. Please try again.");
                     setIsUploading(false);
                     return;
@@ -182,6 +200,11 @@ export function HeroSection() {
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = "";
+                let completed = 0;
+                let sawFatalError = false;
+                let fatalErrorDetail = "";
+                let errorCount = 0;
+                let lastErrorDetail = "";
 
                 while (true) {
                     const { value, done } = await reader.read();
@@ -193,41 +216,81 @@ export function HeroSection() {
                     const lines = buffer.split("\n");
                     buffer = lines.pop() || "";
 
-                    lines.forEach((line) => {
+                    for (const line of lines) {
                         if (!line.startsWith("data: ")) {
-                            return;
+                            continue;
                         }
 
                         const payloadText = line.replace("data: ", "").trim();
                         if (!payloadText) {
-                            return;
+                            continue;
+                        }
+                        if (payloadText === "[DONE]") {
+                            continue;
                         }
 
                         try {
                             const payload = JSON.parse(payloadText);
-                            if (payload?.status === "embedded") {
-                                setCompletedFiles((prev) => {
-                                    const next = prev + 1;
-                                    setLoadingMessage(
-                                        `Embedded ${payload.filename} (${next}/${fileList.length})`
-                                    );
-                                    return next;
-                                });
-                                setPulseComplete(true);
-                                if (pulseTimeoutRef.current) {
-                                    window.clearTimeout(pulseTimeoutRef.current);
+                            if (payload?.status === "session" && payload?.session_id) {
+                                localStorage.setItem("session_id", String(payload.session_id));
+                                continue;
+                            }
+                            if (payload?.status === "embedded" || payload?.status === "skipped") {
+                                completed += 1;
+                                setCompletedFiles(completed);
+                                const verb = payload.status === "embedded" ? "Embedded" : "Skipped";
+                                setLoadingMessage(
+                                    `${verb} ${payload.filename} (${completed}/${fileList.length})`
+                                );
+                                if (payload.status === "embedded") {
+                                    setPulseComplete(true);
+                                    if (pulseTimeoutRef.current) {
+                                        window.clearTimeout(pulseTimeoutRef.current);
+                                    }
+                                    pulseTimeoutRef.current = window.setTimeout(() => {
+                                        setPulseComplete(false);
+                                    }, 900);
                                 }
-                                pulseTimeoutRef.current = window.setTimeout(() => {
-                                    setPulseComplete(false);
-                                }, 900);
+                                continue;
+                            }
+                            if (payload?.status === "error") {
+                                const detail = payload?.detail || "Upload failed. Please try again.";
+                                if (payload?.filename) {
+                                    errorCount += 1;
+                                    completed += 1;
+                                    setCompletedFiles(completed);
+                                    lastErrorDetail = `Failed ${payload.filename}: ${detail}`;
+                                    setLoadingMessage(lastErrorDetail);
+                                    continue;
+                                }
+                                sawFatalError = true;
+                                fatalErrorDetail = detail;
+                                setLoadingMessage(detail);
+                                break;
                             }
                         } catch {
                             // Ignore malformed payloads
                         }
-                    });
+                    }
+                    if (sawFatalError) {
+                        await reader.cancel();
+                        break;
+                    }
                 }
 
-                setLoadingMessage("All documents embedded.");
+                if (sawFatalError) {
+                    setLoadingMessage(fatalErrorDetail || "Upload failed. Please try again.");
+                } else if (errorCount > 0) {
+                    setLoadingMessage(
+                        `Processed ${completed}/${fileList.length} files with ${errorCount} error${errorCount > 1 ? "s" : ""}.`
+                    );
+                } else if (completed === 0) {
+                    setLoadingMessage("No documents were embedded.");
+                } else if (completed < fileList.length) {
+                    setLoadingMessage(`Processed ${completed}/${fileList.length} files.`);
+                } else {
+                    setLoadingMessage("All documents embedded.");
+                }
             } catch (error) {
                 console.error("Error uploading files:", error);
                 setLoadingMessage("Upload failed. Please try again.");

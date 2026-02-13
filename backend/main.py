@@ -6,14 +6,14 @@ from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 import ollama
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 from sentence_transformers import SentenceTransformer
-
 from service import SessionLocal, launch_db
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from sqlalchemy import text as sql_text
 from prompt import FLASHCARD_PROMPT
+
+import time
 
 import uuid
 
@@ -60,64 +60,130 @@ def session_id(db: Session = Depends(get_db)):
 @app.post("/upload-files")
 async def document_upload(
     files: List[UploadFile] = File(...),
-    session_id: int | None = Query(None, description="Existing session_id; if omitted a new one is created"),
-    db: Session = Depends(get_db),
+    session_id: int | None = Query(
+        None, description="Existing session_id; if omitted a new one is created"
+    ),
 ):
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     
     # Need to tune
     splitter = RecursiveCharacterTextSplitter(chunk_size = 512)
-    
+    # Read all uploads while the request context is active to avoid empty reads in the stream.
+    prepared_files: list[tuple[str, bytes, str | None]] = []
+    for uploaded in files:
+        await uploaded.seek(0)
+        raw_bytes = await uploaded.read()
+        prepared_files.append((uploaded.filename, raw_bytes, uploaded.content_type))
+        await uploaded.close()
+        
     async def event_stream():
-        launch_db()
+        db = SessionLocal()
         try:
-            # create or reuse session
-            if session_id is not None:
-                session_row = db.get(Sessions, session_id)
+            launch_db()
+            active_session_id = session_id
+            if active_session_id is not None:
+                session_row = db.get(Sessions, active_session_id)
                 if session_row is None:
-                    raise HTTPException(status_code=404, detail="session_id not found")
+                    payload = {"status": "error", "detail": "session_id not found"}
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    return
             else:
                 session_row = Sessions()
                 db.add(session_row)
-                db.flush()
-                session_id = session_row.id
+                db.commit()
+                db.refresh(session_row)
+                active_session_id = session_row.id
 
-            for uploaded in files:
-                raw_bytes = await uploaded.read()
-                text = raw_bytes.decode("utf-8")
+            yield f"data: {json.dumps({'status': 'session', 'session_id': active_session_id})}\n\n"
+            
+            for filename, raw_bytes, content_type in prepared_files:
+                if not raw_bytes:
+                    payload = {
+                        "status": "skipped",
+                        "filename": filename,
+                        "detail": "empty file",
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    continue
+
+                try:
+                    text = raw_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    payload = {
+                        "status": "error",
+                        "filename": filename,
+                        "detail": "file is not valid utf-8 text",
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    continue
                 chunks = splitter.split_text(text)
-                
-                # non-blocking
-                vectors = await run_in_threadpool(model.encode, chunks, convert_to_numpy=True)
-                file_row = Files(session_id=session_id)
-                db.add(file_row)
-                db.flush()
-
-                db.bulk_save_objects([
-                    Embeddings(
-                        files_id=file_row.id,
-                        session_id=session_id,
-                        filename=uploaded.filename,
-                        content_type="text/markdown",
-                        chunk_index=i,
-                        content=chunk,
-                        embedding=vec.tolist(),
+                if not chunks:
+                    payload = {
+                        "status": "skipped",
+                        "filename": filename,
+                        "detail": "no text chunks produced",
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    continue
+                try:
+                    # non-blocking
+                    vectors = await run_in_threadpool(
+                        model.encode, chunks, convert_to_numpy=True
                     )
-                    for i, (chunk, vec) in enumerate(zip(chunks, vectors))
-                ])
-                
-                payload = {"status": "embedded", "filename": uploaded.filename}
-                yield f"data: {json.dumps(payload)}\n\n"
+                    file_row = Files(session_id=active_session_id)
+                    db.add(file_row)
+                    db.flush()
 
-            db.commit()
+                    db.add_all([
+                        Embeddings(
+                            files_id=file_row.id,
+                            session_id=active_session_id,
+                            filename=filename,
+                            content_type=content_type or "text/plain",
+                            chunk_index=i,
+                            content=chunk,
+                            embedding=vec.tolist(),
+                        )
+                        for i, (chunk, vec) in enumerate(zip(chunks, vectors))
+                    ])
+                    # Commit per file so embeddings persist even if the stream is interrupted.
+                    db.commit()
+                    
+                    payload = {"status": "embedded", "filename": filename}
+                    yield f"data: {json.dumps(payload)}\n\n"
+                except Exception as e:
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    payload = {
+                        "status": "error",
+                        "filename": filename,
+                        "detail": str(e),
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+
             yield "data: [DONE]\n\n"
         except Exception as e:
-            db.rollback()
+            try:
+                db.rollback()
+            except Exception:
+                pass
             payload = {"status": "error", "detail": str(e)}
             yield f"data: {json.dumps(payload)}\n\n"
+        finally:
+            db.close()
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 @app.get("/llm")
 async def llm_flashcards(prompt: str, k: int = 5, session_id: int | None = None, db: Session = Depends(get_db)):

@@ -19,6 +19,7 @@ class Files(Base):
         ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
         nullable=False,
     )
+
 # Consider Partial Indexing for Speedup    
 class Embeddings(Base):
     __tablename__ = "embeddings"
