@@ -1,10 +1,10 @@
 import json
+import ollama
 from models import Files, Embeddings, Sessions
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
-import ollama
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from service import SessionLocal, launch_db
@@ -57,6 +57,7 @@ def session_id(db: Session = Depends(get_db)):
     return {"session_id": session_row.id}
 
 # This Stream is Blocking
+# This is WORKING for now
 @app.post("/upload-files")
 async def document_upload(
     files: List[UploadFile] = File(...),
@@ -186,14 +187,22 @@ async def document_upload(
     )
 
 @app.get("/llm")
-async def llm_flashcards(prompt: str, k: int = 5, session_id: int | None = None, db: Session = Depends(get_db)):
+async def llm_flashcards(prompt: str | None = None, k: int | None = None, session_id: int | None = None, db: Session = Depends(get_db)):
     """
     Retrieve top-k chunks via pgvector and ask Ollama (llama3.1) to generate flashcards.
     """
     launch_db()
 
-    # Embed the prompt off the event loop
-    qvec = (await run_in_threadpool(model.encode, [prompt], convert_to_numpy=True))[0]
+    if not prompt and session_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="prompt is required unless session_id is provided",
+        )
+
+    qvec = None
+    if prompt:
+        # Embed the prompt off the event loop
+        qvec = (await run_in_threadpool(model.encode, [prompt], convert_to_numpy=True))[0]
 
     if session_id is not None and db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
@@ -203,13 +212,24 @@ async def llm_flashcards(prompt: str, k: int = 5, session_id: int | None = None,
         "FROM embeddings "
     )
     clauses = []
-    params = {"qvec": qvec.tolist(), "k": k}
+    params = {}
     if session_id is not None:
         clauses.append("session_id = :sid")
         params["sid"] = session_id
     if clauses:
         base_query += "WHERE " + " AND ".join(clauses) + " "
-    base_query += "ORDER BY embedding <=> (:qvec)::vector LIMIT :k"
+    if qvec is not None:
+        params["qvec"] = qvec.tolist()
+        base_query += "ORDER BY embedding <=> (:qvec)::vector"
+    else:
+        base_query += "ORDER BY chunk_index"
+
+    effective_k = k
+    if effective_k is None and session_id is None:
+        effective_k = 5
+    if effective_k is not None:
+        base_query += " LIMIT :k"
+        params["k"] = effective_k
 
     rows = db.execute(sql_text(base_query), params).fetchall()
 
@@ -226,7 +246,8 @@ async def llm_flashcards(prompt: str, k: int = 5, session_id: int | None = None,
         )
     context = "\n\n".join(context_lines)
 
-    llm_prompt = FLASHCARD_PROMPT.format(context=context)
+    n_flashcards = len(rows)
+    llm_prompt = FLASHCARD_PROMPT.format(context=context, n_flashcards=n_flashcards)
 
     resp = await run_in_threadpool(
         ollama.chat,
