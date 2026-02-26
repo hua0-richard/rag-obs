@@ -37,6 +37,11 @@ class Flashcard(Base):
     __tablename__ = "flashcards"
     
     id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(
+        Integer,
+        ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=True,
+    )
     filename = Column(String(512), nullable=False)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)

@@ -1,6 +1,7 @@
 import json
+import re
 import ollama
-from models import Files, Embeddings, Sessions
+from models import Files, Embeddings, Sessions, Flashcard
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
 from typing import List
@@ -257,23 +258,87 @@ async def llm_flashcards(prompt: str | None = None, k: int | None = None, sessio
     content = resp["message"]["content"]
 
     flashcards = None
+    saved_count = 0
+    parsed = None
     try:
         parsed = json.loads(content)
-        # Attach file source info when source_tag is provided
-        if isinstance(parsed, list):
-            by_tag = {s["tag"]: s for s in sources}
-            for card in parsed:
-                tag = card.get("source_tag")
-                if tag in by_tag:
-                    card["source"] = by_tag[tag]
-        flashcards = parsed
     except Exception:
-        # leave flashcards as None; return raw text for visibility
-        pass
+        start = content.find("[")
+        end = content.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            candidate = content[start : end + 1]
+            try:
+                parsed = json.loads(candidate)
+            except Exception:
+                parsed = None
+
+    # Attach file source info when source_tag is provided
+    if isinstance(parsed, list):
+        by_tag = {s["tag"]: s for s in sources}
+        for card in parsed:
+            tag = card.get("source_tag")
+            if isinstance(tag, str):
+                match = re.search(r"\d+", tag)
+                tag = int(match.group(0)) if match else None
+                card["source_tag"] = tag
+            if tag in by_tag:
+                card["source"] = by_tag[tag]
+        if session_id is not None:
+            rows_to_save: list[Flashcard] = []
+            for card in parsed:
+                question = card.get("question")
+                answer = card.get("answer")
+                if not question or not answer:
+                    continue
+                tag = card.get("source_tag")
+                filename = None
+                if tag in by_tag:
+                    filename = by_tag[tag].get("filename")
+                if not filename:
+                    filename = "unknown"
+                rows_to_save.append(
+                    Flashcard(
+                        session_id=session_id,
+                        filename=filename,
+                        question=question,
+                        answer=answer,
+                    )
+                )
+            if rows_to_save:
+                db.add_all(rows_to_save)
+                db.commit()
+                saved_count = len(rows_to_save)
+    flashcards = parsed
 
     return {
         "prompt": prompt,
         "flashcards": flashcards,
         "sources": sources,
         "raw": content,
+        "saved_count": saved_count,
     }
+
+@app.get("/flashcards")
+def get_flashcards(session_id: int = Query(...), db: Session = Depends(get_db)):
+    launch_db()
+    if db.get(Sessions, session_id) is None:
+        raise HTTPException(status_code=404, detail="session_id not found")
+    rows = db.execute(
+        sql_text(
+            "SELECT id, filename, question, answer "
+            "FROM flashcards "
+            "WHERE session_id = :sid "
+            "ORDER BY id"
+        ),
+        {"sid": session_id},
+    ).fetchall()
+    flashcards = [
+        {
+            "id": row.id,
+            "filename": row.filename,
+            "question": row.question,
+            "answer": row.answer,
+        }
+        for row in rows
+    ]
+    return {"session_id": session_id, "flashcards": flashcards}

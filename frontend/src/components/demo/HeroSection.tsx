@@ -57,6 +57,7 @@ export function HeroSection() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [isSessionLoading, setIsSessionLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
     const [completedFiles, setCompletedFiles] = useState(0);
@@ -70,10 +71,12 @@ export function HeroSection() {
     useEffect(() => {
         const sessionKey = "session_id";
         if (localStorage.getItem(sessionKey)) {
+            setIsSessionLoading(false);
             return;
         }
         console.log("Fetching new session id");
         const fetchSessionId = async () => {
+            setIsSessionLoading(true);
             try {
                 const response = await fetch(`${(import.meta.env as any).SERVER_URL}/session-id`);
                 if (!response.ok) {
@@ -84,11 +87,13 @@ export function HeroSection() {
                 const data = await response.json();
                 const sessionId = data?.["session_id"];
                 console.log(sessionId);
-                if (sessionId) {
+                if (sessionId && !localStorage.getItem(sessionKey)) {
                     localStorage.setItem(sessionKey, sessionId);
                 }
             } catch (error) {
                 console.error("Error fetching session id:", error);
+            } finally {
+                setIsSessionLoading(false);
             }
         };
         fetchSessionId();
@@ -146,10 +151,16 @@ export function HeroSection() {
     }, [showToast]);
 
     const handleUploadClick = () => {
+        if (isUploading || isSessionLoading) {
+            return;
+        }
         fileInputRef.current?.click();
     };
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (isSessionLoading) {
+            return;
+        }
         const files = event.target.files;
         if (files && files.length > 0) {
             const sessionId = localStorage.getItem("session_id");
@@ -447,21 +458,27 @@ export function HeroSection() {
                     {totalFiles === 0 ? (
                         <Button
                             size="lg"
-                            className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group"
+                            disabled={isUploading || isSessionLoading}
+                            className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group disabled:cursor-not-allowed disabled:hover:scale-100"
                             onClick={handleUploadClick}
                         >
                             <UploadCloud className="mr-2 size-5 text-[hsl(var(--accent))]" />
-                            <span className="text-white font-medium">Upload your .md notes</span>
+                            <span className="text-white font-medium">
+                                {isSessionLoading ? "Initializing session..." : "Upload your .md notes"}
+                            </span>
                         </Button>
                     ) : (
                         <div className="group luminous-btn inline-flex h-14 items-center rounded-full overflow-hidden">
                             <button
                                 type="button"
                                 onClick={handleUploadClick}
-                                className="inline-flex h-14 items-center gap-2 rounded-l-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35]"
+                                disabled={isUploading || isSessionLoading}
+                                className="inline-flex h-14 items-center gap-2 rounded-l-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <UploadCloud className="size-5 text-white drop-shadow-[0_0_8px_hsl(var(--accent)/0.8)]" />
-                                <span className="font-medium">Upload</span>
+                                <span className="font-medium">
+                                    {isSessionLoading ? "Initializing..." : "Upload"}
+                                </span>
                             </button>
                             <div className="h-10 w-[2px] bg-white/55 shadow-[0_0_10px_rgba(255,255,255,0.18)]" />
                             <button

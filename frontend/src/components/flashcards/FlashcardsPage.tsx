@@ -1,39 +1,60 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Flashcard } from './Flashcard';
 import { useNavigate } from 'react-router-dom';
 
-const MOCK_CARDS = [
-    {
-        id: 1,
-        front: "What is the primary function of the hippocampus?",
-        back: "The hippocampus is responsible for long-term memory formation, spatial navigation, and memory consolidation from short-term to long-term memory."
-    },
-    {
-        id: 2,
-        front: "Explain the difference between supervised and unsupervised learning.",
-        back: "Supervised learning uses labeled datasets to train algorithms to classify data or predict outcomes. Unsupervised learning analyzes and clusters unlabeled datasets to discover hidden patterns."
-    },
-    {
-        id: 3,
-        front: "What is a closure in JavaScript?",
-        back: "A closure is a function combined with its lexical environment. It allows an inner function to access variables from its outer function's scope even after the outer function has finished executing."
-    },
-    {
-        id: 4,
-        front: "Long answer test",
-        back: "This is a deliberately long response to validate scrolling inside the flashcard without the layout jumping. It should remain readable, keep the card height stable, and allow a smooth, in-card scroll when content exceeds the visible area. Repeat: this is a deliberately long response to validate scrolling inside the flashcard without the layout jumping. It should remain readable, keep the card height stable, and allow a smooth, in-card scroll when content exceeds the visible area."
-    }
-];
+type ApiFlashcard = {
+    id: number;
+    filename: string;
+    question: string;
+    answer: string;
+};
 
 export function FlashcardsPage() {
     const navigate = useNavigate();
+    const [cards, setCards] = useState<ApiFlashcard[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const sessionId = localStorage.getItem("session_id");
+        if (!sessionId) {
+            setError("No session id found. Upload files to start a session.");
+            setIsLoading(false);
+            return;
+        }
+
+        const fetchFlashcards = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const response = await fetch(
+                    `${(import.meta.env as any).SERVER_URL}/flashcards?session_id=${encodeURIComponent(sessionId)}`
+                );
+                if (!response.ok) {
+                    const detail = await response.text();
+                    throw new Error(detail || "Failed to load flashcards");
+                }
+                const data = await response.json();
+                const list = Array.isArray(data?.flashcards) ? data.flashcards : [];
+                setCards(list);
+                setCurrentIndex(0);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : "Failed to load flashcards";
+                setError(message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchFlashcards();
+    }, []);
 
     const handleNext = () => {
-        if (currentIndex < MOCK_CARDS.length - 1) {
+        if (currentIndex < cards.length - 1) {
             setCurrentIndex(prev => prev + 1);
         }
     };
@@ -43,6 +64,8 @@ export function FlashcardsPage() {
             setCurrentIndex(prev => prev - 1);
         }
     };
+
+    const hasCards = cards.length > 0;
 
     return (
         <div className="min-h-screen w-screen bg-[#09090b] flex flex-col relative overflow-hidden selection:bg-white/10 selection:text-white">
@@ -70,19 +93,60 @@ export function FlashcardsPage() {
                 {/* Card Container */}
                 <div className="w-full flex justify-center mb-16 relative perspective-1000">
                     <AnimatePresence mode='wait'>
-                        <motion.div
-                            key={currentIndex}
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
-                            transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-                            className="w-full flex justify-center"
-                        >
-                            <Flashcard
-                                front={MOCK_CARDS[currentIndex].front}
-                                back={MOCK_CARDS[currentIndex].back}
-                            />
-                        </motion.div>
+                        {isLoading ? (
+                            <motion.div
+                                key="loading"
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
+                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                className="w-full flex justify-center"
+                            >
+                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex items-center justify-center text-white/40">
+                                    Loading flashcards...
+                                </div>
+                            </motion.div>
+                        ) : error ? (
+                            <motion.div
+                                key="error"
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
+                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                className="w-full flex justify-center"
+                            >
+                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex items-center justify-center text-white/40 px-10 text-center">
+                                    {error}
+                                </div>
+                            </motion.div>
+                        ) : !hasCards ? (
+                            <motion.div
+                                key="empty"
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
+                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                className="w-full flex justify-center"
+                            >
+                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex items-center justify-center text-white/40 px-10 text-center">
+                                    No flashcards found for this session.
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key={cards[currentIndex]?.id ?? currentIndex}
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
+                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                className="w-full flex justify-center"
+                            >
+                                <Flashcard
+                                    front={cards[currentIndex].question}
+                                    back={cards[currentIndex].answer}
+                                />
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 </div>
 
@@ -92,7 +156,7 @@ export function FlashcardsPage() {
                         variant="ghost"
                         size="icon"
                         onClick={handlePrev}
-                        disabled={currentIndex === 0}
+                        disabled={!hasCards || currentIndex === 0}
                         className="h-14 w-14 rounded-full bg-[#18181b] 
                                    border border-white/5 border-t-white/10
                                    shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)]
@@ -106,14 +170,14 @@ export function FlashcardsPage() {
                     </Button>
 
                     <div className="text-white/20 text-xs font-mono tracking-widest uppercase">
-                        <span className="text-[hsl(var(--accent))]">{currentIndex + 1}</span> <span className="mx-1 opacity-50">/</span> {MOCK_CARDS.length}
+                        <span className="text-[hsl(var(--accent))]">{hasCards ? currentIndex + 1 : 0}</span> <span className="mx-1 opacity-50">/</span> {cards.length}
                     </div>
 
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={handleNext}
-                        disabled={currentIndex === MOCK_CARDS.length - 1}
+                        disabled={!hasCards || currentIndex === cards.length - 1}
                         className="h-14 w-14 rounded-full bg-[#18181b] 
                                    border border-white/5 border-t-white/10
                                    shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)]
