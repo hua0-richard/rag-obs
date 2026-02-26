@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/shared/components/ui/Button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/shared/components/ui/Card";
 import { Settings } from "lucide-react";
 
 export function ButtonsCard() {

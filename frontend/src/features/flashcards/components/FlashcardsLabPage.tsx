@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { Check, FileText, Wand2, Sparkles, X, Layers, Clock, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/Button";
 import { useNavigate } from "react-router-dom";
+import { loadDecks, markDeckStudied, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 
 const DOCUMENTS = [
     {
@@ -31,40 +32,75 @@ const DOCUMENTS = [
     },
 ];
 
-const MOCK_DECKS = [
-    {
-        id: "deck-1",
-        title: "Neuroscience & Learning",
-        cardCount: 24,
-        mastery: 65,
-        lastStudied: "2 days ago",
-    },
-    {
-        id: "deck-2",
-        title: "System Design Patterns",
-        cardCount: 18,
-        mastery: 12,
-        lastStudied: "1 week ago",
-    },
-    {
-        id: "deck-3",
-        title: "React Internals",
-        cardCount: 32,
-        mastery: 88,
-        lastStudied: "3 days ago",
-    },
-];
-
 type Tab = "create" | "decks";
+
+const formatRelativeTime = (isoTimestamp: string) => {
+    const timestamp = new Date(isoTimestamp).getTime();
+    if (!Number.isFinite(timestamp)) {
+        return "just now";
+    }
+    const diffMs = Math.max(0, Date.now() - timestamp);
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) {
+        return "just now";
+    }
+    if (minutes < 60) {
+        return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
+    }
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+        return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+    }
+    const days = Math.floor(hours / 24);
+    if (days < 7) {
+        return `${days} day${days === 1 ? "" : "s"} ago`;
+    }
+    const weeks = Math.floor(days / 7);
+    if (weeks < 5) {
+        return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+    }
+    const months = Math.floor(days / 30);
+    if (months < 12) {
+        return `${months} month${months === 1 ? "" : "s"} ago`;
+    }
+    const years = Math.floor(days / 365);
+    return `${years} year${years === 1 ? "" : "s"} ago`;
+};
 
 export function FlashcardsLabPage() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>("create");
     const [selected, setSelected] = useState<string[]>(["doc-1"]);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [decks, setDecks] = useState<FlashcardDeck[]>(() => loadDecks());
 
     const selectedCount = selected.length;
     const totalDocs = DOCUMENTS.length;
+
+    useEffect(() => {
+        if (activeTab === "decks") {
+            setDecks(loadDecks());
+        }
+    }, [activeTab]);
+
+    const sortedDecks = useMemo(() => {
+        return [...decks].sort((a, b) => {
+            const aTimeRaw = new Date(a.lastStudiedAt ?? a.createdAt).getTime();
+            const bTimeRaw = new Date(b.lastStudiedAt ?? b.createdAt).getTime();
+            const aTime = Number.isFinite(aTimeRaw) ? aTimeRaw : 0;
+            const bTime = Number.isFinite(bTimeRaw) ? bTimeRaw : 0;
+            return bTime - aTime;
+        });
+    }, [decks]);
+
+    const handleStudyDeck = (deck: FlashcardDeck) => {
+        localStorage.setItem("session_id", deck.sessionId);
+        const nextDecks = markDeckStudied(deck.sessionId);
+        if (nextDecks.length > 0) {
+            setDecks(nextDecks);
+        }
+        navigate("/flashcards");
+    };
 
     const toggleSelection = (id: string) => {
         setSelected((prev) =>
@@ -233,51 +269,72 @@ export function FlashcardsLabPage() {
                             transition={{ duration: 0.3 }}
                             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full"
                         >
-                            {MOCK_DECKS.map((deck) => (
-                                <div
-                                    key={deck.id}
-                                    className="group relative flex flex-col justify-between p-6 rounded-2xl border border-white/5 bg-[#121215]/40 hover:bg-[#121215]/80 hover:border-white/10 transition-all duration-300 backdrop-blur-sm"
-                                >
-                                    <div>
-                                        <div className="flex items-start justify-between mb-4">
-                                            <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]">
-                                                <Layers className="size-5" />
-                                            </div>
-                                            <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest bg-white/5 px-2 py-1 rounded-full">
-                                                {deck.cardCount} Cards
-                                            </div>
-                                        </div>
-
-                                        <h3 className="text-lg font-medium text-white mb-1 group-hover:text-[hsl(var(--accent))] transition-colors">
-                                            {deck.title}
-                                        </h3>
-
-                                        <div className="flex items-center gap-3 text-xs text-white/40 mb-6">
-                                            <span className="flex items-center gap-1.5">
-                                                <Clock className="size-3" />
-                                                {deck.lastStudied}
-                                            </span>
-                                            <span className="w-1 h-1 rounded-full bg-white/20" />
-                                            <span>{deck.mastery}% Mastery</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
-                                        <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden mr-4">
-                                            <div
-                                                className="h-full bg-[hsl(var(--accent))] opacity-60 rounded-full"
-                                                style={{ width: `${deck.mastery}%` }}
-                                            />
-                                        </div>
-                                        <button
-                                            onClick={() => navigate("/flashcards")}
-                                            className="flex items-center gap-2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all duration-300"
-                                        >
-                                            Study <ArrowRight className="size-3" />
-                                        </button>
-                                    </div>
+                            {sortedDecks.length === 0 ? (
+                                <div className="col-span-full rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center text-sm text-white/40">
+                                    No decks yet. Generate flashcards from your notes to save a deck.
                                 </div>
-                            ))}
+                            ) : (
+                                sortedDecks.map((deck) => {
+                                    const masteryValue =
+                                        typeof deck.mastery === "number" && Number.isFinite(deck.mastery)
+                                            ? Math.min(100, Math.max(0, deck.mastery))
+                                            : 0;
+                                    const masteryLabel = masteryValue > 0 ? `${masteryValue}% Mastery` : "New";
+                                    const timeLabel = deck.lastStudiedAt
+                                        ? `Studied ${formatRelativeTime(deck.lastStudiedAt)}`
+                                        : `Created ${formatRelativeTime(deck.createdAt)}`;
+                                    const notesLabel = `${deck.noteCount} Note${deck.noteCount === 1 ? "" : "s"}`;
+                                    const cardLabel = `${deck.cardCount} Card${deck.cardCount === 1 ? "" : "s"}`;
+
+                                    return (
+                                        <div
+                                            key={deck.id}
+                                            className="group relative flex flex-col justify-between p-6 rounded-2xl border border-white/5 bg-[#121215]/40 hover:bg-[#121215]/80 hover:border-white/10 transition-all duration-300 backdrop-blur-sm"
+                                        >
+                                            <div>
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]">
+                                                        <Layers className="size-5" />
+                                                    </div>
+                                                    <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest bg-white/5 px-2 py-1 rounded-full">
+                                                        {cardLabel}
+                                                    </div>
+                                                </div>
+
+                                                <h3 className="text-lg font-medium text-white mb-1 group-hover:text-[hsl(var(--accent))] transition-colors">
+                                                    {deck.title}
+                                                </h3>
+
+                                                <div className="flex flex-wrap items-center gap-3 text-xs text-white/40 mb-6">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <Clock className="size-3" />
+                                                        {timeLabel}
+                                                    </span>
+                                                    <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                    <span>{notesLabel}</span>
+                                                    <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                    <span>{masteryLabel}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+                                                <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden mr-4">
+                                                    <div
+                                                        className="h-full bg-[hsl(var(--accent))] opacity-60 rounded-full"
+                                                        style={{ width: `${masteryValue}%` }}
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={() => handleStudyDeck(deck)}
+                                                    className="flex items-center gap-2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all duration-300"
+                                                >
+                                                    Study <ArrowRight className="size-3" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -286,7 +343,7 @@ export function FlashcardsLabPage() {
     );
 }
 
-function PlusCircle(props: React.ComponentProps<"svg">) {
+function PlusCircle(props: ComponentProps<"svg">) {
     return (
         <svg
             {...props}

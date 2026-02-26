@@ -1,8 +1,8 @@
 import { Routes, Route } from 'react-router-dom';
-import { AmbientBackground } from './components/demo/AmbientBackground';
-import { HeroSection } from './components/demo/HeroSection';
-import { FlashcardsPage } from './components/flashcards/FlashcardsPage';
-import { FlashcardsLabPage } from './components/flashcards/FlashcardsLabPage';
+import { AmbientBackground } from '@/features/home/components/AmbientBackground';
+import { HeroSection } from '@/features/home/components/HeroSection';
+import { FlashcardsPage } from '@/features/flashcards/components/FlashcardsPage';
+import { FlashcardsLabPage } from '@/features/flashcards/components/FlashcardsLabPage';
 
 function Home() {
   return (

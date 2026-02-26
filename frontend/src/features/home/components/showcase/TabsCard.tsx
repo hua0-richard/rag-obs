@@ -1,5 +1,5 @@
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/shared/components/ui/Card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/components/ui/Tabs";
 
 export function TabsCard() {
     return (

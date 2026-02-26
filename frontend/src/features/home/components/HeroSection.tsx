@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/Button";
 import { FileText, Sparkles, UploadCloud, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { buildDeckTitle, upsertDeck } from "@/features/flashcards/utils/flashcardDecks";
 
 const LogoStreaks = () => {
     return (
@@ -79,7 +80,7 @@ export function HeroSection() {
         const fetchSessionId = async () => {
             setIsSessionLoading(true);
             try {
-                const response = await fetch(`${(import.meta.env as any).SERVER_URL}/session-id`);
+                const response = await fetch(`${import.meta.env.SERVER_URL}/session-id`);
                 if (!response.ok) {
                     console.error("Failed to fetch session id:", response.statusText);
                     return;
@@ -171,11 +172,13 @@ export function HeroSection() {
         const files = event.target.files;
         if (files && files.length > 0) {
             const sessionId = localStorage.getItem("session_id");
-            const uploadUrlBase = `${(import.meta.env as any).SERVER_URL}/upload-files`;
+            const uploadUrlBase = `${import.meta.env.SERVER_URL}/upload-files`;
             const uploadUrl = sessionId
                 ? `${uploadUrlBase}?session_id=${encodeURIComponent(sessionId)}`
                 : uploadUrlBase;
             const fileList = Array.from(files);
+            const fileNames = fileList.map((file) => file.name);
+            const embeddedFilenames: string[] = [];
             const formData = new FormData();
 
             fileList.forEach((file) => {
@@ -262,6 +265,9 @@ export function HeroSection() {
                                     `${verb} ${payload.filename} (${completed}/${fileList.length})`
                                 );
                                 if (payload.status === "embedded") {
+                                    if (payload.filename) {
+                                        embeddedFilenames.push(payload.filename);
+                                    }
                                     embeddedCount += 1;
                                     setPulseComplete(true);
                                     if (pulseTimeoutRef.current) {
@@ -323,7 +329,7 @@ export function HeroSection() {
                         if (!activeSessionId) {
                             throw new Error("Missing session id for flashcard generation.");
                         }
-                        const llmUrl = `${(import.meta.env as any).SERVER_URL}/llm?session_id=${encodeURIComponent(activeSessionId)}`;
+                        const llmUrl = `${import.meta.env.SERVER_URL}/llm?session_id=${encodeURIComponent(activeSessionId)}`;
                         const response = await fetch(llmUrl);
                         if (!response.ok) {
                             const detail = await response.text();
@@ -331,11 +337,26 @@ export function HeroSection() {
                         }
                         const data = await response.json();
                         const savedCount = typeof data?.saved_count === "number" ? data.saved_count : null;
+                        const deckCardCount = savedCount ?? 0;
                         setLoadingMessage(
                             savedCount !== null
                                 ? `Flashcards generated (${savedCount} saved).`
                                 : "Flashcards generated."
                         );
+                        const deckSessionId = String(activeSessionId);
+                        const sourceFiles = embeddedFilenames.length > 0 ? embeddedFilenames : fileNames;
+                        const uniqueFiles = Array.from(new Set(sourceFiles)).filter(
+                            (name) => typeof name === "string" && name.trim().length > 0
+                        );
+                        upsertDeck({
+                            id: `deck-${deckSessionId}`,
+                            sessionId: deckSessionId,
+                            title: buildDeckTitle(uniqueFiles),
+                            cardCount: deckCardCount,
+                            noteCount: uniqueFiles.length,
+                            notes: uniqueFiles,
+                            createdAt: new Date().toISOString(),
+                        });
                     } catch (error) {
                         const message =
                             error instanceof Error ? error.message : "Flashcard generation failed.";

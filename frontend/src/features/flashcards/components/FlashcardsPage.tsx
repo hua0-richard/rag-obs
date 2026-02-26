@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/shared/components/ui/Button';
 import { Flashcard } from './Flashcard';
 import { useNavigate } from 'react-router-dom';
+import { markDeckStudied } from '@/features/flashcards/utils/flashcardDecks';
 
 type ApiFlashcard = {
     id: number;
@@ -26,13 +27,14 @@ export function FlashcardsPage() {
             setIsLoading(false);
             return;
         }
+        markDeckStudied(sessionId);
 
         const fetchFlashcards = async () => {
             setIsLoading(true);
             setError(null);
             try {
                 const response = await fetch(
-                    `${(import.meta.env as any).SERVER_URL}/flashcards?session_id=${encodeURIComponent(sessionId)}`
+                    `${import.meta.env.SERVER_URL}/flashcards?session_id=${encodeURIComponent(sessionId)}`
                 );
                 if (!response.ok) {
                     const detail = await response.text();
