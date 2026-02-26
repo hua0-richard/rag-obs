@@ -22,9 +22,13 @@
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^9.1.0",
     "react-router-dom": "^6.30.3",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "katex": "^0.16.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

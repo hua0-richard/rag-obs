@@ -257,20 +257,165 @@ async def llm_flashcards(prompt: str | None = None, k: int | None = None, sessio
     )
     content = resp["message"]["content"]
 
+    def normalize_obsidian_latex(text: str) -> str:
+        if not text:
+            return text
+        normalized = text
+        normalized = re.sub(r"\\\((.+?)\\\)", r"$\1$", normalized, flags=re.DOTALL)
+        normalized = re.sub(r"\\\[(.+?)\\\]", r"$$\1$$", normalized, flags=re.DOTALL)
+        return normalized
+
+    def normalize_card(item: object) -> dict | None:
+        if isinstance(item, dict):
+            question = item.get("question") or item.get("q") or item.get("front")
+            answer = item.get("answer") or item.get("a") or item.get("back")
+            source_tag = item.get("source_tag") or item.get("source")
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            question = item[0]
+            answer = item[1]
+            source_tag = None
+        else:
+            return None
+        if not isinstance(question, str) or not isinstance(answer, str):
+            return None
+        return {
+            "question": normalize_obsidian_latex(question.strip()),
+            "answer": normalize_obsidian_latex(answer.strip()),
+            "source_tag": source_tag,
+        }
+
+    def parse_qa_blocks(text: str) -> list[dict]:
+        cleaned = text.replace("```json", "").replace("```", "")
+        cards: list[dict] = []
+        current_q: str | None = None
+        current_a: list[str] = []
+        current_source: int | None = None
+        in_answer = False
+
+        def flush_current():
+            nonlocal current_q, current_a, current_source, in_answer
+            if current_q and current_a:
+                cards.append(
+                    {
+                        "question": current_q.strip(),
+                        "answer": "\n".join(current_a).strip(),
+                        "source_tag": current_source,
+                    }
+                )
+            current_q = None
+            current_a = []
+            current_source = None
+            in_answer = False
+
+        for raw_line in cleaned.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            line = re.sub(r"^\s*[-*•]\s*", "", line)
+
+            inline = re.match(
+                r"^(?:\d+[\).\s]+)?(?:Q|Question)\s*[:\-]\s*(.+?)\s+(?:A|Answer)\s*[:\-]\s*(.+)$",
+                line,
+                re.IGNORECASE,
+            )
+            if inline:
+                flush_current()
+                cards.append(
+                    {
+                        "question": normalize_obsidian_latex(inline.group(1).strip()),
+                        "answer": normalize_obsidian_latex(inline.group(2).strip()),
+                        "source_tag": None,
+                    }
+                )
+                continue
+
+            q_match = re.match(
+                r"^(?:\d+[\).\s]+)?(?:Q|Question)\s*[:\-]\s*(.+)$",
+                line,
+                re.IGNORECASE,
+            )
+            if q_match:
+                flush_current()
+                current_q = normalize_obsidian_latex(q_match.group(1).strip())
+                continue
+
+            a_match = re.match(r"^(?:A|Answer)\s*[:\-]\s*(.+)$", line, re.IGNORECASE)
+            if a_match and current_q:
+                in_answer = True
+                current_a.append(normalize_obsidian_latex(a_match.group(1).strip()))
+                continue
+
+            source_match = re.match(
+                r"^(?:Source|Source Tag)\s*[:\-]\s*(.+)$",
+                line,
+                re.IGNORECASE,
+            )
+            if source_match and current_q:
+                tag_str = source_match.group(1)
+                match = re.search(r"\d+", tag_str)
+                current_source = int(match.group(0)) if match else None
+                continue
+
+            if in_answer and current_q:
+                current_a.append(normalize_obsidian_latex(line))
+
+        flush_current()
+
+        if cards:
+            return cards
+
+        # Fallback: lines like "Question — Answer"
+        for raw_line in cleaned.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            dash_match = re.match(r"^(?:\d+[\).\s]+)?(.+?)\s*[–—-]\s*(.+)$", line)
+            if dash_match:
+                cards.append(
+                    {
+                        "question": normalize_obsidian_latex(dash_match.group(1).strip()),
+                        "answer": normalize_obsidian_latex(dash_match.group(2).strip()),
+                        "source_tag": None,
+                    }
+                )
+        return cards
+
+    def parse_flashcards(text: str) -> list[dict]:
+        parsed_json = None
+        try:
+            parsed_json = json.loads(text)
+        except Exception:
+            start = text.find("[")
+            end = text.rfind("]")
+            if start != -1 and end != -1 and end > start:
+                candidate = text[start : end + 1]
+                try:
+                    parsed_json = json.loads(candidate)
+                except Exception:
+                    parsed_json = None
+
+        if isinstance(parsed_json, list):
+            normalized: list[dict] = []
+            for item in parsed_json:
+                normalized_item = normalize_card(item)
+                if normalized_item:
+                    normalized.append(normalized_item)
+            if normalized:
+                return normalized
+
+        return parse_qa_blocks(text)
+
     flashcards = None
     saved_count = 0
-    parsed = None
-    try:
-        parsed = json.loads(content)
-    except Exception:
-        start = content.find("[")
-        end = content.rfind("]")
-        if start != -1 and end != -1 and end > start:
-            candidate = content[start : end + 1]
-            try:
-                parsed = json.loads(candidate)
-            except Exception:
-                parsed = None
+    parsed = parse_flashcards(content)
+    if not parsed and content.strip() and content.strip().upper() != "NONE":
+        parsed = [
+            {
+                "question": "Generated Output",
+                "answer": normalize_obsidian_latex(content.strip()),
+                "source_tag": None,
+            }
+        ]
 
     # Attach file source info when source_tag is provided
     if isinstance(parsed, list):
@@ -308,7 +453,7 @@ async def llm_flashcards(prompt: str | None = None, k: int | None = None, sessio
                 db.add_all(rows_to_save)
                 db.commit()
                 saved_count = len(rows_to_save)
-    flashcards = parsed
+    flashcards = parsed if parsed else None
 
     return {
         "prompt": prompt,

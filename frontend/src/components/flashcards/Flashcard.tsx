@@ -1,11 +1,44 @@
 import { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { cn } from '@/lib/utils';
 
 interface FlashcardProps {
     front: string;
     back: string;
     className?: string;
+}
+
+function normalizeMathBlocks(content: string) {
+    if (!content.includes("$") && !content.includes("\\(") && !content.includes("\\[")) {
+        return content;
+    }
+    let normalized = content;
+    // Obsidian supports \(..\) and \[..\]; normalize to $/$$ for remark-math.
+    normalized = normalized.replace(/\\\(([\s\S]+?)\\\)/g, (_match, inner) => `$${inner}$`);
+    normalized = normalized.replace(/\\\[([\s\S]+?)\\\]/g, (_match, inner) => `$$\n${inner}\n$$`);
+
+    // Ensure $$ block delimiters appear on their own line, even when adjacent.
+    normalized = normalized.replace(/\$\$/g, "\n$$\n");
+    normalized = normalized.replace(/[ \t]+\n\$\$\n/g, "\n$$\n");
+    normalized = normalized.replace(/\n\$\$\n[ \t]+/g, "\n$$\n");
+    normalized = normalized.replace(/\n{3,}/g, "\n\n");
+    return normalized;
+}
+
+function MarkdownContent({ content, className }: { content: string; className?: string }) {
+    const normalized = normalizeMathBlocks(content);
+    return (
+        <ReactMarkdown
+            remarkPlugins={[remarkMath]}
+            rehypePlugins={[[rehypeKatex, { strict: "ignore", throwOnError: false }]]}
+            className={cn("flashcard-markdown", className)}
+        >
+            {normalized}
+        </ReactMarkdown>
+    );
 }
 
 export function Flashcard({ front, back, className }: FlashcardProps) {
@@ -81,9 +114,10 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent opacity-70" />
 
                         <div className="max-h-48 overflow-y-auto pr-2">
-                            <p className="text-2xl md:text-3xl font-medium text-white/90 select-none tracking-tight">
-                                {front}
-                            </p>
+                            <MarkdownContent
+                                content={front}
+                                className="text-2xl md:text-3xl font-medium text-white/90 select-none tracking-tight"
+                            />
                         </div>
 
                         {/* Minimal hint */}
@@ -109,9 +143,10 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_45%)] pointer-events-none" />
 
                         <div className="max-h-48 overflow-y-auto pr-2 relative z-10">
-                            <p className="text-xl md:text-2xl text-white/80 leading-relaxed select-none font-normal">
-                                {back}
-                            </p>
+                            <MarkdownContent
+                                content={back}
+                                className="text-xl md:text-2xl text-white/80 leading-relaxed select-none font-normal"
+                            />
                         </div>
 
                         <div className="absolute bottom-6 text-[hsl(var(--accent))/60] text-xs font-mono uppercase tracking-[0.2em]">

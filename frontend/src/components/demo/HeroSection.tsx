@@ -57,6 +57,7 @@ export function HeroSection() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
     const [isSessionLoading, setIsSessionLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
@@ -123,7 +124,13 @@ export function HeroSection() {
 
     useEffect(() => {
         
-        if (showToast && !isUploading && totalFiles > 0 && completedFiles >= totalFiles) {
+        if (
+            showToast &&
+            !isUploading &&
+            !isGeneratingFlashcards &&
+            totalFiles > 0 &&
+            completedFiles >= totalFiles
+        ) {
             if (!isHoveringToast) {
                 scheduleAutoClose();
             }
@@ -151,14 +158,14 @@ export function HeroSection() {
     }, [showToast]);
 
     const handleUploadClick = () => {
-        if (isUploading || isSessionLoading) {
+        if (isUploading || isGeneratingFlashcards || isSessionLoading) {
             return;
         }
         fileInputRef.current?.click();
     };
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (isSessionLoading) {
+        if (isSessionLoading || isGeneratingFlashcards) {
             return;
         }
         const files = event.target.files;
@@ -211,11 +218,12 @@ export function HeroSection() {
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = "";
-                let completed = 0;
-                let sawFatalError = false;
-                let fatalErrorDetail = "";
-                let errorCount = 0;
-                let lastErrorDetail = "";
+            let completed = 0;
+            let embeddedCount = 0;
+            let sawFatalError = false;
+            let fatalErrorDetail = "";
+            let errorCount = 0;
+            let lastErrorDetail = "";
 
                 while (true) {
                     const { value, done } = await reader.read();
@@ -254,6 +262,7 @@ export function HeroSection() {
                                     `${verb} ${payload.filename} (${completed}/${fileList.length})`
                                 );
                                 if (payload.status === "embedded") {
+                                    embeddedCount += 1;
                                     setPulseComplete(true);
                                     if (pulseTimeoutRef.current) {
                                         window.clearTimeout(pulseTimeoutRef.current);
@@ -301,6 +310,39 @@ export function HeroSection() {
                     setLoadingMessage(`Processed ${completed}/${fileList.length} files.`);
                 } else {
                     setLoadingMessage("All documents embedded.");
+                }
+
+                setIsUploading(false);
+
+                const canGenerate = !sawFatalError && embeddedCount > 0;
+                if (canGenerate) {
+                    setIsGeneratingFlashcards(true);
+                    setLoadingMessage("Generating flashcards...");
+                    try {
+                        const activeSessionId = sessionId || localStorage.getItem("session_id");
+                        if (!activeSessionId) {
+                            throw new Error("Missing session id for flashcard generation.");
+                        }
+                        const llmUrl = `${(import.meta.env as any).SERVER_URL}/llm?session_id=${encodeURIComponent(activeSessionId)}`;
+                        const response = await fetch(llmUrl);
+                        if (!response.ok) {
+                            const detail = await response.text();
+                            throw new Error(detail || "Flashcard generation failed.");
+                        }
+                        const data = await response.json();
+                        const savedCount = typeof data?.saved_count === "number" ? data.saved_count : null;
+                        setLoadingMessage(
+                            savedCount !== null
+                                ? `Flashcards generated (${savedCount} saved).`
+                                : "Flashcards generated."
+                        );
+                    } catch (error) {
+                        const message =
+                            error instanceof Error ? error.message : "Flashcard generation failed.";
+                        setLoadingMessage(message);
+                    } finally {
+                        setIsGeneratingFlashcards(false);
+                    }
                 }
             } catch (error) {
                 console.error("Error uploading files:", error);
@@ -458,7 +500,7 @@ export function HeroSection() {
                     {totalFiles === 0 ? (
                         <Button
                             size="lg"
-                            disabled={isUploading || isSessionLoading}
+                            disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
                             className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group disabled:cursor-not-allowed disabled:hover:scale-100"
                             onClick={handleUploadClick}
                         >
@@ -472,7 +514,7 @@ export function HeroSection() {
                             <button
                                 type="button"
                                 onClick={handleUploadClick}
-                                disabled={isUploading || isSessionLoading}
+                                disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
                                 className="inline-flex h-14 items-center gap-2 rounded-l-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <UploadCloud className="size-5 text-white drop-shadow-[0_0_8px_hsl(var(--accent)/0.8)]" />
@@ -484,7 +526,7 @@ export function HeroSection() {
                             <button
                                 type="button"
                                 onClick={() => navigate("/flashcards")}
-                                disabled={isUploading || completedFiles < totalFiles}
+                                disabled={isUploading || isGeneratingFlashcards || completedFiles < totalFiles}
                                 className="group inline-flex h-14 items-center rounded-r-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 Flashcards
@@ -519,7 +561,7 @@ export function HeroSection() {
                     >
                         <div
                             className={`status-shell status-glow relative overflow-hidden rounded-[18px] ${
-                                isUploading ? "loading-border" : ""
+                                isUploading || isGeneratingFlashcards ? "loading-border" : ""
                             } ${pulseComplete ? "completion-pulse" : ""} ${
                                 isClosing ? "toast-exit" : "toast-enter"
                             }`}
@@ -528,7 +570,7 @@ export function HeroSection() {
                             <div className="status-card relative rounded-[16px] px-4 py-3 text-left text-sm text-white/80 backdrop-blur-xl">
                                 <div className="accent-strip absolute left-0 top-0 h-full w-1.5" />
                                 <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.24em] text-white/45">
-                                    <span>Embedding</span>
+                                    <span>{isGeneratingFlashcards ? "Flashcards" : "Embedding"}</span>
                                     <button
                                         type="button"
                                         onClick={closeToast}
@@ -539,9 +581,12 @@ export function HeroSection() {
                                     </button>
                                 </div>
                                 <div className="mt-2 text-[13px] font-medium text-white">
-                                    {loadingMessage || "Preparing embeddings..."}
+                                    {loadingMessage ||
+                                        (isGeneratingFlashcards
+                                            ? "Generating flashcards..."
+                                            : "Preparing embeddings...")}
                                 </div>
-                                {isUploading ? (
+                                {isUploading || isGeneratingFlashcards ? (
                                     <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
                                         <div className="progress-flow h-full w-[60%] rounded-full" />
                                     </div>
@@ -552,9 +597,15 @@ export function HeroSection() {
                                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--accent)/0.6)] opacity-75" />
                                             <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(var(--accent)/0.9)]" />
                                         </span>
-                                        <span>Storing vector embeddings</span>
+                                        <span>
+                                            {isGeneratingFlashcards
+                                                ? "Generating flashcards"
+                                                : "Storing vector embeddings"}
+                                        </span>
                                     </div>
-                                    <span>{completedFiles}/{totalFiles}</span>
+                                    <span>
+                                        {isGeneratingFlashcards ? "…" : `${completedFiles}/${totalFiles}`}
+                                    </span>
                                 </div>
                             </div>
                         </div>
