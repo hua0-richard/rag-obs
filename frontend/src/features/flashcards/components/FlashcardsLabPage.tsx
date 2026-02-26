@@ -5,32 +5,19 @@ import { Button } from "@/shared/components/ui/Button";
 import { useNavigate } from "react-router-dom";
 import { loadDecks, markDeckStudied, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 
-const DOCUMENTS = [
-    {
-        id: "doc-1",
-        title: "Neuroscience Notes.md",
-        meta: "12 sections · 8 min read",
-        updatedAt: "Updated 2 hours ago",
-    },
-    {
-        id: "doc-2",
-        title: "Systems Design Primer.md",
-        meta: "7 sections · 5 min read",
-        updatedAt: "Updated yesterday",
-    },
-    {
-        id: "doc-3",
-        title: "LLMs Explained.md",
-        meta: "10 sections · 6 min read",
-        updatedAt: "Updated 3 days ago",
-    },
-    {
-        id: "doc-4",
-        title: "Learning Science.md",
-        meta: "9 sections · 7 min read",
-        updatedAt: "Updated last week",
-    },
-];
+type ApiFile = {
+    id: number;
+    filename: string | null;
+    content_type: string | null;
+    size_bytes: number | null;
+};
+
+type Document = {
+    id: string;
+    title: string;
+    meta: string;
+    updatedAt?: string;
+};
 
 type Tab = "create" | "decks";
 
@@ -70,12 +57,100 @@ const formatRelativeTime = (isoTimestamp: string) => {
 export function FlashcardsLabPage() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>("create");
-    const [selected, setSelected] = useState<string[]>(["doc-1"]);
+    const [selected, setSelected] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [decks, setDecks] = useState<FlashcardDeck[]>(() => loadDecks());
+    const [documents, setDocuments] = useState<Document[]>([]);
+    const [documentsLoading, setDocumentsLoading] = useState(true);
+    const [documentsError, setDocumentsError] = useState<string | null>(null);
 
     const selectedCount = selected.length;
-    const totalDocs = DOCUMENTS.length;
+    const totalDocs = documents.length;
+
+    const formatFilename = (value: string | null) => {
+        if (!value) {
+            return "Untitled";
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return "Untitled";
+        }
+        return trimmed.split(/[\\/]/).pop() ?? trimmed;
+    };
+
+    const formatFileSize = (sizeBytes: number | null) => {
+        if (typeof sizeBytes !== "number" || !Number.isFinite(sizeBytes)) {
+            return "Unknown size";
+        }
+        if (sizeBytes < 1024) {
+            return `${sizeBytes} B`;
+        }
+        const kb = sizeBytes / 1024;
+        if (kb < 1024) {
+            return `${kb.toFixed(1)} KB`;
+        }
+        const mb = kb / 1024;
+        if (mb < 1024) {
+            return `${mb.toFixed(1)} MB`;
+        }
+        const gb = mb / 1024;
+        return `${gb.toFixed(2)} GB`;
+    };
+
+    const buildDocument = (file: ApiFile): Document => {
+        const typeLabel = file.content_type?.trim() || "unknown type";
+        const sizeLabel = formatFileSize(file.size_bytes);
+        return {
+            id: String(file.id),
+            title: formatFilename(file.filename),
+            meta: `${typeLabel} · ${sizeLabel}`,
+            updatedAt: "Stored in session",
+        };
+    };
+
+    useEffect(() => {
+        const sessionId = localStorage.getItem("session_id");
+        if (!sessionId) {
+            setDocuments([]);
+            setDocumentsError("No session id found. Upload files to start a session.");
+            setDocumentsLoading(false);
+            return;
+        }
+
+        const fetchDocuments = async () => {
+            setDocumentsLoading(true);
+            setDocumentsError(null);
+            try {
+                const response = await fetch(
+                    `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
+                );
+                if (!response.ok) {
+                    const detail = await response.text();
+                    throw new Error(detail || "Failed to load files");
+                }
+                const data = await response.json();
+                const list: ApiFile[] = Array.isArray(data?.files) ? data.files : [];
+                const docs = list.map(buildDocument);
+                setDocuments(docs);
+                setSelected((prev) => {
+                    const ids = new Set(docs.map((doc) => doc.id));
+                    const filtered = prev.filter((id) => ids.has(id));
+                    if (filtered.length > 0) {
+                        return filtered;
+                    }
+                    return docs.length > 0 ? [docs[0].id] : [];
+                });
+            } catch (err) {
+                const message = err instanceof Error ? err.message : "Failed to load files";
+                setDocuments([]);
+                setDocumentsError(message);
+            } finally {
+                setDocumentsLoading(false);
+            }
+        };
+
+        fetchDocuments();
+    }, []);
 
     useEffect(() => {
         if (activeTab === "decks") {
@@ -109,7 +184,7 @@ export function FlashcardsLabPage() {
     };
 
     const handleGenerate = () => {
-        if (isGenerating || selectedCount === 0) {
+        if (isGenerating || selectedCount === 0 || documentsLoading || documents.length === 0) {
             return;
         }
         setIsGenerating(true);
@@ -186,13 +261,23 @@ export function FlashcardsLabPage() {
 
                                 <div className="flex items-center gap-4">
                                     <button
-                                        onClick={() => setSelected(DOCUMENTS.map((doc) => doc.id))}
+                                        onClick={() => {
+                                            if (documentsLoading) {
+                                                return;
+                                            }
+                                            setSelected(documents.map((doc) => doc.id));
+                                        }}
                                         className="text-[11px] font-medium text-white/30 hover:text-white transition-colors"
                                     >
                                         Select All
                                     </button>
                                     <button
-                                        onClick={() => setSelected([])}
+                                        onClick={() => {
+                                            if (documentsLoading) {
+                                                return;
+                                            }
+                                            setSelected([]);
+                                        }}
                                         className="text-[11px] font-medium text-white/30 hover:text-white transition-colors"
                                     >
                                         Clear
@@ -202,53 +287,71 @@ export function FlashcardsLabPage() {
 
                             {/* List */}
                             <div className="divide-y divide-white/5 flex-1">
-                                {DOCUMENTS.map((doc) => {
-                                    const isSelected = selected.includes(doc.id);
-                                    return (
-                                        <button
-                                            key={doc.id}
-                                            onClick={() => toggleSelection(doc.id)}
-                                            className={`w-full flex items-center justify-between gap-4 px-6 py-4 text-left transition-colors duration-200 ${isSelected ? "bg-white/[0.03]" : "hover:bg-white/[0.01]"
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors duration-200 ${isSelected
-                                                    ? "bg-white/[0.06] border-white/10 text-white/70"
-                                                    : "bg-transparent border-white/5 text-white/20"
-                                                    }`}>
-                                                    <FileText className="size-4" />
-                                                </div>
-                                                <div>
-                                                    <div className={`text-sm transition-colors duration-200 ${isSelected ? "text-white font-medium" : "text-white/60"}`}>
-                                                        {doc.title}
+                                {documentsLoading ? (
+                                    <div className="px-6 py-10 text-center text-sm text-white/40">
+                                        Loading documents...
+                                    </div>
+                                ) : documentsError ? (
+                                    <div className="px-6 py-10 text-center text-sm text-white/40">
+                                        {documentsError}
+                                    </div>
+                                ) : documents.length === 0 ? (
+                                    <div className="px-6 py-10 text-center text-sm text-white/40">
+                                        No documents found for this session.
+                                    </div>
+                                ) : (
+                                    documents.map((doc) => {
+                                        const isSelected = selected.includes(doc.id);
+                                        return (
+                                            <button
+                                                key={doc.id}
+                                                onClick={() => toggleSelection(doc.id)}
+                                                className={`w-full flex items-center justify-between gap-4 px-6 py-4 text-left transition-colors duration-200 ${isSelected ? "bg-white/[0.03]" : "hover:bg-white/[0.01]"
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors duration-200 ${isSelected
+                                                        ? "bg-white/[0.06] border-white/10 text-white/70"
+                                                        : "bg-transparent border-white/5 text-white/20"
+                                                        }`}>
+                                                        <FileText className="size-4" />
                                                     </div>
-                                                    <div className="text-[11px] text-white/20 mt-0.5 font-mono">{doc.meta}</div>
+                                                    <div>
+                                                        <div className={`text-sm transition-colors duration-200 ${isSelected ? "text-white font-medium" : "text-white/60"}`}>
+                                                            {doc.title}
+                                                        </div>
+                                                        <div className="text-[11px] text-white/20 mt-0.5 font-mono">{doc.meta}</div>
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <div className="flex items-center gap-6">
-                                                <span className="hidden sm:inline text-[10px] text-white/20 font-mono tracking-wider">{doc.updatedAt}</span>
+                                                <div className="flex items-center gap-6">
+                                                    {doc.updatedAt ? (
+                                                        <span className="hidden sm:inline text-[10px] text-white/20 font-mono tracking-wider">
+                                                            {doc.updatedAt}
+                                                        </span>
+                                                    ) : null}
 
-                                                <div
-                                                    className={`flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-200 ${isSelected
-                                                        ? "bg-[hsl(var(--accent))] border-[hsl(var(--accent))] text-white"
-                                                        : "bg-transparent border-white/10 text-transparent"
-                                                        }`}
-                                                >
-                                                    <Check className="size-3 stroke-[3]" />
+                                                    <div
+                                                        className={`flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-200 ${isSelected
+                                                            ? "bg-[hsl(var(--accent))] border-[hsl(var(--accent))] text-white"
+                                                            : "bg-transparent border-white/10 text-transparent"
+                                                            }`}
+                                                    >
+                                                        <Check className="size-3 stroke-[3]" />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
+                                            </button>
+                                        );
+                                    })
+                                )}
                             </div>
 
                             {/* Bottom Action Bar */}
                             <div className="border-t border-white/5 p-4 flex justify-end">
                                 <button
                                     onClick={handleGenerate}
-                                    disabled={selectedCount === 0 || isGenerating}
-                                    className={`luminous-btn h-10 px-6 flex items-center justify-center gap-2 text-sm transition-all duration-300 ${selectedCount === 0 ? "opacity-30 grayscale cursor-not-allowed" : ""
+                                    disabled={selectedCount === 0 || isGenerating || documentsLoading || documents.length === 0 || !!documentsError}
+                                    className={`luminous-btn h-10 px-6 flex items-center justify-center gap-2 text-sm transition-all duration-300 ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "opacity-30 grayscale cursor-not-allowed" : ""
                                         }`}
                                 >
                                     {isGenerating ? (

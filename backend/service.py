@@ -18,6 +18,24 @@ def init_db() -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
+                "ALTER TABLE notes "
+                "ADD COLUMN IF NOT EXISTS filename VARCHAR(512)"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE notes "
+                "ADD COLUMN IF NOT EXISTS content_type VARCHAR(255)"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE notes "
+                "ADD COLUMN IF NOT EXISTS raw_content BYTEA"
+            )
+        )
+        conn.execute(
+            text(
                 "ALTER TABLE flashcards "
                 "ADD COLUMN IF NOT EXISTS session_id INTEGER"
             )

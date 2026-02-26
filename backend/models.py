@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, LargeBinary, create_engine
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
 
@@ -19,6 +19,9 @@ class Files(Base):
         ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
         nullable=False,
     )
+    filename = Column(String(512), nullable=True)
+    content_type = Column(String(255), nullable=True)
+    raw_content = Column(LargeBinary, nullable=True)
 
 # Consider Partial Indexing for Speedup    
 class Embeddings(Base):

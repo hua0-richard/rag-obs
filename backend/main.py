@@ -110,6 +110,29 @@ async def document_upload(
                     continue
 
                 try:
+                    file_row = Files(
+                        session_id=active_session_id,
+                        filename=filename,
+                        content_type=content_type or "text/plain",
+                        raw_content=raw_bytes,
+                    )
+                    db.add(file_row)
+                    db.commit()
+                    db.refresh(file_row)
+                except Exception as e:
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    payload = {
+                        "status": "error",
+                        "filename": filename,
+                        "detail": f"failed to save file: {e}",
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    continue
+
+                try:
                     text = raw_bytes.decode("utf-8")
                 except UnicodeDecodeError:
                     payload = {
@@ -133,9 +156,6 @@ async def document_upload(
                     vectors = await run_in_threadpool(
                         model.encode, chunks, convert_to_numpy=True
                     )
-                    file_row = Files(session_id=active_session_id)
-                    db.add(file_row)
-                    db.flush()
 
                     db.add_all([
                         Embeddings(
@@ -487,3 +507,29 @@ def get_flashcards(session_id: int = Query(...), db: Session = Depends(get_db)):
         for row in rows
     ]
     return {"session_id": session_id, "flashcards": flashcards}
+
+@app.get("/files")
+def get_files(session_id: int = Query(...), db: Session = Depends(get_db)):
+    launch_db()
+    if db.get(Sessions, session_id) is None:
+        raise HTTPException(status_code=404, detail="session_id not found")
+    rows = db.execute(
+        sql_text(
+            "SELECT id, filename, content_type, "
+            "COALESCE(octet_length(raw_content), 0) AS size_bytes "
+            "FROM notes "
+            "WHERE session_id = :sid "
+            "ORDER BY id"
+        ),
+        {"sid": session_id},
+    ).fetchall()
+    files = [
+        {
+            "id": row.id,
+            "filename": row.filename,
+            "content_type": row.content_type,
+            "size_bytes": row.size_bytes,
+        }
+        for row in rows
+    ]
+    return {"session_id": session_id, "files": files}

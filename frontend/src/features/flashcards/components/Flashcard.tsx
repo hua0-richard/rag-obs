@@ -11,28 +11,61 @@ interface FlashcardProps {
     className?: string;
 }
 
-function normalizeMathBlocks(content: string) {
-    if (!content.includes("$") && !content.includes("\\(") && !content.includes("\\[")) {
-        return content;
+function normalizeMathInText(text: string) {
+    if (!text.includes("$") && !text.includes("\\(") && !text.includes("\\[")) {
+        return text;
     }
-    let normalized = content;
+    let normalized = text;
     // Obsidian supports \(..\) and \[..\]; normalize to $/$$ for remark-math.
     normalized = normalized.replace(/\\\(([\s\S]+?)\\\)/g, (_match, inner) => `$${inner}$`);
     normalized = normalized.replace(/\\\[([\s\S]+?)\\\]/g, (_match, inner) => `$$\n${inner}\n$$`);
 
     // Ensure $$ block delimiters appear on their own line, even when adjacent.
-    normalized = normalized.replace(/\$\$/g, "\n$$\n");
+    normalized = normalized.replace(/\$\$([\s\S]+?)\$\$/g, (_match, inner) => `\n$$\n${inner}\n$$\n`);
     normalized = normalized.replace(/[ \t]+\n\$\$\n/g, "\n$$\n");
     normalized = normalized.replace(/\n\$\$\n[ \t]+/g, "\n$$\n");
     normalized = normalized.replace(/\n{3,}/g, "\n\n");
     return normalized;
 }
 
+function normalizeMathBlocks(content: string) {
+    if (!content.includes("$") && !content.includes("\\(") && !content.includes("\\[")) {
+        return content;
+    }
+
+    const fenceRegex = /```[\s\S]*?```/g;
+    let result = "";
+    let lastFenceIndex = 0;
+    let fenceMatch: RegExpExecArray | null;
+
+    const applyInlineNormalization = (segment: string) => {
+        const inlineCodeRegex = /`[^`]*`/g;
+        let out = "";
+        let lastIndex = 0;
+        let inlineMatch: RegExpExecArray | null;
+        while ((inlineMatch = inlineCodeRegex.exec(segment)) !== null) {
+            out += normalizeMathInText(segment.slice(lastIndex, inlineMatch.index));
+            out += inlineMatch[0];
+            lastIndex = inlineMatch.index + inlineMatch[0].length;
+        }
+        out += normalizeMathInText(segment.slice(lastIndex));
+        return out;
+    };
+
+    while ((fenceMatch = fenceRegex.exec(content)) !== null) {
+        result += applyInlineNormalization(content.slice(lastFenceIndex, fenceMatch.index));
+        result += fenceMatch[0];
+        lastFenceIndex = fenceMatch.index + fenceMatch[0].length;
+    }
+    result += applyInlineNormalization(content.slice(lastFenceIndex));
+    return result;
+}
+
 function MarkdownContent({ content, className }: { content: string; className?: string }) {
     const normalized = normalizeMathBlocks(content);
     return (
         <ReactMarkdown
-            remarkPlugins={[remarkMath]}
+            remarkPlugins={[[remarkMath, { singleDollarTextMath: true }]]}
             rehypePlugins={[[rehypeKatex, { strict: "ignore", throwOnError: false }]]}
             className={cn("flashcard-markdown", className)}
         >

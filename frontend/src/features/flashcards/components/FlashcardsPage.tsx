@@ -13,18 +13,29 @@ type ApiFlashcard = {
     answer: string;
 };
 
+type ApiFile = {
+    id: number;
+    filename: string | null;
+    content_type: string | null;
+    size_bytes: number | null;
+};
+
 export function FlashcardsPage() {
     const navigate = useNavigate();
     const [cards, setCards] = useState<ApiFlashcard[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [files, setFiles] = useState<ApiFile[]>([]);
+    const [filesLoading, setFilesLoading] = useState(true);
+    const [filesError, setFilesError] = useState<string | null>(null);
 
     useEffect(() => {
         const sessionId = localStorage.getItem("session_id");
         if (!sessionId) {
             setError("No session id found. Upload files to start a session.");
             setIsLoading(false);
+            setFilesLoading(false);
             return;
         }
         markDeckStudied(sessionId);
@@ -52,7 +63,30 @@ export function FlashcardsPage() {
             }
         };
 
+        const fetchFiles = async () => {
+            setFilesLoading(true);
+            setFilesError(null);
+            try {
+                const response = await fetch(
+                    `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
+                );
+                if (!response.ok) {
+                    const detail = await response.text();
+                    throw new Error(detail || "Failed to load files");
+                }
+                const data = await response.json();
+                const list = Array.isArray(data?.files) ? data.files : [];
+                setFiles(list);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : "Failed to load files";
+                setFilesError(message);
+            } finally {
+                setFilesLoading(false);
+            }
+        };
+
         fetchFlashcards();
+        fetchFiles();
     }, []);
 
     const handleNext = () => {
@@ -68,6 +102,16 @@ export function FlashcardsPage() {
     };
 
     const hasCards = cards.length > 0;
+    const formatFilename = (value: string | null) => {
+        if (!value) {
+            return "Untitled";
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return "Untitled";
+        }
+        return trimmed.split(/[\\/]/).pop() ?? trimmed;
+    };
 
     return (
         <div className="min-h-screen w-screen bg-[#09090b] flex flex-col relative overflow-hidden selection:bg-white/10 selection:text-white">
@@ -91,6 +135,20 @@ export function FlashcardsPage() {
             </nav>
 
             <main className="flex-1 flex flex-col items-center justify-center w-full px-4 md:px-8 relative z-10">
+                {!filesLoading && !filesError && files.length > 0 ? (
+                    <div className="mb-6 flex flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-widest font-mono text-white/30">
+                        <span className="mr-1 text-white/20">Sources</span>
+                        {files.map((file) => (
+                            <span
+                                key={file.id}
+                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] normal-case tracking-normal text-white/60"
+                                title={file.filename ?? undefined}
+                            >
+                                {formatFilename(file.filename)}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
 
                 {/* Card Container */}
                 <div className="w-full flex justify-center mb-16 relative perspective-1000">
