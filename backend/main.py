@@ -1,6 +1,9 @@
 import json
+import os
 import re
+from collections import Counter, defaultdict
 import ollama
+from pathlib import Path
 from models import Files, Embeddings, Sessions, Flashcard
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -33,6 +36,509 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdx"}
+_HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.*)$")
+_CODE_FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
+_LATEX_FENCE_LINE_RE = re.compile(r"^\s*(\$\$|\$)\s*$")
+
+
+def latex_line_info(line: str) -> tuple[bool, bool]:
+    stripped = line.strip()
+    if not stripped:
+        return False, False
+    if _LATEX_FENCE_LINE_RE.match(stripped):
+        return True, True
+    if stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) > 4:
+        return True, False
+    if stripped.startswith("$") and stripped.endswith("$") and len(stripped) > 2:
+        return True, False
+    return False, False
+FRONTMATTER_RE = re.compile(r"^---\s*\r?\n(.*?)\r?\n---\s*\r?\n?", re.DOTALL)
+CODE_FENCE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
+INLINE_CODE_RE = re.compile(r"`[^`]*`")
+OBSIDIAN_COMMENT_RE = re.compile(r"%%.*?%%", re.DOTALL)
+WIKILINK_RE = re.compile(r"(!)?\[\[([^\]]+?)\]\]")
+MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+TAG_RE = re.compile(r"(?<![\w/])#(?!#)([A-Za-z][\w/-]*)")
+BLOCK_ID_RE = re.compile(r"(?m)(?<=\S)\s*\^([A-Za-z0-9-]+)\s*$")
+
+
+def is_markdown_source(filename: str | None, content_type: str | None) -> bool:
+    if content_type and "markdown" in content_type.lower():
+        return True
+    if not filename:
+        return False
+    return Path(filename).suffix.lower() in MARKDOWN_EXTENSIONS
+
+
+def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
+    sections: list[tuple[list[str], str]] = []
+    if not text or not text.strip():
+        return sections
+
+    heading_stack: list[tuple[int, str]] = []
+    current_lines: list[str] = []
+    current_headings: list[str] = []
+    in_code_fence = False
+    in_math_fence = False
+
+    def flush_section() -> None:
+        nonlocal current_lines
+        if not current_lines:
+            return
+        body = "\n".join(current_lines).strip()
+        if body:
+            sections.append((current_headings.copy(), body))
+        current_lines = []
+
+    for line in text.splitlines():
+        if _CODE_FENCE_RE.match(line):
+            in_code_fence = not in_code_fence
+            current_lines.append(line)
+            continue
+
+        if not in_code_fence:
+            is_math_line, toggle = latex_line_info(line)
+            if is_math_line:
+                if toggle:
+                    in_math_fence = not in_math_fence
+                current_lines.append(line)
+                continue
+            if in_math_fence:
+                current_lines.append(line)
+                continue
+
+        if not in_code_fence and not in_math_fence:
+            match = _HEADING_RE.match(line)
+            if match:
+                flush_section()
+                level = len(match.group(1))
+                title = re.sub(r"\s+#*$", "", match.group(2)).strip()
+                while heading_stack and heading_stack[-1][0] >= level:
+                    heading_stack.pop()
+                heading_stack.append((level, title))
+                current_headings = [h[1] for h in heading_stack]
+                continue
+
+        current_lines.append(line)
+
+    flush_section()
+
+    if not sections and text.strip():
+        sections.append(([], text.strip()))
+
+    return sections
+
+
+def format_heading_context(headings: list[str]) -> str:
+    if not headings:
+        return ""
+    lines: list[str] = []
+    for level, title in enumerate(headings, start=1):
+        safe_level = level if level <= 6 else 6
+        lines.append(f"{'#' * safe_level} {title}")
+    return "\n".join(lines)
+
+
+def split_text_with_context(
+    text: str,
+    filename: str | None,
+    content_type: str | None,
+    splitter: RecursiveCharacterTextSplitter,
+) -> list[str]:
+    if is_markdown_source(filename, content_type):
+        sections = extract_markdown_sections(text)
+        chunks: list[str] = []
+        for headings, body in sections:
+            if not body:
+                continue
+            context_prefix = format_heading_context(headings)
+            for chunk in splitter.split_text(body):
+                cleaned = chunk.strip()
+                if not cleaned:
+                    continue
+                if context_prefix:
+                    chunks.append(f"{context_prefix}\n\n{cleaned}")
+                else:
+                    chunks.append(cleaned)
+        return chunks
+
+    return [chunk.strip() for chunk in splitter.split_text(text) if chunk.strip()]
+
+def strip_code_and_comments(text: str) -> str:
+    stripped = OBSIDIAN_COMMENT_RE.sub(" ", text)
+    stripped = CODE_FENCE_BLOCK_RE.sub(" ", stripped)
+    stripped = INLINE_CODE_RE.sub(" ", stripped)
+    return stripped
+
+def extract_frontmatter(text: str) -> tuple[dict, str]:
+    match = FRONTMATTER_RE.match(text)
+    if not match:
+        return {}, text
+    block = match.group(1)
+    remainder = text[match.end() :]
+    return parse_frontmatter_block(block), remainder
+
+def parse_frontmatter_block(block: str) -> dict:
+    data: dict[str, object] = {}
+    current_key: str | None = None
+    for raw_line in block.splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            continue
+        if re.match(r"^\s*#", line):
+            continue
+        list_item = re.match(r"^\s*-\s*(.+)$", line)
+        if list_item and current_key:
+            items = data.setdefault(current_key, [])
+            if isinstance(items, list):
+                items.append(list_item.group(1).strip().strip("\"'"))
+            continue
+        kv = re.match(r"^\s*([A-Za-z0-9_-]+)\s*:\s*(.*)$", line)
+        if not kv:
+            current_key = None
+            continue
+        key = kv.group(1).strip().lower()
+        value = kv.group(2).strip()
+        if value == "":
+            data[key] = []
+            current_key = key
+            continue
+        if value.startswith("[") and value.endswith("]"):
+            inner = value[1:-1].strip()
+            if inner:
+                items = [
+                    item.strip().strip("\"'")
+                    for item in inner.split(",")
+                    if item.strip()
+                ]
+                data[key] = items
+            else:
+                data[key] = []
+        else:
+            data[key] = value.strip().strip("\"'")
+        current_key = key
+    return data
+
+def coerce_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item).strip()]
+    if isinstance(value, str):
+        value = value.strip()
+        return [value] if value else []
+    return [str(value)]
+
+def parse_link_target(target: str) -> dict[str, str | None]:
+    target = target.strip()
+    note_part = target
+    heading = None
+    block = None
+    if "#" in target:
+        note_part, remainder = target.split("#", 1)
+        if "^" in remainder:
+            heading_part, block_part = remainder.split("^", 1)
+            heading = heading_part.strip() or None
+            block = block_part.strip() or None
+        else:
+            heading = remainder.strip() or None
+    elif "^" in target:
+        note_part, block_part = target.split("^", 1)
+        block = block_part.strip() or None
+    note_part = note_part.strip()
+    if target.startswith("#") or target.startswith("^"):
+        note_part = ""
+    return {"note": note_part, "heading": heading, "block": block}
+
+def format_link_target(info: dict[str, str | None], default_note: str | None = None) -> str:
+    note = info.get("note") or default_note or "this note"
+    heading = info.get("heading")
+    block = info.get("block")
+    label = note
+    if heading:
+        label = f"{label} > {heading}"
+    if block:
+        label = f"{label} (block {block})"
+    return label
+
+def parse_obsidian_links(text: str) -> tuple[str, list[dict], list[dict]]:
+    links: list[dict] = []
+    embeds: list[dict] = []
+
+    def replace_wikilink(match: re.Match) -> str:
+        is_embed = bool(match.group(1))
+        content = match.group(2).strip()
+        target = content
+        alias = None
+        if "|" in content:
+            target, alias = content.split("|", 1)
+            target = target.strip()
+            alias = alias.strip() or None
+        info = parse_link_target(target)
+        entry = {
+            "note": info.get("note") or "",
+            "heading": info.get("heading"),
+            "block": info.get("block"),
+            "alias": alias,
+            "embed": is_embed,
+            "raw": content,
+        }
+        links.append(entry)
+        if is_embed:
+            embeds.append(entry)
+        display = alias or format_link_target(info)
+        if is_embed:
+            return f"embedded: {display}"
+        if alias and info.get("note"):
+            return f"{alias} (link: {format_link_target(info)})"
+        return display
+
+    cleaned = WIKILINK_RE.sub(replace_wikilink, text)
+
+    def replace_md_link(match: re.Match) -> str:
+        label = match.group(1).strip()
+        url = match.group(2).strip()
+        if not url or re.match(r"^[a-z]+://", url):
+            return match.group(0)
+        url = url.split("?", 1)[0]
+        url_no_fragment, _, fragment = url.partition("#")
+        path = url_no_fragment.strip()
+        if not path:
+            return match.group(0)
+        _, ext = os.path.splitext(path)
+        if ext and ext.lower() not in {".md", ".markdown", ".mdx"}:
+            return match.group(0)
+        note_part = os.path.splitext(os.path.basename(path))[0] or path
+        info = parse_link_target(note_part + (f"#{fragment}" if fragment else ""))
+        entry = {
+            "note": info.get("note") or "",
+            "heading": info.get("heading"),
+            "block": info.get("block"),
+            "alias": label or None,
+            "embed": False,
+            "raw": path,
+        }
+        links.append(entry)
+        return f"{label} (link: {format_link_target(info)})"
+
+    cleaned = MD_LINK_RE.sub(replace_md_link, cleaned)
+    return cleaned, links, embeds
+
+def extract_inline_tags(text: str) -> set[str]:
+    return set(TAG_RE.findall(text))
+
+def extract_block_ids(text: str) -> set[str]:
+    return set(BLOCK_ID_RE.findall(text))
+
+def strip_block_ids(text: str) -> str:
+    return BLOCK_ID_RE.sub("", text)
+
+def normalize_key(value: str) -> str:
+    return value.strip().replace("\\", "/").strip("/")
+
+def build_note_key_map(notes: dict[str, dict]) -> dict[str, set[str]]:
+    key_map: dict[str, set[str]] = defaultdict(set)
+    for note in notes.values():
+        filename = note["filename"]
+        keys = set()
+        title = note.get("title") or ""
+        path_key = note.get("path_key") or ""
+        if title:
+            keys.add(normalize_key(title).lower())
+        if path_key:
+            keys.add(normalize_key(path_key).lower())
+        frontmatter_title = note.get("frontmatter", {}).get("title")
+        if isinstance(frontmatter_title, str) and frontmatter_title.strip():
+            keys.add(normalize_key(frontmatter_title).lower())
+        for alias in note.get("aliases", []):
+            if alias:
+                keys.add(normalize_key(alias).lower())
+        for key in keys:
+            key_map[key].add(filename)
+    return key_map
+
+def resolve_link_targets(link: dict, key_map: dict[str, set[str]]) -> set[str]:
+    note_ref = link.get("note") or ""
+    if not note_ref:
+        return set()
+    normalized = normalize_key(note_ref).lower()
+    targets = set(key_map.get(normalized, []))
+    if targets:
+        return targets
+    if "/" in normalized:
+        base = normalize_key(os.path.basename(normalized)).lower()
+        return set(key_map.get(base, []))
+    return set()
+
+def build_backlinks(notes: dict[str, dict], key_map: dict[str, set[str]]) -> dict[str, set[str]]:
+    backlinks: dict[str, set[str]] = defaultdict(set)
+    for note in notes.values():
+        source = note["filename"]
+        for link in note.get("links", []):
+            for target in resolve_link_targets(link, key_map):
+                if target != source:
+                    backlinks[target].add(source)
+    return backlinks
+
+def build_display_names(notes: dict[str, dict]) -> dict[str, str]:
+    titles = [note.get("title") or note["filename"] for note in notes.values()]
+    counts = Counter(titles)
+    display: dict[str, str] = {}
+    for note in notes.values():
+        title = note.get("title") or note["filename"]
+        if counts[title] > 1:
+            display[note["filename"]] = note.get("path_key") or note["filename"]
+        else:
+            display[note["filename"]] = title
+    return display
+
+def format_frontmatter_summary(frontmatter: dict) -> str | None:
+    if not frontmatter:
+        return None
+    parts: list[str] = []
+    for key, value in frontmatter.items():
+        if key in {"tags", "tag", "aliases", "alias", "title"}:
+            continue
+        if isinstance(value, list):
+            if not value:
+                continue
+            val = ", ".join(str(item) for item in value if str(item).strip())
+        else:
+            val = str(value).strip()
+        if not val or len(val) > 200:
+            continue
+        parts.append(f"{key}: {val}")
+    if not parts:
+        return None
+    return "Frontmatter: " + "; ".join(parts)
+
+def build_embedding_text(
+    note: dict,
+    backlinks: dict[str, set[str]],
+    display_names: dict[str, str],
+    key_map: dict[str, set[str]],
+) -> str:
+    metadata_lines: list[str] = []
+    title = note.get("title") or note["filename"]
+    metadata_lines.append(f"Title: {title}")
+
+    aliases = sorted(set(note.get("aliases", [])))
+    if aliases:
+        metadata_lines.append("Aliases: " + ", ".join(aliases))
+
+    tags = sorted(set(note.get("tags", [])))
+    if tags:
+        metadata_lines.append("Tags: " + ", ".join(tags))
+
+    block_ids = sorted(set(note.get("block_ids", [])))
+    if block_ids:
+        metadata_lines.append("Block IDs: " + ", ".join(block_ids))
+
+    outgoing = []
+    for link in note.get("links", []):
+        targets = resolve_link_targets(link, key_map)
+        if targets:
+            for target in targets:
+                outgoing.append(display_names.get(target, target))
+        else:
+            note_ref = link.get("note") or ""
+            if note_ref:
+                outgoing.append(note_ref)
+    if outgoing:
+        metadata_lines.append("Links: " + ", ".join(sorted(set(outgoing))))
+
+    embeds = []
+    for link in note.get("embeds", []):
+        targets = resolve_link_targets(link, key_map)
+        if targets:
+            for target in targets:
+                embeds.append(display_names.get(target, target))
+        else:
+            note_ref = link.get("note") or ""
+            if note_ref:
+                embeds.append(note_ref)
+    if embeds:
+        metadata_lines.append("Embeds: " + ", ".join(sorted(set(embeds))))
+
+    backlink_sources = sorted(
+        display_names.get(source, source)
+        for source in backlinks.get(note["filename"], set())
+    )
+    if backlink_sources:
+        metadata_lines.append("Backlinks: " + ", ".join(backlink_sources))
+
+    frontmatter_summary = format_frontmatter_summary(note.get("frontmatter", {}))
+    if frontmatter_summary:
+        metadata_lines.append(frontmatter_summary)
+
+    metadata_block = ""
+    if metadata_lines:
+        metadata_block = "Obsidian Metadata:\n" + "\n".join(metadata_lines) + "\n\n"
+
+    return metadata_block + (note.get("cleaned_text") or "")
+
+def build_obsidian_context(decoded_files: list[dict]) -> dict[str, dict]:
+    notes: dict[str, dict] = {}
+    for entry in decoded_files:
+        filename = entry["filename"]
+        content_type = entry.get("content_type")
+        text = entry["text"]
+        if not is_markdown_source(filename, content_type):
+            notes[filename] = {
+                "filename": filename,
+                "title": os.path.splitext(os.path.basename(filename))[0],
+                "path_key": normalize_key(os.path.splitext(filename)[0]),
+                "frontmatter": {},
+                "aliases": [],
+                "tags": [],
+                "links": [],
+                "embeds": [],
+                "block_ids": [],
+                "cleaned_text": text.strip(),
+            }
+            continue
+        frontmatter, body = extract_frontmatter(text)
+        clean_body = strip_block_ids(body)
+        cleaned_text, links, embeds = parse_obsidian_links(clean_body)
+        tag_source = strip_code_and_comments(body)
+        tags = set()
+        tags.update(coerce_list(frontmatter.get("tags")))
+        tags.update(coerce_list(frontmatter.get("tag")))
+        tags.update(extract_inline_tags(tag_source))
+        aliases = set()
+        aliases.update(coerce_list(frontmatter.get("aliases")))
+        aliases.update(coerce_list(frontmatter.get("alias")))
+        frontmatter_title = frontmatter.get("title")
+        if isinstance(frontmatter_title, str) and frontmatter_title.strip():
+            aliases.add(frontmatter_title.strip())
+        block_ids = extract_block_ids(body)
+
+        title = os.path.splitext(os.path.basename(filename))[0]
+        path_key = normalize_key(os.path.splitext(filename)[0])
+
+        notes[filename] = {
+            "filename": filename,
+            "title": title,
+            "path_key": path_key,
+            "frontmatter": frontmatter,
+            "aliases": sorted(aliases),
+            "tags": sorted(tags),
+            "links": links,
+            "embeds": embeds,
+            "block_ids": sorted(block_ids),
+            "cleaned_text": cleaned_text.strip(),
+        }
+
+    key_map = build_note_key_map(notes)
+    backlinks = build_backlinks(notes, key_map)
+    display_names = build_display_names(notes)
+    for note in notes.values():
+        note["embedding_text"] = build_embedding_text(
+            note, backlinks, display_names, key_map
+        )
+    return notes
 
 
 def get_db():
@@ -98,6 +604,24 @@ async def document_upload(
                 active_session_id = session_row.id
 
             yield f"data: {json.dumps({'status': 'session', 'session_id': active_session_id})}\n\n"
+
+            decoded_files: list[dict] = []
+            decode_errors: dict[str, str] = {}
+            for filename, raw_bytes, content_type in prepared_files:
+                if not raw_bytes:
+                    continue
+                try:
+                    decoded_files.append(
+                        {
+                            "filename": filename,
+                            "content_type": content_type or "text/plain",
+                            "text": raw_bytes.decode("utf-8"),
+                        }
+                    )
+                except UnicodeDecodeError:
+                    decode_errors[filename] = "file is not valid utf-8 text"
+
+            obsidian_context = build_obsidian_context(decoded_files)
             
             for filename, raw_bytes, content_type in prepared_files:
                 if not raw_bytes:
@@ -132,17 +656,25 @@ async def document_upload(
                     yield f"data: {json.dumps(payload)}\n\n"
                     continue
 
-                try:
-                    text = raw_bytes.decode("utf-8")
-                except UnicodeDecodeError:
+                if filename in decode_errors:
                     payload = {
                         "status": "error",
                         "filename": filename,
-                        "detail": "file is not valid utf-8 text",
+                        "detail": decode_errors[filename],
                     }
                     yield f"data: {json.dumps(payload)}\n\n"
                     continue
-                chunks = splitter.split_text(text)
+
+                text = obsidian_context.get(filename, {}).get("embedding_text")
+                if text is None:
+                    text = raw_bytes.decode("utf-8")
+
+                chunks = split_text_with_context(
+                    text=text,
+                    filename=filename,
+                    content_type=content_type,
+                    splitter=splitter,
+                )
                 if not chunks:
                     payload = {
                         "status": "skipped",
