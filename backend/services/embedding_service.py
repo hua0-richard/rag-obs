@@ -10,3 +10,7 @@ async def embed_chunks(chunks: list[str]):
 
 async def embed_query(prompt: str):
     return (await run_in_threadpool(model.encode, [prompt], convert_to_numpy=True))[0]
+
+
+def embed_query_sync(prompt: str):
+    return model.encode([prompt], convert_to_numpy=True)[0]

@@ -4,12 +4,16 @@ import re
 import ollama
 from starlette.concurrency import run_in_threadpool
 from fastapi import HTTPException
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from langchain_community.retrievers import BM25Retriever
+from langchain.retrievers import EnsembleRetriever
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 from db.models import Flashcard, Sessions
 from db.session import launch_db
 from prompt import FLASHCARD_PROMPT
-from services.embedding_service import embed_query
+from services.embedding_service import embed_query, embed_query_sync
 from utils.obsidian import format_context_content_for_llm, is_code_block_content
 
 FLASHCARD_CHARS_PER_CARD = 800
@@ -17,6 +21,115 @@ FLASHCARD_MIN_COUNT = 1
 FLASHCARD_MAX_COUNT = 20
 FLASHCARD_MIN_CODE_CARDS = 1
 FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT = 3
+HYBRID_VECTOR_WEIGHT = 0.6
+HYBRID_KEYWORD_WEIGHT = 0.4
+
+try:
+    from pydantic import ConfigDict
+except Exception:  # pragma: no cover - pydantic v1 fallback
+    ConfigDict = None
+
+
+def _build_embedding_filters(session_id: int | None, file_ids: list[int] | None):
+    clauses: list[str] = []
+    params: dict[str, object] = {}
+    if session_id is not None:
+        clauses.append("session_id = :sid")
+        params["sid"] = session_id
+    if file_ids:
+        clauses.append("files_id = ANY(:file_ids)")
+        params["file_ids"] = file_ids
+    return clauses, params
+
+
+def _fetch_embedding_rows(
+    db: Session,
+    session_id: int | None,
+    file_ids: list[int] | None,
+    *,
+    order_by: str | None = None,
+    limit: int | None = None,
+    qvec: object | None = None,
+):
+    base_query = "SELECT filename, chunk_index, content FROM embeddings "
+    clauses, params = _build_embedding_filters(session_id, file_ids)
+    if clauses:
+        base_query += "WHERE " + " AND ".join(clauses) + " "
+    if qvec is not None:
+        params["qvec"] = qvec.tolist()
+        base_query += "ORDER BY embedding <=> (:qvec)::vector "
+    elif order_by:
+        base_query += f"ORDER BY {order_by} "
+    if limit is not None:
+        base_query += "LIMIT :k"
+        params["k"] = limit
+    return db.execute(sql_text(base_query), params).fetchall()
+
+
+def _rows_to_documents(rows) -> list[Document]:
+    return [
+        Document(
+            page_content=row.content,
+            metadata={
+                "filename": row.filename,
+                "chunk_index": row.chunk_index,
+            },
+        )
+        for row in rows
+    ]
+
+
+def _documents_to_row_items(docs: list[Document]) -> list[tuple[str, int, str]]:
+    items: list[tuple[str, int, str]] = []
+    for doc in docs:
+        filename = doc.metadata.get("filename")
+        chunk_index = doc.metadata.get("chunk_index")
+        if isinstance(filename, str) and isinstance(chunk_index, int):
+            items.append((filename, chunk_index, doc.page_content))
+    return items
+
+
+class PgVectorRetriever(BaseRetriever):
+    db: Session
+    session_id: int | None
+    file_ids: list[int] | None
+    k: int | None
+
+    if ConfigDict is not None:
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+    else:
+        class Config:
+            arbitrary_types_allowed = True
+
+    def _get_relevant_documents(self, query: str) -> list[Document]:
+        qvec = embed_query_sync(query)
+        rows = _fetch_embedding_rows(
+            self.db,
+            self.session_id,
+            self.file_ids,
+            qvec=qvec,
+            limit=self.k,
+        )
+        return _rows_to_documents(rows)
+
+    async def _aget_relevant_documents(self, query: str) -> list[Document]:
+        qvec = await embed_query(query)
+        rows = _fetch_embedding_rows(
+            self.db,
+            self.session_id,
+            self.file_ids,
+            qvec=qvec,
+            limit=self.k,
+        )
+        return _rows_to_documents(rows)
+
+
+async def _ainvoke_retriever(retriever, query: str):
+    if hasattr(retriever, "ainvoke"):
+        return await retriever.ainvoke(query)
+    if hasattr(retriever, "aget_relevant_documents"):
+        return await retriever.aget_relevant_documents(query)
+    return retriever.get_relevant_documents(query)
 
 
 def _normalize_obsidian_latex(text: str) -> str:
@@ -209,7 +322,7 @@ async def generate_flashcards(
     db: Session,
 ):
     """
-    Retrieve top-k chunks via pgvector and ask Ollama (llama3.1) to generate flashcards.
+    Retrieve chunks via hybrid BM25 + pgvector and ask llm to generate flashcards.
     """
     launch_db()
 
@@ -219,44 +332,61 @@ async def generate_flashcards(
             detail="prompt is required unless session_id is provided",
         )
 
-    qvec = None
-    if prompt:
-        # Embed the prompt off the event loop
-        qvec = await embed_query(prompt)
-
     if session_id is not None and db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
-
-    base_query = (
-        "SELECT filename, chunk_index, content "
-        "FROM embeddings "
-    )
-    clauses = []
-    params = {}
-    if session_id is not None:
-        clauses.append("session_id = :sid")
-        params["sid"] = session_id
-    if file_ids:
-        clauses.append("files_id = ANY(:file_ids)")
-        params["file_ids"] = file_ids
-    if clauses:
-        base_query += "WHERE " + " AND ".join(clauses) + " "
-    if qvec is not None:
-        params["qvec"] = qvec.tolist()
-        base_query += "ORDER BY embedding <=> (:qvec)::vector"
-    else:
-        base_query += "ORDER BY chunk_index"
 
     effective_k = k
     if effective_k is None and session_id is None:
         effective_k = 5
-    if effective_k is not None:
-        base_query += " LIMIT :k"
-        params["k"] = effective_k
 
-    rows = db.execute(sql_text(base_query), params).fetchall()
-    row_items = [(row.filename, row.chunk_index, row.content) for row in rows]
-    seen_keys = {(row.filename, row.chunk_index) for row in rows}
+    row_items: list[tuple[str, int, str]] = []
+    if prompt:
+        bm25_rows = _fetch_embedding_rows(
+            db,
+            session_id,
+            file_ids,
+            order_by="chunk_index",
+            limit=None,
+        )
+        bm25_documents = _rows_to_documents(bm25_rows)
+        if bm25_documents:
+            bm25_k = effective_k if effective_k is not None else len(bm25_documents)
+            bm25_retriever = BM25Retriever.from_documents(bm25_documents)
+            bm25_retriever.k = bm25_k
+            vector_retriever = PgVectorRetriever(
+                db=db,
+                session_id=session_id,
+                file_ids=file_ids,
+                k=effective_k,
+            )
+            ensemble = EnsembleRetriever(
+                retrievers=[bm25_retriever, vector_retriever],
+                weights=[HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT],
+            )
+            hybrid_docs = await _ainvoke_retriever(ensemble, prompt)
+            row_items = _documents_to_row_items(hybrid_docs)
+    else:
+        rows = _fetch_embedding_rows(
+            db,
+            session_id,
+            file_ids,
+            order_by="chunk_index",
+            limit=effective_k,
+        )
+        row_items = [(row.filename, row.chunk_index, row.content) for row in rows]
+
+    seen_keys: set[tuple[str, int]] = set()
+    deduped_items: list[tuple[str, int, str]] = []
+    for filename, chunk_index, content in row_items:
+        key = (filename, chunk_index)
+        if key in seen_keys:
+            continue
+        deduped_items.append((filename, chunk_index, content))
+        seen_keys.add(key)
+    if effective_k is not None:
+        deduped_items = deduped_items[:effective_k]
+        seen_keys = {(filename, chunk_index) for filename, chunk_index, _ in deduped_items}
+    row_items = deduped_items
 
     code_items = [item for item in row_items if is_code_block_content(item[2])]
     if session_id is not None and len(code_items) < FLASHCARD_MIN_CODE_CARDS:

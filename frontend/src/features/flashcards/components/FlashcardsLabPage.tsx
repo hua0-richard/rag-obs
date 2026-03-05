@@ -389,7 +389,7 @@ export function FlashcardsLabPage() {
                 </Button>
             </nav>
 
-            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-6 pb-20 pt-32">
+            <main className="relative z-10 mx-auto flex h-screen w-screen max-w-[1500px] flex-col items-center px-6 pb-20 pt-32">
 
                 {/* Tabs */}
                 <div className="flex justify-center mb-12">
@@ -426,28 +426,32 @@ export function FlashcardsLabPage() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.3 }}
-                            className="group relative rounded-2xl border border-white/5 bg-[#121215]/40 w-full flex-1 flex flex-col"
+                            className="group relative mx-auto flex w-full max-w-[1100px] flex-col rounded-2xl border border-white/5 bg-[#121215]/40 shadow-[0_20px_60px_-45px_rgba(0,0,0,0.8)] backdrop-blur-sm h-[min(72vh,720px)] min-h-[500px] sm:min-h-[540px] max-h-[760px] overflow-hidden"
                         >
                             {/* Top Bar */}
-                            <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
-                                <div className="flex flex-col gap-1">
-                                    <div className="text-xs font-mono text-white/40">
+                            <div className="flex flex-col gap-4 border-b border-white/5 px-6 py-3 sm:flex-row sm:items-center sm:justify-between h-[112px] sm:h-20 overflow-hidden">
+                                <div className="flex min-w-0 flex-col gap-1">
+                                    <div
+                                        className="text-xs font-mono text-white/40 line-clamp-1"
+                                        title={`${selectedCount} / ${totalDocs} selected`}
+                                    >
                                         <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
                                     </div>
                                     {uploadStatus ? (
                                         <div
-                                            className={`text-[10px] font-mono ${uploadIsError ? "text-rose-300/70" : "text-white/30"}`}
+                                            className={`text-[10px] font-mono line-clamp-1 max-w-[260px] sm:max-w-[360px] ${uploadIsError ? "text-rose-300/70" : "text-white/30"}`}
+                                            title={uploadStatus}
                                         >
                                             {uploadStatus}
                                         </div>
                                     ) : null}
                                 </div>
 
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
                                     <button
                                         onClick={handleUploadClick}
                                         disabled={isUploading || documentsLoading}
-                                        className="inline-flex items-center gap-2 text-[11px] font-medium text-white/40 hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                                        className="inline-flex min-w-[120px] items-center gap-2 text-[11px] font-medium text-white/40 hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap"
                                     >
                                         <UploadCloud className="size-3.5" />
                                         <span>{isUploading ? "Uploading..." : "Upload More"}</span>
@@ -459,7 +463,7 @@ export function FlashcardsLabPage() {
                                             }
                                             setSelected(documents.map((doc) => doc.id));
                                         }}
-                                        className="text-[11px] font-medium text-white/30 hover:text-white transition-colors"
+                                        className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
                                     >
                                         Select All
                                     </button>
@@ -470,7 +474,7 @@ export function FlashcardsLabPage() {
                                             }
                                             setSelected([]);
                                         }}
-                                        className="text-[11px] font-medium text-white/30 hover:text-white transition-colors"
+                                        className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
                                     >
                                         Clear
                                     </button>
@@ -478,17 +482,20 @@ export function FlashcardsLabPage() {
                             </div>
 
                             {/* List */}
-                            <div className="divide-y divide-white/5 flex-1">
+                            <div className="flex-1 min-h-0 divide-y divide-white/5 overflow-y-auto">
                                 {documentsLoading ? (
-                                    <div className="px-6 py-10 text-center text-sm text-white/40">
+                                    <div className="px-6 py-10 text-center text-sm text-white/40 line-clamp-2">
                                         Loading documents...
                                     </div>
                                 ) : documentsError ? (
-                                    <div className="px-6 py-10 text-center text-sm text-white/40">
+                                    <div
+                                        className="px-6 py-10 text-center text-sm text-white/40 line-clamp-2"
+                                        title={documentsError}
+                                    >
                                         {documentsError}
                                     </div>
                                 ) : documents.length === 0 ? (
-                                    <div className="px-6 py-10 text-center text-sm text-white/40">
+                                    <div className="px-6 py-10 text-center text-sm text-white/40 line-clamp-2">
                                         No documents found for this session.
                                     </div>
                                 ) : (
@@ -498,27 +505,35 @@ export function FlashcardsLabPage() {
                                             <button
                                                 key={doc.id}
                                                 onClick={() => toggleSelection(doc.id)}
-                                                className={`w-full flex items-center justify-between gap-4 px-6 py-4 text-left transition-colors duration-200 ${isSelected ? "bg-white/[0.03]" : "hover:bg-white/[0.01]"
+                                                className={`w-full flex h-20 items-center justify-between gap-4 px-6 py-3 text-left transition-colors duration-200 overflow-hidden ${isSelected ? "bg-white/[0.03]" : "hover:bg-white/[0.01]"
                                                     }`}
                                             >
-                                                <div className="flex items-center gap-4">
+                                                <div className="flex min-w-0 items-center gap-4">
                                                     <div className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors duration-200 ${isSelected
                                                         ? "bg-white/[0.06] border-white/10 text-white/70"
                                                         : "bg-transparent border-white/5 text-white/20"
                                                         }`}>
                                                         <FileText className="size-4" />
                                                     </div>
-                                                    <div>
-                                                        <div className={`text-sm transition-colors duration-200 ${isSelected ? "text-white font-medium" : "text-white/60"}`}>
+                                                    <div className="min-w-0">
+                                                        <div
+                                                            className={`text-sm transition-colors duration-200 line-clamp-1 ${isSelected ? "text-white font-medium" : "text-white/60"}`}
+                                                            title={doc.title}
+                                                        >
                                                             {doc.title}
                                                         </div>
-                                                        <div className="text-[11px] text-white/20 mt-0.5 font-mono">{doc.meta}</div>
+                                                        <div className="text-[11px] text-white/20 mt-0.5 font-mono line-clamp-1" title={doc.meta}>
+                                                            {doc.meta}
+                                                        </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center gap-6">
+                                                <div className="flex items-center gap-6 shrink-0">
                                                     {doc.updatedAt ? (
-                                                        <span className="hidden sm:inline text-[10px] text-white/20 font-mono tracking-wider">
+                                                        <span
+                                                            className="hidden sm:inline text-[10px] text-white/20 font-mono tracking-wider line-clamp-1 max-w-[140px]"
+                                                            title={doc.updatedAt}
+                                                        >
                                                             {doc.updatedAt}
                                                         </span>
                                                     ) : null}
@@ -539,20 +554,25 @@ export function FlashcardsLabPage() {
                             </div>
 
                             {/* Bottom Action Bar */}
-                            <div className="border-t border-white/5 p-4 flex items-center justify-between gap-4">
-                                {generateError ? (
-                                    <div className="text-[11px] font-mono text-rose-300/70">
-                                        {generateError}
-                                    </div>
-                                ) : (
-                                    <div className="text-[11px] font-mono text-white/30">
-                                        {isGenerating ? "Generating deck..." : "Select files to generate a deck."}
-                                    </div>
-                                )}
+                            <div className="border-t border-white/5 px-6 py-3 flex items-center justify-between gap-4 h-20 overflow-hidden">
+                                <div className="min-w-0 flex-1">
+                                    {generateError ? (
+                                        <div className="text-[11px] font-mono text-rose-300/70 line-clamp-1" title={generateError}>
+                                            {generateError}
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="text-[11px] font-mono text-white/30 line-clamp-1"
+                                            title={isGenerating ? "Generating deck..." : "Select files to generate a deck."}
+                                        >
+                                            {isGenerating ? "Generating deck..." : "Select files to generate a deck."}
+                                        </div>
+                                    )}
+                                </div>
                                 <button
                                     onClick={handleGenerate}
                                     disabled={selectedCount === 0 || isGenerating || isUploading || documentsLoading || documents.length === 0 || !!documentsError}
-                                    className={`luminous-btn h-10 px-6 flex items-center justify-center gap-2 text-sm transition-all duration-300 ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "opacity-30 grayscale cursor-not-allowed" : ""
+                                    className={`luminous-btn h-10 min-w-[170px] px-6 flex items-center justify-center gap-2 text-sm transition-all duration-300 whitespace-nowrap shrink-0 ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "opacity-30 grayscale cursor-not-allowed" : ""
                                         }`}
                                 >
                                     {isGenerating ? (
@@ -580,10 +600,10 @@ export function FlashcardsLabPage() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.3 }}
-                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full"
+                            className="mx-auto grid w-full max-w-[1200px] grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                         >
                             {sortedDecks.length === 0 ? (
-                                <div className="col-span-full rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center text-sm text-white/40">
+                                <div className="col-span-full min-h-[240px] max-h-[240px] rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center text-sm text-white/40 line-clamp-2">
                                     No decks yet. Generate flashcards from your notes to save a deck.
                                 </div>
                             ) : (
@@ -602,31 +622,33 @@ export function FlashcardsLabPage() {
                                     return (
                                         <div
                                             key={deck.id}
-                                            className="group relative flex flex-col justify-between p-6 rounded-2xl border border-white/5 bg-[#121215]/40 hover:bg-[#121215]/80 hover:border-white/10 transition-all duration-300 backdrop-blur-sm"
+                                            className="group relative flex h-[260px] min-h-[260px] max-h-[260px] flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-[#121215]/40 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-[#121215]/80 hover:border-white/10 shadow-[0_16px_40px_-30px_rgba(0,0,0,0.8)]"
                                         >
                                             <div>
                                                 <div className="flex items-start justify-between mb-4">
                                                     <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]">
                                                         <Layers className="size-5" />
                                                     </div>
-                                                    <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest bg-white/5 px-2 py-1 rounded-full">
+                                                    <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest bg-white/5 px-2 py-1 rounded-full line-clamp-1 max-w-[110px]" title={cardLabel}>
                                                         {cardLabel}
                                                     </div>
                                                 </div>
 
-                                                <h3 className="text-lg font-medium text-white mb-1 group-hover:text-[hsl(var(--accent))] transition-colors">
+                                                <h3 className="text-lg font-medium text-white mb-1 line-clamp-2 group-hover:text-[hsl(var(--accent))] transition-colors" title={deck.title}>
                                                     {deck.title}
                                                 </h3>
 
-                                                <div className="flex flex-wrap items-center gap-3 text-xs text-white/40 mb-6">
-                                                    <span className="flex items-center gap-1.5">
+                                                <div className="flex items-center gap-3 text-xs text-white/40 mb-6 min-w-0 overflow-hidden">
+                                                    <span className="flex min-w-0 items-center gap-1.5">
                                                         <Clock className="size-3" />
-                                                        {timeLabel}
+                                                        <span className="line-clamp-1" title={timeLabel}>
+                                                            {timeLabel}
+                                                        </span>
                                                     </span>
-                                                    <span className="w-1 h-1 rounded-full bg-white/20" />
-                                                    <span>{notesLabel}</span>
-                                                    <span className="w-1 h-1 rounded-full bg-white/20" />
-                                                    <span>{masteryLabel}</span>
+                                                    <span className="w-1 h-1 rounded-full bg-white/20 flex-none" />
+                                                    <span className="line-clamp-1 min-w-0" title={notesLabel}>{notesLabel}</span>
+                                                    <span className="w-1 h-1 rounded-full bg-white/20 flex-none" />
+                                                    <span className="line-clamp-1 min-w-0" title={masteryLabel}>{masteryLabel}</span>
                                                 </div>
                                             </div>
 

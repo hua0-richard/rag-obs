@@ -4,9 +4,7 @@ from services.upload_service import stream_document_upload
 
 router = APIRouter()
 
-
-# This Stream is Blocking
-# This is WORKING for now
+# Document Streaming is NON-BLOCKING
 @router.post("/upload-files")
 async def document_upload(
     files: List[UploadFile] = File(...),
