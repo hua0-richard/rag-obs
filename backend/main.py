@@ -39,15 +39,205 @@ app.add_middleware(
 
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdx"}
 _HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.*)$")
-_CODE_FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
-_LATEX_FENCE_LINE_RE = re.compile(r"^\s*(\$\$|\$)\s*$")
+_BLOCKQUOTE_PREFIX_RE = re.compile(r"^\s*(?:>\s*)*")
+_INLINE_MATH_MAX_LEN = 200
+_INLINE_MATH_MAX_PER_SECTION = 50
+_INLINE_CODE_MAX_LEN = 200
+_INLINE_CODE_MAX_PER_SECTION = 50
+
+
+def strip_blockquote_prefix(line: str) -> str:
+    return _BLOCKQUOTE_PREFIX_RE.sub("", line)
+
+
+def split_obsidian_math_fence_line(line: str) -> list[str]:
+    match = _BLOCKQUOTE_PREFIX_RE.match(line)
+    prefix = match.group(0) if match else ""
+    content = line[len(prefix):]
+    if "$$" not in content:
+        return [line]
+
+    stripped = content.strip()
+    if stripped == "$$":
+        return [prefix + "$$"]
+
+    if stripped.endswith("$$") and not stripped.startswith("$$"):
+        before = content.rstrip()[:-2].rstrip()
+        lines: list[str] = []
+        if before.strip():
+            lines.append(prefix + before)
+        lines.append(prefix + "$$")
+        return lines
+
+    if stripped.startswith("$$") and not stripped.endswith("$$"):
+        after = content.lstrip()[2:].lstrip()
+        lines = [prefix + "$$"]
+        if after.strip():
+            lines.append(prefix + after)
+        return lines
+
+    return [line]
+
+
+def find_inline_math_in_line(line: str) -> list[str]:
+    results: list[str] = []
+    if "$" not in line:
+        return results
+    in_inline = False
+    start = 0
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == "$":
+            if i + 1 < len(line) and line[i + 1] == "$":
+                i += 2
+                continue
+            if not in_inline:
+                in_inline = True
+                start = i
+                i += 1
+                continue
+            expr = line[start + 1 : i]
+            if expr.strip():
+                math = f"${expr}$"
+                if len(math) <= _INLINE_MATH_MAX_LEN:
+                    results.append(math)
+            in_inline = False
+            i += 1
+            continue
+        i += 1
+    return results
+
+
+def find_inline_code_in_line(line: str) -> list[str]:
+    results: list[str] = []
+    if "`" not in line:
+        return results
+    i = 0
+    while i < len(line):
+        if line[i] != "`":
+            i += 1
+            continue
+        run_start = i
+        while i < len(line) and line[i] == "`":
+            i += 1
+        run_len = i - run_start
+        closer = "`" * run_len
+        end = line.find(closer, i)
+        if end == -1:
+            i = run_start + 1
+            continue
+        content = line[i:end]
+        if content.startswith(" ") and content.endswith(" ") and len(content) > 1:
+            content = content[1:-1]
+        if content.strip() and len(content) <= _INLINE_CODE_MAX_LEN:
+            results.append(content)
+        i = end + run_len
+    return results
+
+
+def strip_inline_code(text: str) -> str:
+    cleaned_lines: list[str] = []
+    for line in text.splitlines():
+        out: list[str] = []
+        i = 0
+        while i < len(line):
+            if line[i] != "`":
+                out.append(line[i])
+                i += 1
+                continue
+            run_start = i
+            while i < len(line) and line[i] == "`":
+                i += 1
+            run_len = i - run_start
+            closer = "`" * run_len
+            end = line.find(closer, i)
+            if end == -1:
+                out.append(line[run_start:i])
+                continue
+            out.append(" ")
+            i = end + run_len
+        cleaned_lines.append("".join(out))
+    return "\n".join(cleaned_lines)
+
+def extract_inline_math_expressions(text: str) -> list[str]:
+    expressions: list[str] = []
+    code_fence_len: int | None = None
+    in_math_fence = False
+    for raw_line in text.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            if code_fence_len is None:
+                code_fence_len = fence_len
+            elif fence_len >= code_fence_len:
+                code_fence_len = None
+            continue
+        if code_fence_len is not None:
+            continue
+
+        for line in split_obsidian_math_fence_line(raw_line):
+            is_math_line, toggle = latex_line_info(line)
+            if is_math_line:
+                if toggle:
+                    in_math_fence = not in_math_fence
+                continue
+            if in_math_fence:
+                continue
+            expressions.extend(find_inline_math_in_line(line))
+            if len(expressions) >= _INLINE_MATH_MAX_PER_SECTION:
+                return expressions
+    return expressions
+
+
+def extract_inline_code_spans(text: str) -> list[str]:
+    spans: list[str] = []
+    code_fence_len: int | None = None
+    in_math_fence = False
+    for raw_line in text.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            if code_fence_len is None:
+                code_fence_len = fence_len
+            elif fence_len >= code_fence_len:
+                code_fence_len = None
+            continue
+        if code_fence_len is not None:
+            continue
+
+        for line in split_obsidian_math_fence_line(raw_line):
+            is_math_line, toggle = latex_line_info(line)
+            if is_math_line:
+                if toggle:
+                    in_math_fence = not in_math_fence
+                continue
+            if in_math_fence:
+                continue
+            spans.extend(find_inline_code_in_line(line))
+            if len(spans) >= _INLINE_CODE_MAX_PER_SECTION:
+                return spans
+    return spans
+
+def detect_code_fence_len(line: str) -> int | None:
+    stripped = strip_blockquote_prefix(line).lstrip()
+    if not stripped.startswith("```"):
+        return None
+    count = 0
+    for ch in stripped:
+        if ch == "`":
+            count += 1
+        else:
+            break
+    return count if count >= 3 else None
 
 
 def latex_line_info(line: str) -> tuple[bool, bool]:
-    stripped = line.strip()
+    stripped = strip_blockquote_prefix(line).strip()
     if not stripped:
         return False, False
-    if _LATEX_FENCE_LINE_RE.match(stripped):
+    if stripped == "$$":
         return True, True
     if stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) > 4:
         return True, False
@@ -55,8 +245,6 @@ def latex_line_info(line: str) -> tuple[bool, bool]:
         return True, False
     return False, False
 FRONTMATTER_RE = re.compile(r"^---\s*\r?\n(.*?)\r?\n---\s*\r?\n?", re.DOTALL)
-CODE_FENCE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
-INLINE_CODE_RE = re.compile(r"`[^`]*`")
 OBSIDIAN_COMMENT_RE = re.compile(r"%%.*?%%", re.DOTALL)
 WIKILINK_RE = re.compile(r"(!)?\[\[([^\]]+?)\]\]")
 MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
@@ -80,7 +268,7 @@ def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
     heading_stack: list[tuple[int, str]] = []
     current_lines: list[str] = []
     current_headings: list[str] = []
-    in_code_fence = False
+    code_fence_len: int | None = None
     in_math_fence = False
 
     def flush_section() -> None:
@@ -92,13 +280,21 @@ def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
             sections.append((current_headings.copy(), body))
         current_lines = []
 
-    for line in text.splitlines():
-        if _CODE_FENCE_RE.match(line):
-            in_code_fence = not in_code_fence
-            current_lines.append(line)
+    for raw_line in text.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            if code_fence_len is None:
+                code_fence_len = fence_len
+            elif fence_len >= code_fence_len:
+                code_fence_len = None
+            current_lines.append(raw_line)
             continue
 
-        if not in_code_fence:
+        if code_fence_len is not None:
+            current_lines.append(raw_line)
+            continue
+
+        for line in split_obsidian_math_fence_line(raw_line):
             is_math_line, toggle = latex_line_info(line)
             if is_math_line:
                 if toggle:
@@ -109,7 +305,6 @@ def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
                 current_lines.append(line)
                 continue
 
-        if not in_code_fence and not in_math_fence:
             match = _HEADING_RE.match(line)
             if match:
                 flush_section()
@@ -121,7 +316,7 @@ def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
                 current_headings = [h[1] for h in heading_stack]
                 continue
 
-        current_lines.append(line)
+            current_lines.append(line)
 
     flush_section()
 
@@ -162,14 +357,51 @@ def split_text_with_context(
                     chunks.append(f"{context_prefix}\n\n{cleaned}")
                 else:
                     chunks.append(cleaned)
+            inline_math = extract_inline_math_expressions(body)
+            for expr in inline_math:
+                if context_prefix:
+                    chunks.append(f"{context_prefix}\n\nInline math: {expr}")
+                else:
+                    chunks.append(f"Inline math: {expr}")
+            inline_code = extract_inline_code_spans(body)
+            for code in inline_code:
+                if context_prefix:
+                    chunks.append(f"{context_prefix}\n\nInline code: {code}")
+                else:
+                    chunks.append(f"Inline code: {code}")
         return chunks
 
     return [chunk.strip() for chunk in splitter.split_text(text) if chunk.strip()]
 
 def strip_code_and_comments(text: str) -> str:
     stripped = OBSIDIAN_COMMENT_RE.sub(" ", text)
-    stripped = CODE_FENCE_BLOCK_RE.sub(" ", stripped)
-    stripped = INLINE_CODE_RE.sub(" ", stripped)
+    cleaned_lines: list[str] = []
+    code_fence_len: int | None = None
+    in_math_fence = False
+    for raw_line in stripped.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            if code_fence_len is None:
+                code_fence_len = fence_len
+            elif fence_len >= code_fence_len:
+                code_fence_len = None
+            continue
+        if code_fence_len is not None:
+            continue
+
+        for line in split_obsidian_math_fence_line(raw_line):
+            is_math_line, toggle = latex_line_info(line)
+            if is_math_line:
+                if toggle:
+                    in_math_fence = not in_math_fence
+                continue
+            if in_math_fence:
+                continue
+
+            cleaned_lines.append(line)
+
+    stripped = "\n".join(cleaned_lines)
+    stripped = strip_inline_code(stripped)
     return stripped
 
 def extract_frontmatter(text: str) -> tuple[dict, str]:
