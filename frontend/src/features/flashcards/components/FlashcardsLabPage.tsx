@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps } from "react";
-import { Check, FileText, Wand2, Sparkles, X, Layers, Clock, ArrowRight, UploadCloud } from "lucide-react";
+import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
 import { useNavigate } from "react-router-dom";
@@ -98,6 +98,8 @@ const buildDocument = (file: ApiFile): Document => {
 export function FlashcardsLabPage() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pulseTimeoutRef = useRef<number | null>(null);
+    const closeTimeoutRef = useRef<number | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("create");
     const [selected, setSelected] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -105,6 +107,13 @@ export function FlashcardsLabPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadStatus, setUploadStatus] = useState<string | null>(null);
     const [uploadIsError, setUploadIsError] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState("");
+    const [totalFiles, setTotalFiles] = useState(0);
+    const [completedFiles, setCompletedFiles] = useState(0);
+    const [pulseComplete, setPulseComplete] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [isClosing, setIsClosing] = useState(false);
+    const [isHoveringToast, setIsHoveringToast] = useState(false);
     const [decks, setDecks] = useState<FlashcardDeck[]>(() => loadDecks());
     const [documents, setDocuments] = useState<Document[]>([]);
     const [documentsLoading, setDocumentsLoading] = useState(true);
@@ -162,6 +171,62 @@ export function FlashcardsLabPage() {
         }
     }, [activeTab]);
 
+    const closeToast = () => {
+        setIsClosing(true);
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+        }
+        closeTimeoutRef.current = window.setTimeout(() => {
+            setShowToast(false);
+            setIsClosing(false);
+        }, 320);
+    };
+
+    const scheduleAutoClose = () => {
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+        }
+        closeTimeoutRef.current = window.setTimeout(() => {
+            if (!isHoveringToast) {
+                closeToast();
+            }
+        }, 3000);
+    };
+
+    useEffect(() => {
+        if (
+            showToast &&
+            !isUploading &&
+            !isGenerating &&
+            totalFiles > 0 &&
+            completedFiles >= totalFiles
+        ) {
+            if (!isHoveringToast) {
+                scheduleAutoClose();
+            }
+        }
+        return () => {
+            if (closeTimeoutRef.current) {
+                window.clearTimeout(closeTimeoutRef.current);
+            }
+        };
+    }, [showToast, isUploading, isGenerating, totalFiles, completedFiles, isHoveringToast]);
+
+    useEffect(() => {
+        if (!showToast) {
+            return;
+        }
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                closeToast();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [showToast]);
+
     const sortedDecks = useMemo(() => {
         return [...decks].sort((a, b) => {
             const aTimeRaw = new Date(a.lastStudiedAt ?? a.createdAt).getTime();
@@ -207,6 +272,11 @@ export function FlashcardsLabPage() {
         }
 
         setGenerateError(null);
+        setShowToast(true);
+        setIsClosing(false);
+        setLoadingMessage("Generating flashcards...");
+        setTotalFiles((prev) => (prev > 0 ? prev : selectedIds.length));
+        setCompletedFiles((prev) => (prev > 0 ? prev : selectedIds.length));
         setIsGenerating(true);
         try {
             const params = new URLSearchParams({
@@ -228,6 +298,11 @@ export function FlashcardsLabPage() {
                         ? data.flashcards.length
                         : 0;
 
+            setLoadingMessage(
+                typeof data?.saved_count === "number"
+                    ? `Flashcards generated (${savedCount} saved).`
+                    : "Flashcards generated."
+            );
             const deckSessionId = String(sessionId);
             const selectedTitles = selectedDocs.map((doc) => doc.title);
             const nextDecks = upsertDeck({
@@ -244,6 +319,7 @@ export function FlashcardsLabPage() {
         } catch (error) {
             const message = error instanceof Error ? error.message : "Flashcard generation failed.";
             setGenerateError(message);
+            setLoadingMessage(message);
         } finally {
             setIsGenerating(false);
         }
@@ -277,6 +353,13 @@ export function FlashcardsLabPage() {
         setIsUploading(true);
         setUploadIsError(false);
         setUploadStatus(`Uploading ${fileList.length} file${fileList.length === 1 ? "" : "s"}...`);
+        setShowToast(true);
+        setIsClosing(false);
+        setCompletedFiles(0);
+        setTotalFiles(fileList.length);
+        setLoadingMessage(
+            `Embedding ${fileList.length} document${fileList.length === 1 ? "" : "s"}...`
+        );
 
         try {
             const response = await fetch(
@@ -291,12 +374,14 @@ export function FlashcardsLabPage() {
                 const detail = response.ok ? "Upload failed. Please try again." : await response.text();
                 setUploadIsError(true);
                 setUploadStatus(detail || "Upload failed. Please try again.");
+                setLoadingMessage(detail || "Upload failed. Please try again.");
                 return;
             }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
+            let completed = 0;
             let embeddedCount = 0;
             let skippedCount = 0;
             let errorCount = 0;
@@ -323,26 +408,56 @@ export function FlashcardsLabPage() {
 
                     try {
                         const payload = JSON.parse(payloadText);
-                        if (payload?.status === "session" && payload?.session_id) {
-                            localStorage.setItem("session_id", String(payload.session_id));
-                            continue;
+                    if (payload?.status === "session" && payload?.session_id) {
+                        localStorage.setItem("session_id", String(payload.session_id));
+                        continue;
+                    }
+                    if (payload?.status === "embedded") {
+                        completed += 1;
+                        setCompletedFiles(completed);
+                        const filename =
+                            payload?.filename || fileList[Math.max(0, completed - 1)]?.name || "document";
+                        setLoadingMessage(
+                            `Embedded ${filename} (${completed}/${fileList.length})`
+                        );
+                        embeddedCount += 1;
+                        setPulseComplete(true);
+                        if (pulseTimeoutRef.current) {
+                            window.clearTimeout(pulseTimeoutRef.current);
                         }
-                        if (payload?.status === "embedded") {
-                            embeddedCount += 1;
-                            continue;
+                        pulseTimeoutRef.current = window.setTimeout(() => {
+                            setPulseComplete(false);
+                        }, 900);
+                        continue;
+                    }
+                    if (payload?.status === "skipped") {
+                        completed += 1;
+                        setCompletedFiles(completed);
+                        const filename =
+                            payload?.filename || fileList[Math.max(0, completed - 1)]?.name || "document";
+                        setLoadingMessage(
+                            `Skipped ${filename} (${completed}/${fileList.length})`
+                        );
+                        skippedCount += 1;
+                        continue;
+                    }
+                    if (payload?.status === "error") {
+                        errorCount += 1;
+                        setUploadIsError(true);
+                        lastError = payload?.detail || "Upload failed. Please try again.";
+                        if (payload?.filename) {
+                            completed += 1;
+                            setCompletedFiles(completed);
+                            lastError = `Failed ${payload.filename}: ${lastError}`;
+                            setLoadingMessage(lastError);
+                        } else {
+                            setLoadingMessage(lastError);
                         }
-                        if (payload?.status === "skipped") {
-                            skippedCount += 1;
-                            continue;
+                        if (payload?.detail === "session_id not found") {
+                            localStorage.removeItem("session_id");
                         }
-                        if (payload?.status === "error") {
-                            errorCount += 1;
-                            lastError = payload?.detail || "Upload failed. Please try again.";
-                            if (payload?.detail === "session_id not found") {
-                                localStorage.removeItem("session_id");
-                            }
-                        }
-                    } catch {
+                    }
+                } catch {
                         // Ignore malformed payloads
                     }
                 }
@@ -351,11 +466,21 @@ export function FlashcardsLabPage() {
             if (errorCount > 0) {
                 setUploadIsError(true);
                 setUploadStatus(lastError || `Upload finished with ${errorCount} error${errorCount === 1 ? "" : "s"}.`);
+                setLoadingMessage(
+                    `Processed ${completed}/${fileList.length} files with ${errorCount} error${errorCount === 1 ? "" : "s"}.`
+                );
             } else {
                 const totalProcessed = embeddedCount + skippedCount;
                 setUploadStatus(
                     `Uploaded ${totalProcessed} file${totalProcessed === 1 ? "" : "s"}.`
                 );
+                if (totalProcessed === 0) {
+                    setLoadingMessage("No documents were embedded.");
+                } else if (totalProcessed < fileList.length) {
+                    setLoadingMessage(`Processed ${totalProcessed}/${fileList.length} files.`);
+                } else {
+                    setLoadingMessage("All documents embedded.");
+                }
             }
 
             await fetchDocuments(sessionId);
@@ -363,6 +488,7 @@ export function FlashcardsLabPage() {
             const message = error instanceof Error ? error.message : "Upload failed. Please try again.";
             setUploadIsError(true);
             setUploadStatus(message);
+            setLoadingMessage(message);
         } finally {
             setIsUploading(false);
             event.target.value = "";
@@ -371,6 +497,120 @@ export function FlashcardsLabPage() {
 
     return (
         <div className="min-h-screen w-full bg-[#09090b] text-white/90 selection:bg-[hsl(var(--accent)/0.3)] relative">
+            <style>
+                {`
+                .loading-border {
+                    border: 1px solid hsl(var(--accent) / 0.45);
+                    box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2);
+                    animation: borderPulse 2.2s ease-in-out infinite;
+                }
+
+                .completion-pulse {
+                    animation: completionPulse 0.9s ease-out;
+                }
+
+                .status-shell {
+                    background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) padding-box,
+                        linear-gradient(135deg, hsl(var(--accent) / 0.45), transparent 60%, hsl(var(--accent) / 0.2)) border-box;
+                    border: 1px solid transparent;
+                }
+
+                .status-glow {
+                    animation: glowPulse 3s ease-in-out infinite;
+                }
+
+                .status-sheen {
+                    background: linear-gradient(
+                        120deg,
+                        transparent 0%,
+                        rgba(255,255,255,0.12) 45%,
+                        rgba(255,255,255,0.03) 55%,
+                        transparent 100%
+                    );
+                    animation: sheenSweep 2.8s ease-in-out infinite;
+                }
+
+                .status-card {
+                    background: radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 45%),
+                        #18181b;
+                    border: 1px solid rgba(255,255,255,0.08);
+                }
+
+                .accent-strip {
+                    background: linear-gradient(180deg, hsl(var(--accent) / 0.9), transparent 90%);
+                }
+
+                .progress-flow {
+                    background: linear-gradient(
+                        90deg,
+                        hsl(var(--accent) / 0.15),
+                        hsl(var(--accent) / 0.65),
+                        hsl(var(--accent) / 0.15)
+                    );
+                    animation: progressSweep 1.6s ease-in-out infinite;
+                }
+
+                @keyframes borderPulse {
+                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
+                    50% { box-shadow: 0 0 14px 2px hsl(var(--accent) / 0.45); }
+                    100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
+                }
+
+                @keyframes completionPulse {
+                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.6); }
+                    100% { box-shadow: 0 0 0 18px transparent; }
+                }
+
+                @keyframes glowPulse {
+                    0% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
+                    50% { box-shadow: 0 0 36px hsl(var(--accent) / 0.25); }
+                    100% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
+                }
+
+                @keyframes sheenSweep {
+                    0% { transform: translateX(-120%); opacity: 0; }
+                    30% { opacity: 0.7; }
+                    60% { opacity: 0.4; }
+                    100% { transform: translateX(120%); opacity: 0; }
+                }
+
+                @keyframes progressSweep {
+                    0% { transform: translateX(-40%); opacity: 0.4; }
+                    50% { transform: translateX(40%); opacity: 0.9; }
+                    100% { transform: translateX(140%); opacity: 0.4; }
+                }
+
+                @keyframes toastIn {
+                    0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
+                    100% { opacity: 1; transform: translateY(0) scale(1); }
+                }
+
+                @keyframes toastOut {
+                    0% { opacity: 1; transform: translateY(0) scale(1); }
+                    100% { opacity: 0; transform: translateY(-8px) scale(0.98); }
+                }
+
+                .toast-enter {
+                    animation: toastIn 320ms ease-out;
+                }
+
+                .toast-exit {
+                    animation: toastOut 320ms ease-in;
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .loading-border,
+                    .completion-pulse,
+                    .status-glow,
+                    .status-sheen,
+                    .progress-flow,
+                    .toast-enter,
+                    .toast-exit {
+                        animation: none !important;
+                    }
+                }
+                `}
+            </style>
             {/* Ambient Vignette */}
             <div className="absolute inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.0)_70%)]" />
 
@@ -576,11 +816,11 @@ export function FlashcardsLabPage() {
                                         }`}
                                 >
                                     {isGenerating ? (
-                                        <Sparkles className="size-3.5 animate-spin" />
+                                        <Loader2 className="size-3.5 animate-spin" />
                                     ) : (
                                         <Wand2 className="size-3.5" />
                                     )}
-                                    <span>{isGenerating ? "Processing..." : "Generate Deck"}</span>
+                                    <span>{isGenerating ? "Generating..." : "Generate Deck"}</span>
                                 </button>
                             </div>
 
@@ -674,6 +914,63 @@ export function FlashcardsLabPage() {
                     )}
                 </AnimatePresence>
             </main>
+            {showToast ? (
+                <div
+                    className="fixed right-6 top-6 z-50 w-[min(84vw,320px)]"
+                    role="status"
+                    aria-live="polite"
+                    onMouseEnter={() => setIsHoveringToast(true)}
+                    onMouseLeave={() => setIsHoveringToast(false)}
+                    onFocusCapture={() => setIsHoveringToast(true)}
+                    onBlurCapture={() => setIsHoveringToast(false)}
+                >
+                    <div
+                        className={`status-shell status-glow relative overflow-hidden rounded-[18px] ${
+                            isUploading || isGenerating ? "loading-border" : ""
+                        } ${pulseComplete ? "completion-pulse" : ""} ${
+                            isClosing ? "toast-exit" : "toast-enter"
+                        }`}
+                    >
+                        <div className="absolute inset-0 status-sheen pointer-events-none" />
+                        <div className="status-card relative rounded-[16px] px-4 py-3 text-left text-sm text-white/80 backdrop-blur-xl">
+                            <div className="accent-strip absolute left-0 top-0 h-full w-1.5" />
+                            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.24em] text-white/45">
+                                <span>{isGenerating ? "Flashcards" : "Embedding"}</span>
+                                <button
+                                    type="button"
+                                    onClick={closeToast}
+                                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] tracking-[0.16em] text-white/50 transition hover:text-white"
+                                >
+                                    <span>Close</span>
+                                    <X className="size-3" />
+                                </button>
+                            </div>
+                            <div className="mt-2 text-[13px] font-medium text-white">
+                                {loadingMessage || (isGenerating ? "Generating flashcards..." : "Preparing embeddings...")}
+                            </div>
+                            {isUploading || isGenerating ? (
+                                <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
+                                    <div className="progress-flow h-full w-[60%] rounded-full" />
+                                </div>
+                            ) : null}
+                            <div className="mt-2.5 flex items-center justify-between text-[10px] text-white/45">
+                                <div className="flex items-center gap-2">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--accent)/0.6)] opacity-75" />
+                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(var(--accent)/0.9)]" />
+                                    </span>
+                                    <span>
+                                        {isGenerating ? "Generating flashcards" : "Storing vector embeddings"}
+                                    </span>
+                                </div>
+                                <span>
+                                    {isGenerating ? "…" : `${completedFiles}/${totalFiles}`}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }
