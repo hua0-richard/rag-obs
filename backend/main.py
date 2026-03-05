@@ -2,6 +2,7 @@ import json
 import os
 import re
 from collections import Counter, defaultdict
+import math
 import ollama
 from pathlib import Path
 from models import Files, Embeddings, Sessions, Flashcard
@@ -22,6 +23,12 @@ import time
 import uuid
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
+
+FLASHCARD_CHARS_PER_CARD = 800
+FLASHCARD_MIN_COUNT = 1
+FLASHCARD_MAX_COUNT = 20
+FLASHCARD_MIN_CODE_CARDS = 1
+FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT = 3
 
 app = FastAPI()
 
@@ -44,10 +51,19 @@ _INLINE_MATH_MAX_LEN = 200
 _INLINE_MATH_MAX_PER_SECTION = 50
 _INLINE_CODE_MAX_LEN = 200
 _INLINE_CODE_MAX_PER_SECTION = 50
+_BOLD_MAX_LEN = 200
+_BOLD_MAX_PER_SECTION = 50
+_BOLD_RE = re.compile(r"(?<!\\)(\*\*|__)(.+?)(?<!\\)\1")
+_CALLOUT_HEADER_RE = re.compile(r"^\s*\[!([A-Za-z0-9_-]+)\](?:[+-])?\s*(.*)$")
+_HORIZONTAL_RULE_RE = re.compile(r"^\s*[-*_]{3,}\s*$")
 
 
 def strip_blockquote_prefix(line: str) -> str:
     return _BLOCKQUOTE_PREFIX_RE.sub("", line)
+
+
+def is_blockquote_line(line: str) -> bool:
+    return line.lstrip().startswith(">")
 
 
 def split_obsidian_math_fence_line(line: str) -> list[str]:
@@ -186,10 +202,44 @@ def extract_inline_math_expressions(text: str) -> list[str]:
                 continue
             if in_math_fence:
                 continue
-            expressions.extend(find_inline_math_in_line(line))
+            cleaned = strip_inline_code(line)
+            expressions.extend(find_inline_math_in_line(cleaned))
             if len(expressions) >= _INLINE_MATH_MAX_PER_SECTION:
                 return expressions
     return expressions
+
+
+def extract_bold_phrases(text: str) -> list[str]:
+    phrases: list[str] = []
+    code_fence_len: int | None = None
+    in_math_fence = False
+    for raw_line in text.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            if code_fence_len is None:
+                code_fence_len = fence_len
+            elif fence_len >= code_fence_len:
+                code_fence_len = None
+            continue
+        if code_fence_len is not None:
+            continue
+
+        for line in split_obsidian_math_fence_line(raw_line):
+            is_math_line, toggle = latex_line_info(line)
+            if is_math_line:
+                if toggle:
+                    in_math_fence = not in_math_fence
+                continue
+            if in_math_fence:
+                continue
+            cleaned = strip_inline_code(line)
+            for match in _BOLD_RE.finditer(cleaned):
+                phrase = match.group(2).strip()
+                if phrase and len(phrase) <= _BOLD_MAX_LEN:
+                    phrases.append(phrase)
+                    if len(phrases) >= _BOLD_MAX_PER_SECTION:
+                        return phrases
+    return phrases
 
 
 def extract_inline_code_spans(text: str) -> list[str]:
@@ -219,6 +269,151 @@ def extract_inline_code_spans(text: str) -> list[str]:
             if len(spans) >= _INLINE_CODE_MAX_PER_SECTION:
                 return spans
     return spans
+
+
+def extract_code_fence_blocks(text: str) -> list[str]:
+    blocks: list[str] = []
+    code_fence_len: int | None = None
+    code_lang: str | None = None
+    buffer: list[str] = []
+    for raw_line in text.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            stripped = strip_blockquote_prefix(raw_line).lstrip()
+            info = stripped[fence_len:].strip()
+            if code_fence_len is None:
+                code_fence_len = fence_len
+                code_lang = info.split()[0] if info else None
+                buffer = []
+            elif fence_len >= code_fence_len:
+                if buffer:
+                    code = "\n".join(buffer).rstrip()
+                    if code:
+                        label = (
+                            f"Code block ({code_lang})"
+                            if code_lang
+                            else "Code block"
+                        )
+                        blocks.append(f"{label}:\n{code}")
+                code_fence_len = None
+                code_lang = None
+                buffer = []
+            continue
+        if code_fence_len is not None:
+            buffer.append(strip_blockquote_prefix(raw_line))
+    if code_fence_len is not None and buffer:
+        code = "\n".join(buffer).rstrip()
+        if code:
+            label = f"Code block ({code_lang})" if code_lang else "Code block"
+            blocks.append(f"{label}:\n{code}")
+    return blocks
+
+
+def extract_block_math(text: str) -> list[str]:
+    blocks: list[str] = []
+    code_fence_len: int | None = None
+    in_math_fence = False
+    buffer: list[str] = []
+    for raw_line in text.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            if code_fence_len is None:
+                code_fence_len = fence_len
+            elif fence_len >= code_fence_len:
+                code_fence_len = None
+            continue
+        if code_fence_len is not None:
+            continue
+
+        for line in split_obsidian_math_fence_line(raw_line):
+            stripped = strip_blockquote_prefix(line).strip()
+            if stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) > 4:
+                expr = stripped[2:-2].strip()
+                if expr:
+                    blocks.append(f"Math block:\n{expr}")
+                continue
+            if stripped == "$$":
+                if in_math_fence:
+                    expr = "\n".join(buffer).strip()
+                    if expr:
+                        blocks.append(f"Math block:\n{expr}")
+                    buffer = []
+                    in_math_fence = False
+                else:
+                    in_math_fence = True
+                    buffer = []
+                continue
+            if in_math_fence:
+                buffer.append(strip_blockquote_prefix(line))
+    if in_math_fence and buffer:
+        expr = "\n".join(buffer).strip()
+        if expr:
+            blocks.append(f"Math block:\n{expr}")
+    return blocks
+
+
+def normalize_obsidian_body_for_chunks(body: str) -> str:
+    cleaned_lines: list[str] = []
+    code_fence_len: int | None = None
+    in_math_fence = False
+    in_callout = False
+    for raw_line in body.splitlines():
+        fence_len = detect_code_fence_len(raw_line)
+        if fence_len is not None:
+            if code_fence_len is None:
+                code_fence_len = fence_len
+            elif fence_len >= code_fence_len:
+                code_fence_len = None
+            continue
+        if code_fence_len is not None:
+            continue
+
+        for line in split_obsidian_math_fence_line(raw_line):
+            stripped = strip_blockquote_prefix(line).strip()
+            if stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) > 4:
+                continue
+            if stripped == "$$":
+                in_math_fence = not in_math_fence
+                continue
+            if in_math_fence:
+                continue
+
+            if is_blockquote_line(line):
+                trimmed = strip_blockquote_prefix(line).rstrip()
+                header_match = _CALLOUT_HEADER_RE.match(trimmed.strip())
+                if header_match:
+                    callout_type = header_match.group(1).lower()
+                    title = header_match.group(2).strip()
+                    if title:
+                        cleaned_lines.append(f"Callout ({callout_type}): {title}")
+                    else:
+                        cleaned_lines.append(f"Callout ({callout_type})")
+                    in_callout = True
+                    continue
+                if in_callout:
+                    cleaned_lines.append(trimmed)
+                    continue
+                cleaned_lines.append(trimmed)
+                continue
+
+            in_callout = False
+            if _HORIZONTAL_RULE_RE.match(stripped):
+                continue
+            cleaned_lines.append(line)
+    return "\n".join(cleaned_lines)
+
+
+def is_code_block_content(text: str) -> bool:
+    return text.lstrip().startswith("Code block")
+
+
+def format_context_content_for_llm(content: str) -> str:
+    stripped = content.lstrip()
+    if stripped.startswith("Math block:"):
+        expr = stripped[len("Math block:") :].strip()
+        if expr:
+            return f"$$\n{expr}\n$$"
+    return content
 
 def detect_code_fence_len(line: str) -> int | None:
     stripped = strip_blockquote_prefix(line).lstrip()
@@ -260,14 +455,14 @@ def is_markdown_source(filename: str | None, content_type: str | None) -> bool:
     return Path(filename).suffix.lower() in MARKDOWN_EXTENSIONS
 
 
-def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
-    sections: list[tuple[list[str], str]] = []
+def extract_markdown_sections(text: str) -> list[tuple[list[tuple[int, str]], str]]:
+    sections: list[tuple[list[tuple[int, str]], str]] = []
     if not text or not text.strip():
         return sections
 
     heading_stack: list[tuple[int, str]] = []
     current_lines: list[str] = []
-    current_headings: list[str] = []
+    current_headings: list[tuple[int, str]] = []
     code_fence_len: int | None = None
     in_math_fence = False
 
@@ -313,7 +508,7 @@ def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
                 while heading_stack and heading_stack[-1][0] >= level:
                     heading_stack.pop()
                 heading_stack.append((level, title))
-                current_headings = [h[1] for h in heading_stack]
+                current_headings = heading_stack.copy()
                 continue
 
             current_lines.append(line)
@@ -326,11 +521,11 @@ def extract_markdown_sections(text: str) -> list[tuple[list[str], str]]:
     return sections
 
 
-def format_heading_context(headings: list[str]) -> str:
+def format_heading_context(headings: list[tuple[int, str]]) -> str:
     if not headings:
         return ""
     lines: list[str] = []
-    for level, title in enumerate(headings, start=1):
+    for level, title in headings:
         safe_level = level if level <= 6 else 6
         lines.append(f"{'#' * safe_level} {title}")
     return "\n".join(lines)
@@ -349,7 +544,20 @@ def split_text_with_context(
             if not body:
                 continue
             context_prefix = format_heading_context(headings)
-            for chunk in splitter.split_text(body):
+            body_for_chunks = normalize_obsidian_body_for_chunks(body)
+            priority_blocks: list[str] = []
+            for block in extract_code_fence_blocks(body):
+                priority_blocks.append(block)
+            for block in extract_block_math(body):
+                priority_blocks.append(block)
+            for block in priority_blocks:
+                if context_prefix:
+                    chunks.append(f"{context_prefix}\n\n{block}")
+                else:
+                    chunks.append(block)
+            if context_prefix:
+                chunks.append(context_prefix)
+            for chunk in splitter.split_text(body_for_chunks):
                 cleaned = chunk.strip()
                 if not cleaned:
                     continue
@@ -357,6 +565,12 @@ def split_text_with_context(
                     chunks.append(f"{context_prefix}\n\n{cleaned}")
                 else:
                     chunks.append(cleaned)
+            bold_phrases = extract_bold_phrases(body)
+            for phrase in bold_phrases:
+                if context_prefix:
+                    chunks.append(f"{context_prefix}\n\nBold: {phrase}")
+                else:
+                    chunks.append(f"Bold: {phrase}")
             inline_math = extract_inline_math_expressions(body)
             for expr in inline_math:
                 if context_prefix:
@@ -972,7 +1186,14 @@ async def document_upload(
     )
 
 @app.get("/llm")
-async def llm_flashcards(prompt: str | None = None, k: int | None = None, session_id: int | None = None, db: Session = Depends(get_db)):
+async def llm_flashcards(
+    prompt: str | None = None,
+    k: int | None = None,
+    session_id: int | None = None,
+    file_ids: list[int] | None = Query(None),
+    replace: bool = Query(False),
+    db: Session = Depends(get_db),
+):
     """
     Retrieve top-k chunks via pgvector and ask Ollama (llama3.1) to generate flashcards.
     """
@@ -1001,6 +1222,9 @@ async def llm_flashcards(prompt: str | None = None, k: int | None = None, sessio
     if session_id is not None:
         clauses.append("session_id = :sid")
         params["sid"] = session_id
+    if file_ids:
+        clauses.append("files_id = ANY(:file_ids)")
+        params["file_ids"] = file_ids
     if clauses:
         base_query += "WHERE " + " AND ".join(clauses) + " "
     if qvec is not None:
@@ -1017,21 +1241,71 @@ async def llm_flashcards(prompt: str | None = None, k: int | None = None, sessio
         params["k"] = effective_k
 
     rows = db.execute(sql_text(base_query), params).fetchall()
+    row_items = [(row.filename, row.chunk_index, row.content) for row in rows]
+    seen_keys = {(row.filename, row.chunk_index) for row in rows}
+
+    code_items = [item for item in row_items if is_code_block_content(item[2])]
+    if session_id is not None and len(code_items) < FLASHCARD_MIN_CODE_CARDS:
+        code_query = (
+            "SELECT filename, chunk_index, content "
+            "FROM embeddings "
+            "WHERE session_id = :sid AND content LIKE 'Code block%' "
+            "ORDER BY chunk_index "
+            "LIMIT :k"
+        )
+        if file_ids:
+            code_query = (
+                "SELECT filename, chunk_index, content "
+                "FROM embeddings "
+                "WHERE session_id = :sid AND files_id = ANY(:file_ids) AND content LIKE 'Code block%' "
+                "ORDER BY chunk_index "
+                "LIMIT :k"
+            )
+        code_params = {
+            "sid": session_id,
+            "k": FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT,
+        }
+        if file_ids:
+            code_params["file_ids"] = file_ids
+        extra_rows = db.execute(sql_text(code_query), code_params).fetchall()
+        for row in extra_rows:
+            key = (row.filename, row.chunk_index)
+            if key in seen_keys:
+                continue
+            row_items.append((row.filename, row.chunk_index, row.content))
+            seen_keys.add(key)
+            if is_code_block_content(row.content):
+                code_items.append((row.filename, row.chunk_index, row.content))
+                if len(code_items) >= FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT:
+                    break
 
     context_lines = []
     sources = []
-    for i, row in enumerate(rows):
-        context_lines.append(f"[{i}] {row.filename} (chunk {row.chunk_index}): {row.content}")
+    for i, (filename, chunk_index, content) in enumerate(row_items):
+        formatted = format_context_content_for_llm(content)
+        context_lines.append(f"[{i}] {filename} (chunk {chunk_index}): {formatted}")
         sources.append(
             {
                 "tag": i,
-                "filename": row.filename,
-                "chunk_index": row.chunk_index,
+                "filename": filename,
+                "chunk_index": chunk_index,
             }
         )
     context = "\n\n".join(context_lines)
-
-    n_flashcards = len(rows)
+    context_len = len(context.strip())
+    if context_len == 0:
+        n_flashcards = 0
+    else:
+        n_flashcards = math.ceil(context_len / FLASHCARD_CHARS_PER_CARD)
+        n_flashcards = min(
+            FLASHCARD_MAX_COUNT,
+            max(FLASHCARD_MIN_COUNT, n_flashcards),
+        )
+        if code_items:
+            n_flashcards = max(
+                n_flashcards,
+                min(len(code_items), FLASHCARD_MAX_COUNT),
+            )
     llm_prompt = FLASHCARD_PROMPT.format(context=context, n_flashcards=n_flashcards)
 
     resp = await run_in_threadpool(
@@ -1045,6 +1319,35 @@ async def llm_flashcards(prompt: str | None = None, k: int | None = None, sessio
         if not text:
             return text
         normalized = text
+
+        def replace_math_block_labels(value: str) -> str:
+            lines = value.splitlines()
+            out: list[str] = []
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                if line.strip().startswith("Math block:"):
+                    remainder = line.split("Math block:", 1)[1].strip()
+                    block_lines: list[str] = []
+                    if remainder:
+                        block_lines.append(remainder)
+                        i += 1
+                    else:
+                        i += 1
+                        while i < len(lines) and lines[i].strip():
+                            block_lines.append(lines[i])
+                            i += 1
+                    expr = "\n".join(block_lines).strip()
+                    if expr:
+                        out.append("$$")
+                        out.append(expr)
+                        out.append("$$")
+                        continue
+                out.append(line)
+                i += 1
+            return "\n".join(out)
+
+        normalized = replace_math_block_labels(normalized)
         normalized = re.sub(r"\\\((.+?)\\\)", r"$\1$", normalized, flags=re.DOTALL)
         normalized = re.sub(r"\\\[(.+?)\\\]", r"$$\1$$", normalized, flags=re.DOTALL)
         return normalized
@@ -1233,7 +1536,16 @@ async def llm_flashcards(prompt: str | None = None, k: int | None = None, sessio
                         answer=answer,
                     )
                 )
-            if rows_to_save:
+            if replace:
+                db.execute(
+                    sql_text("DELETE FROM flashcards WHERE session_id = :sid"),
+                    {"sid": session_id},
+                )
+                if rows_to_save:
+                    db.add_all(rows_to_save)
+                db.commit()
+                saved_count = len(rows_to_save)
+            elif rows_to_save:
                 db.add_all(rows_to_save)
                 db.commit()
                 saved_count = len(rows_to_save)

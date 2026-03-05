@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
-import { Check, FileText, Wand2, Sparkles, X, Layers, Clock, ArrowRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps } from "react";
+import { Check, FileText, Wand2, Sparkles, X, Layers, Clock, ArrowRight, UploadCloud } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
 import { useNavigate } from "react-router-dom";
-import { loadDecks, markDeckStudied, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
+import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 
 type ApiFile = {
     id: number;
@@ -54,11 +54,57 @@ const formatRelativeTime = (isoTimestamp: string) => {
     return `${years} year${years === 1 ? "" : "s"} ago`;
 };
 
+const formatFilename = (value: string | null) => {
+    if (!value) {
+        return "Untitled";
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return "Untitled";
+    }
+    return trimmed.split(/[\\/]/).pop() ?? trimmed;
+};
+
+const formatFileSize = (sizeBytes: number | null) => {
+    if (typeof sizeBytes !== "number" || !Number.isFinite(sizeBytes)) {
+        return "Unknown size";
+    }
+    if (sizeBytes < 1024) {
+        return `${sizeBytes} B`;
+    }
+    const kb = sizeBytes / 1024;
+    if (kb < 1024) {
+        return `${kb.toFixed(1)} KB`;
+    }
+    const mb = kb / 1024;
+    if (mb < 1024) {
+        return `${mb.toFixed(1)} MB`;
+    }
+    const gb = mb / 1024;
+    return `${gb.toFixed(2)} GB`;
+};
+
+const buildDocument = (file: ApiFile): Document => {
+    const typeLabel = file.content_type?.trim() || "unknown type";
+    const sizeLabel = formatFileSize(file.size_bytes);
+    return {
+        id: String(file.id),
+        title: formatFilename(file.filename),
+        meta: `${typeLabel} · ${sizeLabel}`,
+        updatedAt: "Stored in session",
+    };
+};
+
 export function FlashcardsLabPage() {
     const navigate = useNavigate();
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [activeTab, setActiveTab] = useState<Tab>("create");
     const [selected, setSelected] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [generateError, setGenerateError] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+    const [uploadIsError, setUploadIsError] = useState(false);
     const [decks, setDecks] = useState<FlashcardDeck[]>(() => loadDecks());
     const [documents, setDocuments] = useState<Document[]>([]);
     const [documentsLoading, setDocumentsLoading] = useState(true);
@@ -67,46 +113,37 @@ export function FlashcardsLabPage() {
     const selectedCount = selected.length;
     const totalDocs = documents.length;
 
-    const formatFilename = (value: string | null) => {
-        if (!value) {
-            return "Untitled";
+    const fetchDocuments = useCallback(async (sessionId: string) => {
+        setDocumentsLoading(true);
+        setDocumentsError(null);
+        try {
+            const response = await fetch(
+                `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
+            );
+            if (!response.ok) {
+                const detail = await response.text();
+                throw new Error(detail || "Failed to load files");
+            }
+            const data = await response.json();
+            const list: ApiFile[] = Array.isArray(data?.files) ? data.files : [];
+            const docs = list.map(buildDocument);
+            setDocuments(docs);
+            setSelected((prev) => {
+                const ids = new Set(docs.map((doc) => doc.id));
+                const filtered = prev.filter((id) => ids.has(id));
+                if (filtered.length > 0) {
+                    return filtered;
+                }
+                return docs.length > 0 ? [docs[0].id] : [];
+            });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to load files";
+            setDocuments([]);
+            setDocumentsError(message);
+        } finally {
+            setDocumentsLoading(false);
         }
-        const trimmed = value.trim();
-        if (!trimmed) {
-            return "Untitled";
-        }
-        return trimmed.split(/[\\/]/).pop() ?? trimmed;
-    };
-
-    const formatFileSize = (sizeBytes: number | null) => {
-        if (typeof sizeBytes !== "number" || !Number.isFinite(sizeBytes)) {
-            return "Unknown size";
-        }
-        if (sizeBytes < 1024) {
-            return `${sizeBytes} B`;
-        }
-        const kb = sizeBytes / 1024;
-        if (kb < 1024) {
-            return `${kb.toFixed(1)} KB`;
-        }
-        const mb = kb / 1024;
-        if (mb < 1024) {
-            return `${mb.toFixed(1)} MB`;
-        }
-        const gb = mb / 1024;
-        return `${gb.toFixed(2)} GB`;
-    };
-
-    const buildDocument = (file: ApiFile): Document => {
-        const typeLabel = file.content_type?.trim() || "unknown type";
-        const sizeLabel = formatFileSize(file.size_bytes);
-        return {
-            id: String(file.id),
-            title: formatFilename(file.filename),
-            meta: `${typeLabel} · ${sizeLabel}`,
-            updatedAt: "Stored in session",
-        };
-    };
+    }, []);
 
     useEffect(() => {
         const sessionId = localStorage.getItem("session_id");
@@ -116,41 +153,8 @@ export function FlashcardsLabPage() {
             setDocumentsLoading(false);
             return;
         }
-
-        const fetchDocuments = async () => {
-            setDocumentsLoading(true);
-            setDocumentsError(null);
-            try {
-                const response = await fetch(
-                    `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
-                );
-                if (!response.ok) {
-                    const detail = await response.text();
-                    throw new Error(detail || "Failed to load files");
-                }
-                const data = await response.json();
-                const list: ApiFile[] = Array.isArray(data?.files) ? data.files : [];
-                const docs = list.map(buildDocument);
-                setDocuments(docs);
-                setSelected((prev) => {
-                    const ids = new Set(docs.map((doc) => doc.id));
-                    const filtered = prev.filter((id) => ids.has(id));
-                    if (filtered.length > 0) {
-                        return filtered;
-                    }
-                    return docs.length > 0 ? [docs[0].id] : [];
-                });
-            } catch (err) {
-                const message = err instanceof Error ? err.message : "Failed to load files";
-                setDocuments([]);
-                setDocumentsError(message);
-            } finally {
-                setDocumentsLoading(false);
-            }
-        };
-
-        fetchDocuments();
-    }, []);
+        fetchDocuments(sessionId);
+    }, [fetchDocuments]);
 
     useEffect(() => {
         if (activeTab === "decks") {
@@ -183,15 +187,186 @@ export function FlashcardsLabPage() {
         );
     };
 
-    const handleGenerate = () => {
-        if (isGenerating || selectedCount === 0 || documentsLoading || documents.length === 0) {
+    const handleGenerate = async () => {
+        if (isGenerating || isUploading || selectedCount === 0 || documentsLoading || documents.length === 0) {
             return;
         }
+        const sessionId = localStorage.getItem("session_id");
+        if (!sessionId) {
+            setGenerateError("No session id found. Upload files to start a session.");
+            return;
+        }
+
+        const selectedDocs = documents.filter((doc) => selected.includes(doc.id));
+        const selectedIds = selectedDocs
+            .map((doc) => Number(doc.id))
+            .filter((value) => Number.isFinite(value));
+        if (selectedIds.length === 0) {
+            setGenerateError("Select at least one document to generate a deck.");
+            return;
+        }
+
+        setGenerateError(null);
         setIsGenerating(true);
-        window.setTimeout(() => {
-            setIsGenerating(false);
+        try {
+            const params = new URLSearchParams({
+                session_id: sessionId,
+                replace: "true",
+            });
+            selectedIds.forEach((id) => params.append("file_ids", String(id)));
+
+            const response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
+            if (!response.ok) {
+                const detail = await response.text();
+                throw new Error(detail || "Flashcard generation failed.");
+            }
+            const data = await response.json();
+            const savedCount =
+                typeof data?.saved_count === "number"
+                    ? data.saved_count
+                    : Array.isArray(data?.flashcards)
+                        ? data.flashcards.length
+                        : 0;
+
+            const deckSessionId = String(sessionId);
+            const selectedTitles = selectedDocs.map((doc) => doc.title);
+            const nextDecks = upsertDeck({
+                id: `deck-${deckSessionId}`,
+                sessionId: deckSessionId,
+                title: buildDeckTitle(selectedTitles),
+                cardCount: savedCount,
+                noteCount: selectedTitles.length,
+                notes: selectedTitles,
+                createdAt: new Date().toISOString(),
+            });
+            setDecks(nextDecks);
             navigate("/flashcards");
-        }, 1500);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Flashcard generation failed.";
+            setGenerateError(message);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleUploadClick = () => {
+        if (isUploading || documentsLoading) {
+            return;
+        }
+        fileInputRef.current?.click();
+    };
+
+    const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files || files.length === 0 || isUploading) {
+            event.target.value = "";
+            return;
+        }
+        const sessionId = localStorage.getItem("session_id");
+        if (!sessionId) {
+            setUploadIsError(true);
+            setUploadStatus("No session id found. Start a session to upload files.");
+            event.target.value = "";
+            return;
+        }
+
+        const fileList = Array.from(files);
+        const formData = new FormData();
+        fileList.forEach((file) => formData.append("files", file));
+
+        setIsUploading(true);
+        setUploadIsError(false);
+        setUploadStatus(`Uploading ${fileList.length} file${fileList.length === 1 ? "" : "s"}...`);
+
+        try {
+            const response = await fetch(
+                `${import.meta.env.SERVER_URL}/upload-files?session_id=${encodeURIComponent(sessionId)}`,
+                {
+                    method: "POST",
+                    body: formData,
+                }
+            );
+
+            if (!response.ok || !response.body) {
+                const detail = response.ok ? "Upload failed. Please try again." : await response.text();
+                setUploadIsError(true);
+                setUploadStatus(detail || "Upload failed. Please try again.");
+                return;
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let embeddedCount = 0;
+            let skippedCount = 0;
+            let errorCount = 0;
+            let lastError = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (!line.startsWith("data: ")) {
+                        continue;
+                    }
+                    const payloadText = line.replace("data: ", "").trim();
+                    if (!payloadText || payloadText === "[DONE]") {
+                        continue;
+                    }
+
+                    try {
+                        const payload = JSON.parse(payloadText);
+                        if (payload?.status === "session" && payload?.session_id) {
+                            localStorage.setItem("session_id", String(payload.session_id));
+                            continue;
+                        }
+                        if (payload?.status === "embedded") {
+                            embeddedCount += 1;
+                            continue;
+                        }
+                        if (payload?.status === "skipped") {
+                            skippedCount += 1;
+                            continue;
+                        }
+                        if (payload?.status === "error") {
+                            errorCount += 1;
+                            lastError = payload?.detail || "Upload failed. Please try again.";
+                            if (payload?.detail === "session_id not found") {
+                                localStorage.removeItem("session_id");
+                            }
+                        }
+                    } catch {
+                        // Ignore malformed payloads
+                    }
+                }
+            }
+
+            if (errorCount > 0) {
+                setUploadIsError(true);
+                setUploadStatus(lastError || `Upload finished with ${errorCount} error${errorCount === 1 ? "" : "s"}.`);
+            } else {
+                const totalProcessed = embeddedCount + skippedCount;
+                setUploadStatus(
+                    `Uploaded ${totalProcessed} file${totalProcessed === 1 ? "" : "s"}.`
+                );
+            }
+
+            await fetchDocuments(sessionId);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Upload failed. Please try again.";
+            setUploadIsError(true);
+            setUploadStatus(message);
+        } finally {
+            setIsUploading(false);
+            event.target.value = "";
+        }
     };
 
     return (
@@ -255,11 +430,28 @@ export function FlashcardsLabPage() {
                         >
                             {/* Top Bar */}
                             <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
-                                <div className="text-xs font-mono text-white/40">
-                                    <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
+                                <div className="flex flex-col gap-1">
+                                    <div className="text-xs font-mono text-white/40">
+                                        <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
+                                    </div>
+                                    {uploadStatus ? (
+                                        <div
+                                            className={`text-[10px] font-mono ${uploadIsError ? "text-rose-300/70" : "text-white/30"}`}
+                                        >
+                                            {uploadStatus}
+                                        </div>
+                                    ) : null}
                                 </div>
 
                                 <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={handleUploadClick}
+                                        disabled={isUploading || documentsLoading}
+                                        className="inline-flex items-center gap-2 text-[11px] font-medium text-white/40 hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <UploadCloud className="size-3.5" />
+                                        <span>{isUploading ? "Uploading..." : "Upload More"}</span>
+                                    </button>
                                     <button
                                         onClick={() => {
                                             if (documentsLoading) {
@@ -347,10 +539,19 @@ export function FlashcardsLabPage() {
                             </div>
 
                             {/* Bottom Action Bar */}
-                            <div className="border-t border-white/5 p-4 flex justify-end">
+                            <div className="border-t border-white/5 p-4 flex items-center justify-between gap-4">
+                                {generateError ? (
+                                    <div className="text-[11px] font-mono text-rose-300/70">
+                                        {generateError}
+                                    </div>
+                                ) : (
+                                    <div className="text-[11px] font-mono text-white/30">
+                                        {isGenerating ? "Generating deck..." : "Select files to generate a deck."}
+                                    </div>
+                                )}
                                 <button
                                     onClick={handleGenerate}
-                                    disabled={selectedCount === 0 || isGenerating || documentsLoading || documents.length === 0 || !!documentsError}
+                                    disabled={selectedCount === 0 || isGenerating || isUploading || documentsLoading || documents.length === 0 || !!documentsError}
                                     className={`luminous-btn h-10 px-6 flex items-center justify-center gap-2 text-sm transition-all duration-300 ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "opacity-30 grayscale cursor-not-allowed" : ""
                                         }`}
                                 >
@@ -362,6 +563,15 @@ export function FlashcardsLabPage() {
                                     <span>{isGenerating ? "Processing..." : "Generate Deck"}</span>
                                 </button>
                             </div>
+
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                multiple
+                                accept=".md,.markdown,.txt"
+                                onChange={handleUploadChange}
+                            />
                         </motion.section>
                     ) : (
                         <motion.div
