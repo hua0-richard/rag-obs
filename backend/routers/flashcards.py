@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from db.deps import get_db
-from services.flashcards_service import generate_flashcards, get_flashcards, get_files
+from services.flashcards_service import (
+    generate_flashcards,
+    get_flashcard_decks,
+    get_flashcards,
+    get_files,
+)
 
 router = APIRouter()
 
@@ -33,3 +38,8 @@ def fetch_flashcards(session_id: int = Query(...), db: Session = Depends(get_db)
 @router.get("/files")
 def fetch_files(session_id: int = Query(...), db: Session = Depends(get_db)):
     return get_files(session_id=session_id, db=db)
+
+
+@router.get("/flashcard-decks")
+def fetch_flashcard_decks(session_id: int = Query(...), db: Session = Depends(get_db)):
+    return get_flashcard_decks(session_id=session_id, db=db)

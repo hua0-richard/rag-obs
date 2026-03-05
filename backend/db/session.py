@@ -48,6 +48,54 @@ def init_db() -> None:
         )
         conn.execute(
             text(
+                "ALTER TABLE flashcard_decks "
+                "ADD COLUMN IF NOT EXISTS session_id INTEGER"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE flashcard_decks "
+                "ADD COLUMN IF NOT EXISTS title VARCHAR(512)"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE flashcard_decks "
+                "ADD COLUMN IF NOT EXISTS source_metadata JSONB"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE flashcard_decks "
+                "ADD COLUMN IF NOT EXISTS source_label VARCHAR(512)"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE flashcard_decks "
+                "ADD COLUMN IF NOT EXISTS card_count INTEGER"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE flashcard_decks "
+                "ADD COLUMN IF NOT EXISTS note_count INTEGER"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE flashcard_decks "
+                "ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS flashcard_decks_session_id_idx "
+                "ON flashcard_decks (session_id)"
+            )
+        )
+        conn.execute(
+            text(
                 "CREATE INDEX IF NOT EXISTS embeddings_embedding_idx "
                 "ON embeddings USING ivfflat (embedding vector_cosine_ops) "
                 "WITH (lists = 100)"

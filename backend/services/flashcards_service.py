@@ -1,6 +1,7 @@
 import json
 import math
 import re
+from datetime import datetime, timezone
 import ollama
 from starlette.concurrency import run_in_threadpool
 from fastapi import HTTPException
@@ -10,7 +11,7 @@ from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers import EnsembleRetriever
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
-from db.models import Flashcard, Sessions
+from db.models import Flashcard, FlashcardDecks, Sessions
 from db.session import launch_db
 from prompt import FLASHCARD_PROMPT
 from services.embedding_service import embed_query, embed_query_sync
@@ -87,6 +88,126 @@ def _documents_to_row_items(docs: list[Document]) -> list[tuple[str, int, str]]:
         if isinstance(filename, str) and isinstance(chunk_index, int):
             items.append((filename, chunk_index, doc.page_content))
     return items
+
+
+def _clean_filename(value: str) -> str:
+    if not value:
+        return ""
+    trimmed = value.strip()
+    if not trimmed:
+        return ""
+    base = re.split(r"[\\/]", trimmed)[-1]
+    base = re.sub(r"\.[^/.]+$", "", base)
+    return base or trimmed
+
+
+def _build_deck_title(filenames: list[str]) -> str:
+    cleaned = [_clean_filename(name) for name in filenames if isinstance(name, str)]
+    cleaned = [name for name in cleaned if name]
+    if not cleaned:
+        return "Untitled Deck"
+    first = cleaned[0]
+    if len(cleaned) == 1:
+        return first
+    return f"{first} + {len(cleaned) - 1} more"
+
+
+def _fetch_source_files(
+    db: Session,
+    session_id: int,
+    file_ids: list[int] | None,
+    fallback_filenames: list[str],
+) -> list[dict]:
+    rows = []
+    if file_ids:
+        rows = db.execute(
+            sql_text(
+                "SELECT id, filename "
+                "FROM notes "
+                "WHERE session_id = :sid AND id = ANY(:file_ids) "
+                "ORDER BY id"
+            ),
+            {"sid": session_id, "file_ids": file_ids},
+        ).fetchall()
+    else:
+        rows = db.execute(
+            sql_text(
+                "SELECT id, filename "
+                "FROM notes "
+                "WHERE session_id = :sid "
+                "ORDER BY id"
+            ),
+            {"sid": session_id},
+        ).fetchall()
+
+    sources: list[dict] = []
+    seen = set()
+    for row in rows:
+        key = (row.id, row.filename)
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append({"id": row.id, "filename": row.filename})
+
+    existing_names = {
+        entry.get("filename")
+        for entry in sources
+        if isinstance(entry.get("filename"), str)
+    }
+    for name in fallback_filenames:
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if name in existing_names:
+            continue
+        sources.append({"id": None, "filename": name})
+        existing_names.add(name)
+
+    return sources
+
+
+def _persist_flashcard_deck(
+    db: Session,
+    session_id: int,
+    source_files: list[dict],
+    source_chunks: list[dict],
+    card_count: int,
+) -> FlashcardDecks:
+    filenames = [
+        entry.get("filename")
+        for entry in source_files
+        if isinstance(entry.get("filename"), str)
+    ]
+    title = _build_deck_title(filenames)
+    source_metadata = {"files": source_files, "chunks": source_chunks}
+    note_count = len([name for name in filenames if name])
+    now = datetime.now(timezone.utc)
+
+    deck = (
+        db.query(FlashcardDecks)
+        .filter(FlashcardDecks.session_id == session_id)
+        .first()
+    )
+    if deck:
+        deck.title = title
+        deck.source_metadata = source_metadata
+        deck.source_label = title
+        deck.card_count = card_count
+        deck.note_count = note_count
+        deck.created_at = now
+    else:
+        deck = FlashcardDecks(
+            session_id=session_id,
+            title=title,
+            source_metadata=source_metadata,
+            source_label=title,
+            card_count=card_count,
+            note_count=note_count,
+            created_at=now,
+        )
+        db.add(deck)
+    db.commit()
+    db.refresh(deck)
+    return deck
 
 
 class PgVectorRetriever(BaseRetriever):
@@ -471,6 +592,28 @@ async def generate_flashcards(
             }
         ]
 
+    source_chunks = [
+        {
+            "tag": source.get("tag"),
+            "filename": source.get("filename"),
+            "chunk_index": source.get("chunk_index"),
+        }
+        for source in sources
+    ]
+    fallback_filenames = [
+        source.get("filename")
+        for source in sources
+        if isinstance(source.get("filename"), str)
+    ]
+    source_files: list[dict] = []
+    if session_id is not None:
+        source_files = _fetch_source_files(
+            db=db,
+            session_id=session_id,
+            file_ids=file_ids,
+            fallback_filenames=fallback_filenames,
+        )
+
     # Attach file source info when source_tag is provided
     if isinstance(parsed, list):
         by_tag = {s["tag"]: s for s in sources}
@@ -517,6 +660,15 @@ async def generate_flashcards(
                 db.commit()
                 saved_count = len(rows_to_save)
     flashcards = parsed if parsed else None
+
+    if session_id is not None:
+        _persist_flashcard_deck(
+            db=db,
+            session_id=session_id,
+            source_files=source_files,
+            source_chunks=source_chunks,
+            card_count=saved_count,
+        )
 
     return {
         "prompt": prompt,
@@ -576,3 +728,35 @@ def get_files(session_id: int, db: Session):
         for row in rows
     ]
     return {"session_id": session_id, "files": files}
+
+
+def get_flashcard_decks(session_id: int, db: Session):
+    launch_db()
+    if db.get(Sessions, session_id) is None:
+        raise HTTPException(status_code=404, detail="session_id not found")
+    rows = db.execute(
+        sql_text(
+            "SELECT id, session_id, title, source_metadata, source_label, "
+            "card_count, note_count, created_at "
+            "FROM flashcard_decks "
+            "WHERE session_id = :sid "
+            "ORDER BY created_at DESC"
+        ),
+        {"sid": session_id},
+    ).fetchall()
+    decks = []
+    for row in rows:
+        source_metadata = row.source_metadata or {}
+        decks.append(
+            {
+                "id": row.id,
+                "session_id": row.session_id,
+                "title": row.title,
+                "source": source_metadata.get("files", []),
+                "source_label": row.source_label,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "card_count": row.card_count,
+                "note_count": row.note_count,
+            }
+        )
+    return {"session_id": session_id, "decks": decks}

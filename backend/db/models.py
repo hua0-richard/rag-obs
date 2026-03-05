@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, LargeBinary, create_engine
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, LargeBinary, create_engine, DateTime
+from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
 
@@ -52,3 +54,15 @@ class Flashcard(Base):
 class FlashcardDecks(Base):
     __tablename__ = "flashcard_decks"
     id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(
+        Integer,
+        ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    title = Column(String(512), nullable=False)
+    source_metadata = Column(JSONB, nullable=False, default=dict)
+    source_label = Column(String(512), nullable=True)
+    card_count = Column(Integer, nullable=False, default=0)
+    note_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

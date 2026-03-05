@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/shared/components/ui/Button';
 import { Flashcard } from './Flashcard';
 import { useNavigate } from 'react-router-dom';
-import { markDeckStudied } from '@/features/flashcards/utils/flashcardDecks';
+import { buildDeckTitle, markDeckStudied } from '@/features/flashcards/utils/flashcardDecks';
 
 type ApiFlashcard = {
     id: number;
@@ -20,6 +20,17 @@ type ApiFile = {
     size_bytes: number | null;
 };
 
+type ApiDeck = {
+    id: number;
+    session_id: number;
+    title: string;
+    source_label?: string | null;
+    source?: { id?: number | null; filename?: string | null }[];
+    created_at?: string | null;
+    card_count?: number | null;
+    note_count?: number | null;
+};
+
 export function FlashcardsPage() {
     const navigate = useNavigate();
     const [cards, setCards] = useState<ApiFlashcard[]>([]);
@@ -29,6 +40,7 @@ export function FlashcardsPage() {
     const [files, setFiles] = useState<ApiFile[]>([]);
     const [filesLoading, setFilesLoading] = useState(true);
     const [filesError, setFilesError] = useState<string | null>(null);
+    const [deckSourceLabel, setDeckSourceLabel] = useState<string | null>(null);
 
     useEffect(() => {
         const sessionId = localStorage.getItem("session_id");
@@ -36,6 +48,7 @@ export function FlashcardsPage() {
             setError("No session id found. Upload files to start a session.");
             setIsLoading(false);
             setFilesLoading(false);
+            setDeckSourceLabel(null);
             return;
         }
         markDeckStudied(sessionId);
@@ -85,8 +98,35 @@ export function FlashcardsPage() {
             }
         };
 
+        const fetchDecks = async () => {
+            setDeckSourceLabel(null);
+            try {
+                const response = await fetch(
+                    `${import.meta.env.SERVER_URL}/flashcard-decks?session_id=${encodeURIComponent(sessionId)}`
+                );
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                const list: ApiDeck[] = Array.isArray(data?.decks) ? data.decks : [];
+                if (list.length > 0) {
+                    const deck = list[0];
+                    const label =
+                        typeof deck?.source_label === "string" && deck.source_label.trim().length > 0
+                            ? deck.source_label
+                            : typeof deck?.title === "string"
+                                ? deck.title
+                                : null;
+                    setDeckSourceLabel(label);
+                }
+            } catch {
+                // Ignore deck metadata failures and fall back to file-based label.
+            }
+        };
+
         fetchFlashcards();
         fetchFiles();
+        fetchDecks();
     }, []);
 
     const handleNext = () => {
@@ -112,6 +152,12 @@ export function FlashcardsPage() {
         }
         return trimmed.split(/[\\/]/).pop() ?? trimmed;
     };
+    const fallbackSourceLabel =
+        files.length > 0
+            ? buildDeckTitle(files.map((file) => file.filename ?? ""))
+            : null;
+    const deckLabel = deckSourceLabel || fallbackSourceLabel || "Flashcards";
+    const deckSubtitle = deckSourceLabel || fallbackSourceLabel ? "Flashcards" : "Study";
 
     return (
         <div className="min-h-screen w-screen bg-[#09090b] flex flex-col relative overflow-hidden selection:bg-white/10 selection:text-white">
@@ -122,7 +168,7 @@ export function FlashcardsPage() {
             {/* Nav */}
             <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 bg-transparent">
                 <div className="text-white/40 font-medium text-sm tracking-widest uppercase font-mono">
-                    <span className="text-[hsl(var(--accent))]">Unit 1</span> <span className="text-[hsl(var(--accent))/40] mx-2">/</span> Neurology
+                    <span className="text-[hsl(var(--accent))]">{deckLabel}</span> <span className="text-[hsl(var(--accent))/40] mx-2">/</span> {deckSubtitle}
                 </div>
                 <Button
                     variant="ghost"
