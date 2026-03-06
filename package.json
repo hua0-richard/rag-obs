@@ -7,6 +7,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "infra": "docker compose up --build",
+    "infra:gpu": "docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build",
+    "infra:host-ollama": "docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml up --build api frontend db pgadmin",
     "ollama": "OLLAMA_HOST=0.0.0.0:11434 ollama serve",
     "dev:full": "pnpm run models:download:docker && pnpm run infra",
     "models:download": "python backend/scripts/download_models.py",

@@ -29,6 +29,71 @@ print(urllib.request.urlopen("http://ollama:11434/api/tags", timeout=8).status)
 PY
 ```
 
+### Optional: GPU Acceleration (Omarchy/Arch Linux)
+
+If Docker shows `could not select device driver "" with capabilities: [[gpu]]`, install NVIDIA container support on the host first.
+
+```bash
+# 1) Verify host NVIDIA driver
+nvidia-smi
+
+# 2) Install NVIDIA container toolkit
+sudo pacman -Syu --needed nvidia-container-toolkit libnvidia-container
+
+# 3) Configure Docker runtime for NVIDIA
+sudo nvidia-ctk runtime configure --runtime=docker
+
+# 4) Restart Docker
+sudo systemctl restart docker
+
+# 5) Verify GPU access from containers
+docker run --rm --gpus all nvidia/cuda:12.3.2-base-ubuntu22.04 nvidia-smi
+```
+
+Run stack normally (CPU-safe):
+
+```bash
+pnpm run infra
+```
+
+Run stack with GPU passthrough enabled for Ollama:
+
+```bash
+pnpm run infra:gpu
+```
+
+### Optional: Use Host Ollama (non-containerized)
+
+If you already run Ollama on your machine and want Dockerized API to use it:
+
+```bash
+# Start Ollama on host (outside Docker)
+ollama serve
+```
+
+```bash
+# Start stack without the ollama container
+pnpm run infra:host-ollama
+```
+
+This mode uses `docker-compose.host-ollama.yml` and points API to:
+
+- `OLLAMA_HOST=http://host.docker.internal:11434`
+
+Quick verification:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml exec api python - <<'PY'
+import urllib.request
+print(urllib.request.urlopen("http://host.docker.internal:11434/api/tags", timeout=8).status)
+PY
+```
+
+Notes:
+
+- In this mode, `pnpm run ollama:pull` is not applicable (it targets the Docker `ollama` service).
+- Pull models directly on host instead, for example: `ollama pull llama3.1`
+
 ## Database Migrations
 
 Run database migrations manually with Alembic. The API does not auto-run migrations on startup.

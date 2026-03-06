@@ -1,0 +1,6 @@
+services:
+  api:
+    environment:
+      OLLAMA_HOST: "http://host.docker.internal:11434"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

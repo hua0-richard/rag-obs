@@ -17,6 +17,11 @@ services:
       TRANSFORMERS_CACHE: "/app/.hf-cache/transformers"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
+      FLASHCARD_LLM_MODEL: "llama3.1"
+      FLASHCARD_LLM_TIMEOUT_SECONDS: "120"
+      FLASHCARD_LLM_KEEP_ALIVE: "30m"
+      FLASHCARD_MAX_TOKENS_PER_CARD: "110"
+      FLASHCARD_LLM_MAX_TOKENS: "1800"
 
     volumes:
       - ./backend:/app

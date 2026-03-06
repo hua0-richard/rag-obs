@@ -49,11 +49,19 @@ FLASHCARD_CHARS_PER_CARD = 500
 FLASHCARD_MIN_COUNT = 1
 FLASHCARD_MAX_COUNT = 30
 FLASHCARD_CHUNKS_PER_CARD = 2
+FLASHCARD_DEFAULT_RETRIEVAL_K = 40
+FLASHCARD_BM25_CANDIDATE_MULTIPLIER = 6
+FLASHCARD_BM25_CANDIDATE_MAX = 600
+FLASHCARD_MAX_CONTEXT_CHARS = 24000
 FLASHCARD_MIN_CODE_CARDS = 1
 FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT = 3
 HYBRID_VECTOR_WEIGHT = 0.6
 HYBRID_KEYWORD_WEIGHT = 0.4
 FLASHCARD_LLM_TIMEOUT_SECONDS = int(os.getenv("FLASHCARD_LLM_TIMEOUT_SECONDS", "90"))
+FLASHCARD_LLM_MODEL = os.getenv("FLASHCARD_LLM_MODEL", "llama3.1")
+FLASHCARD_LLM_KEEP_ALIVE = os.getenv("FLASHCARD_LLM_KEEP_ALIVE", "30m")
+FLASHCARD_MAX_TOKENS_PER_CARD = int(os.getenv("FLASHCARD_MAX_TOKENS_PER_CARD", "110"))
+FLASHCARD_LLM_MAX_TOKENS = int(os.getenv("FLASHCARD_LLM_MAX_TOKENS", "1800"))
 
 try:
     from pydantic import ConfigDict
@@ -584,18 +592,26 @@ async def generate_flashcards(
     )
 
     effective_k = k
-    if effective_k is None and session_id is None:
-        effective_k = 5
+    if effective_k is None:
+        # Prevent unbounded retrieval/context for session-wide generation.
+        effective_k = 5 if session_id is None else FLASHCARD_DEFAULT_RETRIEVAL_K
 
     row_items: list[tuple[str, int, str]] = []
     if prompt:
+        bm25_limit = min(
+            FLASHCARD_BM25_CANDIDATE_MAX,
+            max(
+                effective_k * FLASHCARD_BM25_CANDIDATE_MULTIPLIER,
+                effective_k,
+            ),
+        )
         bm25_rows = _fetch_embedding_rows(
             db,
             session_id,
             file_ids,
             table_name=embedding_table,
             order_by="chunk_index",
-            limit=None,
+            limit=bm25_limit,
         )
         bm25_documents = _rows_to_documents(bm25_rows)
         if bm25_documents:
@@ -677,12 +693,24 @@ async def generate_flashcards(
 
     context_lines = []
     sources = []
-    for i, (filename, chunk_index, content) in enumerate(row_items):
+    bounded_row_items: list[tuple[str, int, str]] = []
+    bounded_code_items: list[tuple[str, int, str]] = []
+    context_char_count = 0
+    for filename, chunk_index, content in row_items:
+        tag = len(sources)
         formatted = format_context_content_for_llm(content)
-        context_lines.append(f"[{i}] {filename} (chunk {chunk_index}): {formatted}")
+        line = f"[{tag}] {filename} (chunk {chunk_index}): {formatted}"
+        line_cost = len(line) + 2
+        if context_lines and (context_char_count + line_cost) > FLASHCARD_MAX_CONTEXT_CHARS:
+            break
+        context_lines.append(line)
+        context_char_count += line_cost
+        bounded_row_items.append((filename, chunk_index, content))
+        if is_code_block_content(content):
+            bounded_code_items.append((filename, chunk_index, content))
         sources.append(
             {
-                "tag": i,
+                "tag": tag,
                 "filename": filename,
                 "chunk_index": chunk_index,
             }
@@ -693,25 +721,34 @@ async def generate_flashcards(
         n_flashcards = 0
     else:
         n_flashcards = math.ceil(context_len / FLASHCARD_CHARS_PER_CARD)
-        chunk_based_count = math.ceil(len(row_items) / FLASHCARD_CHUNKS_PER_CARD)
+        chunk_based_count = math.ceil(len(bounded_row_items) / FLASHCARD_CHUNKS_PER_CARD)
         n_flashcards = max(n_flashcards, chunk_based_count)
         n_flashcards = min(
             FLASHCARD_MAX_COUNT,
             max(FLASHCARD_MIN_COUNT, n_flashcards),
         )
-        if code_items:
+        if bounded_code_items:
             n_flashcards = max(
                 n_flashcards,
-                min(len(code_items), FLASHCARD_MAX_COUNT),
+                min(len(bounded_code_items), FLASHCARD_MAX_COUNT),
             )
     llm_prompt = FLASHCARD_PROMPT.format(context=context, n_flashcards=n_flashcards)
+    target_tokens = min(
+        FLASHCARD_LLM_MAX_TOKENS,
+        max(128, n_flashcards * FLASHCARD_MAX_TOKENS_PER_CARD),
+    )
 
     try:
         resp = await wait_for(
             run_in_threadpool(
                 ollama.chat,
-                model="llama3.1",
+                model=FLASHCARD_LLM_MODEL,
                 messages=[{"role": "user", "content": llm_prompt}],
+                options={
+                    "num_predict": target_tokens,
+                    "temperature": 0.2,
+                },
+                keep_alive=FLASHCARD_LLM_KEEP_ALIVE,
             ),
             timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
         )
