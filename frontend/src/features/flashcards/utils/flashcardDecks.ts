@@ -1,6 +1,7 @@
 export type FlashcardDeck = {
   id: string;
   sessionId: string;
+  backendDeckId?: number;
   title: string;
   cardCount: number;
   noteCount: number;
@@ -36,10 +37,15 @@ const normalizeDeck = (raw: unknown): FlashcardDeck | null => {
   const mastery = typeof deck.mastery === "number" && Number.isFinite(deck.mastery)
     ? deck.mastery
     : undefined;
+  const backendDeckId =
+    typeof deck.backendDeckId === "number" && Number.isFinite(deck.backendDeckId)
+      ? deck.backendDeckId
+      : undefined;
 
   return {
     id: isString(deck.id) ? deck.id : `deck-${sessionId}`,
     sessionId,
+    backendDeckId,
     title: isString(deck.title) && deck.title.trim().length > 0 ? deck.title : "Untitled Deck",
     cardCount:
       typeof deck.cardCount === "number" && Number.isFinite(deck.cardCount)
@@ -90,7 +96,7 @@ export const saveDecks = (decks: FlashcardDeck[]) => {
 
 export const upsertDeck = (deck: FlashcardDeck): FlashcardDeck[] => {
   const existing = loadDecks();
-  const deckIndex = existing.findIndex((item) => item.sessionId === deck.sessionId);
+  const deckIndex = existing.findIndex((item) => item.id === deck.id);
   let nextDeck = deck;
 
   if (deckIndex >= 0) {
@@ -110,11 +116,14 @@ export const upsertDeck = (deck: FlashcardDeck): FlashcardDeck[] => {
   return next;
 };
 
-export const markDeckStudied = (sessionId: string): FlashcardDeck[] => {
+export const markDeckStudied = (sessionId: string, deckId?: string): FlashcardDeck[] => {
   const existing = loadDecks();
   let changed = false;
   const next = existing.map((deck) => {
     if (deck.sessionId !== sessionId) {
+      return deck;
+    }
+    if (deckId && deck.id !== deckId) {
       return deck;
     }
     changed = true;

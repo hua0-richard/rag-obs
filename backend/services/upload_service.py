@@ -111,6 +111,11 @@ async def stream_document_upload(
                 VERBOSE_EMBEDDING_PROFILE: EmbeddingsVerbose,
             }
             embedding_row_model = embedding_row_model_map[embedding_profile]
+            embedding_tables = (
+                get_embedding_table(DEFAULT_EMBEDDING_PROFILE),
+                get_embedding_table(CODE_EMBEDDING_PROFILE),
+                get_embedding_table(VERBOSE_EMBEDDING_PROFILE),
+            )
 
             obsidian_context = build_obsidian_context(decoded_files)
 
@@ -125,13 +130,52 @@ async def stream_document_upload(
                     continue
 
                 try:
-                    file_row = Files(
-                        session_id=active_session_id,
-                        filename=filename,
-                        content_type=content_type or "text/plain",
-                        raw_content=raw_bytes,
+                    existing_rows = (
+                        db.query(Files)
+                        .filter(
+                            Files.session_id == active_session_id,
+                            Files.filename == filename,
+                        )
+                        .order_by(Files.id.asc())
+                        .all()
                     )
-                    db.add(file_row)
+                    file_row = existing_rows[0] if existing_rows else None
+                    duplicate_rows = existing_rows[1:] if len(existing_rows) > 1 else []
+
+                    # Keep only one note row per (session_id, filename) and remove stale duplicates.
+                    if duplicate_rows:
+                        duplicate_ids = [row.id for row in duplicate_rows]
+                        for table_name in embedding_tables:
+                            db.execute(
+                                sql_text(
+                                    f"DELETE FROM {table_name} "
+                                    "WHERE session_id = :sid AND files_id = ANY(:file_ids)"
+                                ),
+                                {"sid": active_session_id, "file_ids": duplicate_ids},
+                            )
+                        db.query(Files).filter(Files.id.in_(duplicate_ids)).delete(synchronize_session=False)
+
+                    if file_row is None:
+                        file_row = Files(
+                            session_id=active_session_id,
+                            filename=filename,
+                            content_type=content_type or "text/plain",
+                            raw_content=raw_bytes,
+                        )
+                        db.add(file_row)
+                    else:
+                        file_row.content_type = content_type or "text/plain"
+                        file_row.raw_content = raw_bytes
+
+                        # Overwrite means old embeddings are invalid once content changes.
+                        for table_name in embedding_tables:
+                            db.execute(
+                                sql_text(
+                                    f"DELETE FROM {table_name} "
+                                    "WHERE session_id = :sid AND files_id = :fid"
+                                ),
+                                {"sid": active_session_id, "fid": file_row.id},
+                            )
                     db.commit()
                     db.refresh(file_row)
                 except Exception as e:

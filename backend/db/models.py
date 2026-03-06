@@ -76,6 +76,12 @@ class Flashcard(Base):
         ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
         nullable=True,
     )
+    deck_id = Column(
+        Integer,
+        ForeignKey("flashcard_decks.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     filename = Column(String(512), nullable=False)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)

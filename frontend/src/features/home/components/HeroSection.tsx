@@ -59,6 +59,7 @@ export function HeroSection() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
+    const selectedDeckKey = (sid: string) => `flashcards_selected_deck_id:${sid}`;
     const [isSessionLoading, setIsSessionLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
@@ -337,6 +338,10 @@ export function HeroSection() {
                         }
                         const data = await response.json();
                         const savedCount = typeof data?.saved_count === "number" ? data.saved_count : null;
+                        const backendDeckId =
+                            typeof data?.deck?.id === "number" && Number.isFinite(data.deck.id)
+                                ? data.deck.id
+                                : undefined;
                         const deckCardCount = savedCount ?? 0;
                         setLoadingMessage(
                             savedCount !== null
@@ -349,14 +354,23 @@ export function HeroSection() {
                             (name) => typeof name === "string" && name.trim().length > 0
                         );
                         upsertDeck({
-                            id: `deck-${deckSessionId}`,
+                            id:
+                                typeof backendDeckId === "number"
+                                    ? `deck-${deckSessionId}-${backendDeckId}`
+                                    : `deck-${deckSessionId}-${Date.now()}`,
                             sessionId: deckSessionId,
+                            backendDeckId,
                             title: buildDeckTitle(uniqueFiles),
                             cardCount: deckCardCount,
                             noteCount: uniqueFiles.length,
                             notes: uniqueFiles,
                             createdAt: new Date().toISOString(),
                         });
+                        if (typeof backendDeckId === "number") {
+                            localStorage.setItem(selectedDeckKey(deckSessionId), String(backendDeckId));
+                        } else {
+                            localStorage.removeItem(selectedDeckKey(deckSessionId));
+                        }
                     } catch (error) {
                         const message =
                             error instanceof Error ? error.message : "Flashcard generation failed.";

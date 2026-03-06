@@ -1,10 +1,13 @@
 import json
 import math
+import os
 import re
+from asyncio import TimeoutError as AsyncTimeoutError, wait_for
 from datetime import datetime, timezone
 import ollama
 from starlette.concurrency import run_in_threadpool
 from fastapi import HTTPException
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_community.retrievers import BM25Retriever
@@ -17,26 +20,40 @@ except (ImportError, ModuleNotFoundError):
         from langchain.retrievers.ensemble import EnsembleRetriever
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
-from db.models import Flashcard, FlashcardDecks, Sessions
+from db.models import (
+    Embeddings,
+    EmbeddingsCode,
+    EmbeddingsVerbose,
+    Files,
+    Flashcard,
+    FlashcardDecks,
+    Sessions,
+)
 from prompt import FLASHCARD_PROMPT
 from services.embedding_service import (
     EmbeddingProfile,
+    CODE_EMBEDDING_PROFILE,
     DEFAULT_EMBEDDING_PROFILE,
+    VERBOSE_EMBEDDING_PROFILE,
+    embed_chunks,
     embed_query,
     embed_query_sync,
     get_embedding_table,
     normalize_embedding_profile,
     parse_embedding_profile,
 )
+from services.obsidian_service import split_text_with_context
 from utils.obsidian import format_context_content_for_llm, is_code_block_content
 
-FLASHCARD_CHARS_PER_CARD = 800
+FLASHCARD_CHARS_PER_CARD = 500
 FLASHCARD_MIN_COUNT = 1
-FLASHCARD_MAX_COUNT = 20
+FLASHCARD_MAX_COUNT = 30
+FLASHCARD_CHUNKS_PER_CARD = 2
 FLASHCARD_MIN_CODE_CARDS = 1
 FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT = 3
 HYBRID_VECTOR_WEIGHT = 0.6
 HYBRID_KEYWORD_WEIGHT = 0.4
+FLASHCARD_LLM_TIMEOUT_SECONDS = int(os.getenv("FLASHCARD_LLM_TIMEOUT_SECONDS", "90"))
 
 try:
     from pydantic import ConfigDict
@@ -194,31 +211,16 @@ def _persist_flashcard_deck(
     title = _build_deck_title(filenames)
     source_metadata = {"files": source_files, "chunks": source_chunks}
     note_count = len([name for name in filenames if name])
-    now = datetime.now(timezone.utc)
-
-    deck = (
-        db.query(FlashcardDecks)
-        .filter(FlashcardDecks.session_id == session_id)
-        .first()
+    deck = FlashcardDecks(
+        session_id=session_id,
+        title=title,
+        source_metadata=source_metadata,
+        source_label=title,
+        card_count=card_count,
+        note_count=note_count,
+        created_at=datetime.now(timezone.utc),
     )
-    if deck:
-        deck.title = title
-        deck.source_metadata = source_metadata
-        deck.source_label = title
-        deck.card_count = card_count
-        deck.note_count = note_count
-        deck.created_at = now
-    else:
-        deck = FlashcardDecks(
-            session_id=session_id,
-            title=title,
-            source_metadata=source_metadata,
-            source_label=title,
-            card_count=card_count,
-            note_count=note_count,
-            created_at=now,
-        )
-        db.add(deck)
+    db.add(deck)
     db.commit()
     db.refresh(deck)
     return deck
@@ -269,6 +271,90 @@ async def _ainvoke_retriever(retriever, query: str):
     if hasattr(retriever, "aget_relevant_documents"):
         return await retriever.aget_relevant_documents(query)
     return retriever.get_relevant_documents(query)
+
+
+async def _ensure_embeddings_for_profile(
+    db: Session,
+    *,
+    session_id: int | None,
+    file_ids: list[int] | None,
+    embedding_profile: EmbeddingProfile,
+):
+    if session_id is None:
+        return
+
+    embedding_table = get_embedding_table(embedding_profile)
+    embedding_row_model_map = {
+        DEFAULT_EMBEDDING_PROFILE: Embeddings,
+        CODE_EMBEDDING_PROFILE: EmbeddingsCode,
+        VERBOSE_EMBEDDING_PROFILE: EmbeddingsVerbose,
+    }
+    embedding_row_model = embedding_row_model_map[embedding_profile]
+
+    notes_query = db.query(Files).filter(Files.session_id == session_id)
+    if file_ids:
+        notes_query = notes_query.filter(Files.id.in_(file_ids))
+    note_rows = notes_query.order_by(Files.id.asc()).all()
+    if not note_rows:
+        return
+
+    params: dict[str, object] = {"sid": session_id}
+    existing_query = (
+        f"SELECT DISTINCT files_id FROM {embedding_table} "
+        "WHERE session_id = :sid"
+    )
+    if file_ids:
+        existing_query += " AND files_id = ANY(:file_ids)"
+        params["file_ids"] = file_ids
+    existing_ids = {
+        row.files_id
+        for row in db.execute(sql_text(existing_query), params).fetchall()
+    }
+
+    missing_rows = [row for row in note_rows if row.id not in existing_ids]
+    if not missing_rows:
+        return
+
+    splitter = RecursiveCharacterTextSplitter(chunk_size=512)
+    try:
+        for note_row in missing_rows:
+            raw_content = note_row.raw_content or b""
+            if not raw_content:
+                continue
+            try:
+                text = raw_content.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            filename = note_row.filename or f"note-{note_row.id}"
+            chunks = split_text_with_context(
+                text=text,
+                filename=filename,
+                content_type=note_row.content_type,
+                splitter=splitter,
+            )
+            if not chunks:
+                continue
+
+            vectors = await embed_chunks(chunks, profile=embedding_profile)
+            db.add_all(
+                [
+                    embedding_row_model(
+                        files_id=note_row.id,
+                        session_id=session_id,
+                        filename=filename,
+                        content_type=note_row.content_type or "text/plain",
+                        chunk_index=i,
+                        content=chunk,
+                        embedding=vec.tolist(),
+                    )
+                    for i, (chunk, vec) in enumerate(zip(chunks, vectors))
+                ]
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _normalize_obsidian_latex(text: str) -> str:
@@ -490,6 +576,12 @@ async def generate_flashcards(
             db.commit()
             db.refresh(session_row)
     embedding_table = get_embedding_table(embedding_profile)
+    await _ensure_embeddings_for_profile(
+        db=db,
+        session_id=session_id,
+        file_ids=file_ids,
+        embedding_profile=embedding_profile,
+    )
 
     effective_k = k
     if effective_k is None and session_id is None:
@@ -601,6 +693,8 @@ async def generate_flashcards(
         n_flashcards = 0
     else:
         n_flashcards = math.ceil(context_len / FLASHCARD_CHARS_PER_CARD)
+        chunk_based_count = math.ceil(len(row_items) / FLASHCARD_CHUNKS_PER_CARD)
+        n_flashcards = max(n_flashcards, chunk_based_count)
         n_flashcards = min(
             FLASHCARD_MAX_COUNT,
             max(FLASHCARD_MIN_COUNT, n_flashcards),
@@ -612,15 +706,28 @@ async def generate_flashcards(
             )
     llm_prompt = FLASHCARD_PROMPT.format(context=context, n_flashcards=n_flashcards)
 
-    resp = await run_in_threadpool(
-        ollama.chat,
-        model="llama3.1",
-        messages=[{"role": "user", "content": llm_prompt}],
-    )
+    try:
+        resp = await wait_for(
+            run_in_threadpool(
+                ollama.chat,
+                model="llama3.1",
+                messages=[{"role": "user", "content": llm_prompt}],
+            ),
+            timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
+        )
+    except AsyncTimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                "Flashcard generation timed out. "
+                "Try fewer files or a smaller selection."
+            ),
+        ) from exc
     content = resp["message"]["content"]
 
     flashcards = None
     saved_count = 0
+    active_deck: FlashcardDecks | None = None
     parsed = _parse_flashcards(content)
     if not parsed and content.strip() and content.strip().upper() != "NONE":
         parsed = [
@@ -665,7 +772,7 @@ async def generate_flashcards(
             if tag in by_tag:
                 card["source"] = by_tag[tag]
         if session_id is not None:
-            rows_to_save: list[Flashcard] = []
+            row_payloads: list[dict[str, str]] = []
             for card in parsed:
                 question = card.get("question")
                 answer = card.get("answer")
@@ -677,37 +784,56 @@ async def generate_flashcards(
                     filename = by_tag[tag].get("filename")
                 if not filename:
                     filename = "unknown"
-                rows_to_save.append(
-                    Flashcard(
-                        session_id=session_id,
-                        filename=filename,
-                        question=question,
-                        answer=answer,
-                    )
+                row_payloads.append(
+                    {
+                        "filename": filename,
+                        "question": question,
+                        "answer": answer,
+                    }
                 )
+
+            active_deck = _persist_flashcard_deck(
+                db=db,
+                session_id=session_id,
+                source_files=source_files,
+                source_chunks=source_chunks,
+                card_count=len(row_payloads),
+            )
+
             if replace:
                 db.execute(
-                    sql_text("DELETE FROM flashcards WHERE session_id = :sid"),
-                    {"sid": session_id},
+                    sql_text("DELETE FROM flashcards WHERE deck_id = :deck_id"),
+                    {"deck_id": active_deck.id},
                 )
-                if rows_to_save:
-                    db.add_all(rows_to_save)
+
+            if row_payloads:
+                db.add_all(
+                    [
+                        Flashcard(
+                            session_id=session_id,
+                            deck_id=active_deck.id,
+                            filename=item["filename"],
+                            question=item["question"],
+                            answer=item["answer"],
+                        )
+                        for item in row_payloads
+                    ]
+                )
                 db.commit()
-                saved_count = len(rows_to_save)
-            elif rows_to_save:
-                db.add_all(rows_to_save)
-                db.commit()
-                saved_count = len(rows_to_save)
+                saved_count = len(row_payloads)
     flashcards = parsed if parsed else None
 
-    if session_id is not None:
-        _persist_flashcard_deck(
-            db=db,
-            session_id=session_id,
-            source_files=source_files,
-            source_chunks=source_chunks,
-            card_count=saved_count,
-        )
+    deck_payload = None
+    if active_deck is not None:
+        deck_payload = {
+            "id": active_deck.id,
+            "session_id": active_deck.session_id,
+            "title": active_deck.title,
+            "source_label": active_deck.source_label,
+            "card_count": active_deck.card_count,
+            "note_count": active_deck.note_count,
+            "created_at": active_deck.created_at.isoformat() if active_deck.created_at else None,
+        }
 
     return {
         "prompt": prompt,
@@ -715,20 +841,53 @@ async def generate_flashcards(
         "sources": sources,
         "raw": content,
         "saved_count": saved_count,
+        "deck": deck_payload,
     }
 
 
-def get_flashcards(session_id: int, db: Session):
+def get_flashcards(session_id: int, deck_id: int | None, db: Session):
     if db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
+
+    active_deck_id = deck_id
+    if active_deck_id is not None:
+        deck_row = db.execute(
+            sql_text(
+                "SELECT id FROM flashcard_decks "
+                "WHERE id = :deck_id AND session_id = :sid "
+                "LIMIT 1"
+            ),
+            {"deck_id": active_deck_id, "sid": session_id},
+        ).fetchone()
+        if deck_row is None:
+            raise HTTPException(status_code=404, detail="deck_id not found")
+    else:
+        latest_deck_row = db.execute(
+            sql_text(
+                "SELECT id FROM flashcard_decks "
+                "WHERE session_id = :sid "
+                "ORDER BY created_at DESC, id DESC "
+                "LIMIT 1"
+            ),
+            {"sid": session_id},
+        ).fetchone()
+        if latest_deck_row is not None:
+            active_deck_id = latest_deck_row.id
+
+    query = (
+        "SELECT id, filename, question, answer "
+        "FROM flashcards "
+        "WHERE session_id = :sid "
+    )
+    params: dict[str, object] = {"sid": session_id}
+    if active_deck_id is not None:
+        query += "AND deck_id = :deck_id "
+        params["deck_id"] = active_deck_id
+    query += "ORDER BY id"
+
     rows = db.execute(
-        sql_text(
-            "SELECT id, filename, question, answer "
-            "FROM flashcards "
-            "WHERE session_id = :sid "
-            "ORDER BY id"
-        ),
-        {"sid": session_id},
+        sql_text(query),
+        params,
     ).fetchall()
     flashcards = [
         {
@@ -739,7 +898,7 @@ def get_flashcards(session_id: int, db: Session):
         }
         for row in rows
     ]
-    return {"session_id": session_id, "flashcards": flashcards}
+    return {"session_id": session_id, "deck_id": active_deck_id, "flashcards": flashcards}
 
 
 def get_files(session_id: int, db: Session):

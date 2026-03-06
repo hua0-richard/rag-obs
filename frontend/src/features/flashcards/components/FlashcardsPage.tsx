@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/shared/components/ui/Button';
 import { Flashcard } from './Flashcard';
 import { useNavigate } from 'react-router-dom';
-import { buildDeckTitle, markDeckStudied } from '@/features/flashcards/utils/flashcardDecks';
+import { buildDeckTitle, loadDecks, markDeckStudied } from '@/features/flashcards/utils/flashcardDecks';
 
 type ApiFlashcard = {
     id: number;
@@ -51,14 +51,40 @@ export function FlashcardsPage() {
             setDeckSourceLabel(null);
             return;
         }
-        markDeckStudied(sessionId);
+        const selectedDeckKey = `flashcards_selected_deck_id:${sessionId}`;
+        const legacyDeckKey = "flashcards_selected_deck_id";
+        const storedDeckId =
+            localStorage.getItem(selectedDeckKey) ?? localStorage.getItem(legacyDeckKey);
+        const initialDeckId = storedDeckId ? Number(storedDeckId) : NaN;
+        const selectedDeckId = Number.isFinite(initialDeckId) ? initialDeckId : null;
+        if (selectedDeckId !== null && localStorage.getItem(selectedDeckKey) === null) {
+            localStorage.setItem(selectedDeckKey, String(selectedDeckId));
+        }
+        localStorage.removeItem(legacyDeckKey);
+        if (selectedDeckId !== null) {
+            const matchingLocalDeck = loadDecks().find(
+                (deck) => deck.sessionId === sessionId && deck.backendDeckId === selectedDeckId
+            );
+            if (matchingLocalDeck) {
+                markDeckStudied(sessionId, matchingLocalDeck.id);
+            } else {
+                markDeckStudied(sessionId);
+            }
+        } else {
+            markDeckStudied(sessionId);
+        }
 
         const fetchFlashcards = async () => {
             setIsLoading(true);
             setError(null);
             try {
+                const flashcardsUrl = new URL(`${import.meta.env.SERVER_URL}/flashcards`);
+                flashcardsUrl.searchParams.set("session_id", sessionId);
+                if (selectedDeckId !== null) {
+                    flashcardsUrl.searchParams.set("deck_id", String(selectedDeckId));
+                }
                 const response = await fetch(
-                    `${import.meta.env.SERVER_URL}/flashcards?session_id=${encodeURIComponent(sessionId)}`
+                    flashcardsUrl.toString()
                 );
                 if (!response.ok) {
                     const detail = await response.text();
@@ -66,6 +92,15 @@ export function FlashcardsPage() {
                 }
                 const data = await response.json();
                 const list = Array.isArray(data?.flashcards) ? data.flashcards : [];
+                const resolvedDeckId =
+                    typeof data?.deck_id === "number" && Number.isFinite(data.deck_id)
+                        ? data.deck_id
+                        : null;
+                if (resolvedDeckId !== null) {
+                    localStorage.setItem(selectedDeckKey, String(resolvedDeckId));
+                } else {
+                    localStorage.removeItem(selectedDeckKey);
+                }
                 setCards(list);
                 setCurrentIndex(0);
             } catch (err) {
@@ -110,7 +145,10 @@ export function FlashcardsPage() {
                 const data = await response.json();
                 const list: ApiDeck[] = Array.isArray(data?.decks) ? data.decks : [];
                 if (list.length > 0) {
-                    const deck = list[0];
+                    const deck =
+                        (selectedDeckId !== null
+                            ? list.find((entry) => entry.id === selectedDeckId)
+                            : undefined) ?? list[0];
                     const label =
                         typeof deck?.source_label === "string" && deck.source_label.trim().length > 0
                             ? deck.source_label

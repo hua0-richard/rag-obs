@@ -33,8 +33,12 @@ async def llm_flashcards(
 
 
 @router.get("/flashcards")
-def fetch_flashcards(session_id: int = Query(...), db: Session = Depends(get_db)):
-    return get_flashcards(session_id=session_id, db=db)
+def fetch_flashcards(
+    session_id: int = Query(...),
+    deck_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    return get_flashcards(session_id=session_id, deck_id=deck_id, db=db)
 
 
 @router.get("/files")

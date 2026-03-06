@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps } from "react";
-import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2, ChevronDown } from "lucide-react";
+import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/Select";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 
@@ -25,18 +26,18 @@ type EmbeddingModelOption = "default" | "jina-embeddings-v2-base-code" | "bge-la
 const EMBEDDING_MODEL_OPTIONS: { value: EmbeddingModelOption; label: string; description: string }[] = [
     {
         value: "default",
-        label: "Use session model (recommended)",
-        description: "Keeps the session's existing embedding profile unless you pick a specific model.",
+        label: "all-MiniLM-L6-v2",
+        description: "Balanced default model.",
     },
     {
         value: "jina-embeddings-v2-base-code",
         label: "jina-embeddings-v2-base-code",
-        description: "Best for code-heavy or mixed code/math notes.",
+        description: "Optimized for code and math.",
     },
     {
         value: "bge-large-en-v1.5",
         label: "bge-large-en-v1.5",
-        description: "Best for verbose, concept-heavy notes.",
+        description: "Best for longer conceptual notes.",
     },
 ];
 
@@ -157,6 +158,7 @@ export function FlashcardsLabPage() {
     const [documents, setDocuments] = useState<Document[]>([]);
     const [documentsLoading, setDocumentsLoading] = useState(true);
     const [documentsError, setDocumentsError] = useState<string | null>(null);
+    const selectedDeckKey = (sid: string) => `flashcards_selected_deck_id:${sid}`;
 
     const selectedCount = selected.length;
     const totalDocs = documents.length;
@@ -323,7 +325,12 @@ export function FlashcardsLabPage() {
 
     const handleStudyDeck = (deck: FlashcardDeck) => {
         localStorage.setItem("session_id", deck.sessionId);
-        const nextDecks = markDeckStudied(deck.sessionId);
+        if (typeof deck.backendDeckId === "number" && Number.isFinite(deck.backendDeckId)) {
+            localStorage.setItem(selectedDeckKey(deck.sessionId), String(deck.backendDeckId));
+        } else {
+            localStorage.removeItem(selectedDeckKey(deck.sessionId));
+        }
+        const nextDecks = markDeckStudied(deck.sessionId, deck.id);
         if (nextDecks.length > 0) {
             setDecks(nextDecks);
         }
@@ -384,6 +391,10 @@ export function FlashcardsLabPage() {
                     : Array.isArray(data?.flashcards)
                         ? data.flashcards.length
                         : 0;
+            const backendDeckId =
+                typeof data?.deck?.id === "number" && Number.isFinite(data.deck.id)
+                    ? data.deck.id
+                    : undefined;
 
             setLoadingMessage(
                 typeof data?.saved_count === "number"
@@ -393,8 +404,12 @@ export function FlashcardsLabPage() {
             const deckSessionId = String(sessionId);
             const selectedTitles = selectedDocs.map((doc) => doc.title);
             const nextDecks = upsertDeck({
-                id: `deck-${deckSessionId}`,
+                id:
+                    typeof backendDeckId === "number"
+                        ? `deck-${deckSessionId}-${backendDeckId}`
+                        : `deck-${deckSessionId}-${Date.now()}`,
                 sessionId: deckSessionId,
+                backendDeckId,
                 title: buildDeckTitle(selectedTitles),
                 cardCount: savedCount,
                 noteCount: selectedTitles.length,
@@ -402,6 +417,11 @@ export function FlashcardsLabPage() {
                 createdAt: new Date().toISOString(),
             });
             setDecks(nextDecks);
+            if (typeof backendDeckId === "number") {
+                localStorage.setItem(selectedDeckKey(deckSessionId), String(backendDeckId));
+            } else {
+                localStorage.removeItem(selectedDeckKey(deckSessionId));
+            }
             navigate("/flashcards");
         } catch (error) {
             const message = error instanceof Error ? error.message : "Flashcard generation failed.";
@@ -761,8 +781,8 @@ export function FlashcardsLabPage() {
                             className="group relative mx-auto flex w-full max-w-[1100px] flex-col rounded-2xl border border-white/5 bg-[#121215]/40 shadow-[0_20px_60px_-45px_rgba(0,0,0,0.8)] backdrop-blur-sm h-[min(72vh,720px)] min-h-[500px] sm:min-h-[540px] max-h-[760px] overflow-hidden"
                         >
                             {/* Top Bar */}
-                            <div className="flex flex-col gap-4 border-b border-white/5 px-6 py-3 sm:flex-row sm:items-center sm:justify-between h-[112px] sm:h-20 overflow-hidden">
-                                <div className="flex min-w-0 flex-col gap-1">
+                            <div className="flex flex-col gap-3 border-b border-white/5 px-6 py-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex min-w-0 flex-1 flex-col gap-1">
                                     <div
                                         className="text-xs font-mono text-white/40 line-clamp-1"
                                         title={`${selectedCount} / ${totalDocs} selected`}
@@ -779,44 +799,57 @@ export function FlashcardsLabPage() {
                                     ) : null}
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
-                                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                                <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
+                                    <div className="flex w-full min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:w-auto lg:max-w-[360px]">
                                         <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
                                             Model
                                         </span>
-                                        <div className="relative">
-                                            <label className="sr-only" htmlFor="embedding-model">
-                                                Embedding model
-                                            </label>
-                                            <select
-                                                id="embedding-model"
+                                        <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
+                                            <Select
                                                 value={embeddingModel}
-                                                onChange={(event) =>
-                                                    setEmbeddingModel(event.target.value as EmbeddingModelOption)
-                                                }
+                                                onValueChange={(value) => setEmbeddingModel(value as EmbeddingModelOption)}
                                                 disabled={isUploading || isGenerating}
-                                                className="appearance-none bg-transparent pr-6 text-[11px] font-medium text-white/70 focus:outline-none disabled:cursor-not-allowed"
-                                                title={`${selectedModelOption.label} — ${selectedModelOption.description}`}
                                             >
-                                                {EMBEDDING_MODEL_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-0 top-1/2 size-3 -translate-y-1/2 text-white/40" />
+                                                <SelectTrigger
+                                                    id="embedding-model"
+                                                    aria-label="Embedding model"
+                                                    className="h-8 rounded-full border border-white/10 bg-[#0f1012]/70 px-3 py-0 text-[11px] font-medium text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors hover:border-white/20 hover:bg-white/[0.08] focus:ring-2 focus:ring-[hsl(var(--accent))/25]"
+                                                    title={`${selectedModelOption.label} — ${selectedModelOption.description}`}
+                                                >
+                                                    <SelectValue className="truncate" />
+                                                </SelectTrigger>
+                                                <SelectContent className="w-[min(90vw,280px)] border border-white/10 bg-[#0f1014]/95 p-1">
+                                                    {EMBEDDING_MODEL_OPTIONS.map((option) => (
+                                                        <SelectItem
+                                                            key={option.value}
+                                                            value={option.value}
+                                                            className="items-start py-2.5 pr-8"
+                                                        >
+                                                            <div className="flex min-w-0 flex-col gap-0.5">
+                                                                <span className="line-clamp-1 text-[11px] text-white/85">{option.label}</span>
+                                                                <span className="line-clamp-2 text-[10px] leading-tight text-white/45">
+                                                                    {option.description}
+                                                                </span>
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                     </div>
-                                    <div className="hidden sm:flex items-center text-[10px] font-mono text-white/30">
+                                    <div className="hidden min-w-0 max-w-[220px] items-center text-[10px] font-mono text-white/30 xl:flex">
                                         Selected:{" "}
-                                        <span className="ml-1 text-white/60">
+                                        <span
+                                            className="ml-1 truncate text-white/60"
+                                            title={embeddingModel === "default" ? embeddingModelName : embeddingModel}
+                                        >
                                             {embeddingModel === "default" ? embeddingModelName : embeddingModel}
                                         </span>
                                     </div>
                                     <button
                                         onClick={handleUploadClick}
                                         disabled={isUploading || documentsLoading}
-                                        className="inline-flex min-w-[120px] items-center gap-2 text-[11px] font-medium text-white/40 hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap"
+                                        className="inline-flex min-w-[120px] items-center gap-2 rounded-full px-1 text-[11px] font-medium text-white/40 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap"
                                     >
                                         <UploadCloud className="size-3.5" />
                                         <span>{isUploading ? "Uploading..." : "Upload More"}</span>
