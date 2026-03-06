@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps } from "react";
-import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2 } from "lucide-react";
+import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +20,43 @@ type Document = {
 };
 
 type Tab = "create" | "decks";
+type EmbeddingModelOption = "default" | "jina-embeddings-v2-base-code" | "bge-large-en-v1.5";
+
+const EMBEDDING_MODEL_OPTIONS: { value: EmbeddingModelOption; label: string; description: string }[] = [
+    {
+        value: "default",
+        label: "Use session model (recommended)",
+        description: "Keeps the session's existing embedding profile unless you pick a specific model.",
+    },
+    {
+        value: "jina-embeddings-v2-base-code",
+        label: "jina-embeddings-v2-base-code",
+        description: "Best for code-heavy or mixed code/math notes.",
+    },
+    {
+        value: "bge-large-en-v1.5",
+        label: "bge-large-en-v1.5",
+        description: "Best for verbose, concept-heavy notes.",
+    },
+];
+
+const isEmbeddingModelOption = (value: string | null): value is EmbeddingModelOption =>
+    EMBEDDING_MODEL_OPTIONS.some((option) => option.value === value);
+
+const resolveEmbeddingModel = (profile: unknown, modelName: unknown): EmbeddingModelOption => {
+    if (typeof modelName === "string" && isEmbeddingModelOption(modelName)) {
+        return modelName;
+    }
+    if (typeof profile === "string") {
+        if (profile === "code") {
+            return "jina-embeddings-v2-base-code";
+        }
+        if (profile === "verbose") {
+            return "bge-large-en-v1.5";
+        }
+    }
+    return "default";
+};
 
 const formatRelativeTime = (isoTimestamp: string) => {
     const timestamp = new Date(isoTimestamp).getTime();
@@ -107,6 +144,8 @@ export function FlashcardsLabPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadStatus, setUploadStatus] = useState<string | null>(null);
     const [uploadIsError, setUploadIsError] = useState(false);
+    const [embeddingModel, setEmbeddingModel] = useState<EmbeddingModelOption>("default");
+    const [embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2");
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
     const [completedFiles, setCompletedFiles] = useState(0);
@@ -121,6 +160,9 @@ export function FlashcardsLabPage() {
 
     const selectedCount = selected.length;
     const totalDocs = documents.length;
+    const selectedModelOption =
+        EMBEDDING_MODEL_OPTIONS.find((option) => option.value === embeddingModel) ??
+        EMBEDDING_MODEL_OPTIONS[0];
 
     const fetchDocuments = useCallback(async (sessionId: string) => {
         setDocumentsLoading(true);
@@ -154,6 +196,25 @@ export function FlashcardsLabPage() {
         }
     }, []);
 
+    const fetchSessionProfile = useCallback(async (sessionId: string) => {
+        try {
+            const response = await fetch(
+                `${import.meta.env.SERVER_URL}/session-profile?session_id=${encodeURIComponent(sessionId)}`
+            );
+            if (!response.ok) {
+                return;
+            }
+            const data = await response.json();
+            const nextModel = resolveEmbeddingModel(data?.embedding_profile, data?.embedding_model);
+            const modelName = typeof data?.embedding_model === "string" ? data.embedding_model : "all-MiniLM-L6-v2";
+            setEmbeddingModel(nextModel);
+            setEmbeddingModelName(modelName);
+            localStorage.setItem(`flashcards_embedding_model:${sessionId}`, nextModel);
+        } catch {
+            // Ignore profile errors and rely on local defaults.
+        }
+    }, []);
+
     useEffect(() => {
         const sessionId = localStorage.getItem("session_id");
         if (!sessionId) {
@@ -162,14 +223,37 @@ export function FlashcardsLabPage() {
             setDocumentsLoading(false);
             return;
         }
+        const storedModel = localStorage.getItem(`flashcards_embedding_model:${sessionId}`);
+        if (isEmbeddingModelOption(storedModel)) {
+            setEmbeddingModel(storedModel);
+            if (storedModel === "default") {
+                setEmbeddingModelName("all-MiniLM-L6-v2");
+            } else {
+                setEmbeddingModelName(storedModel);
+            }
+        }
         fetchDocuments(sessionId);
-    }, [fetchDocuments]);
+        fetchSessionProfile(sessionId);
+    }, [fetchDocuments, fetchSessionProfile]);
 
     useEffect(() => {
         if (activeTab === "decks") {
             setDecks(loadDecks());
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        const sessionId = localStorage.getItem("session_id");
+        if (!sessionId) {
+            return;
+        }
+        localStorage.setItem(`flashcards_embedding_model:${sessionId}`, embeddingModel);
+        if (embeddingModel === "default") {
+            setEmbeddingModelName("all-MiniLM-L6-v2");
+        } else {
+            setEmbeddingModelName(embeddingModel);
+        }
+    }, [embeddingModel]);
 
     const closeToast = () => {
         setIsClosing(true);
@@ -283,6 +367,9 @@ export function FlashcardsLabPage() {
                 session_id: sessionId,
                 replace: "true",
             });
+            if (embeddingModel !== "default") {
+                params.set("embedding_model", embeddingModel);
+            }
             selectedIds.forEach((id) => params.append("file_ids", String(id)));
 
             const response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
@@ -362,8 +449,13 @@ export function FlashcardsLabPage() {
         );
 
         try {
+            const uploadUrl = new URL(`${import.meta.env.SERVER_URL}/upload-files`);
+            uploadUrl.searchParams.set("session_id", sessionId);
+            if (embeddingModel !== "default") {
+                uploadUrl.searchParams.set("embedding_model", embeddingModel);
+            }
             const response = await fetch(
-                `${import.meta.env.SERVER_URL}/upload-files?session_id=${encodeURIComponent(sessionId)}`,
+                uploadUrl.toString(),
                 {
                     method: "POST",
                     body: formData,
@@ -688,6 +780,39 @@ export function FlashcardsLabPage() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
+                                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                                        <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
+                                            Model
+                                        </span>
+                                        <div className="relative">
+                                            <label className="sr-only" htmlFor="embedding-model">
+                                                Embedding model
+                                            </label>
+                                            <select
+                                                id="embedding-model"
+                                                value={embeddingModel}
+                                                onChange={(event) =>
+                                                    setEmbeddingModel(event.target.value as EmbeddingModelOption)
+                                                }
+                                                disabled={isUploading || isGenerating}
+                                                className="appearance-none bg-transparent pr-6 text-[11px] font-medium text-white/70 focus:outline-none disabled:cursor-not-allowed"
+                                                title={`${selectedModelOption.label} — ${selectedModelOption.description}`}
+                                            >
+                                                {EMBEDDING_MODEL_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="pointer-events-none absolute right-0 top-1/2 size-3 -translate-y-1/2 text-white/40" />
+                                        </div>
+                                    </div>
+                                    <div className="hidden sm:flex items-center text-[10px] font-mono text-white/30">
+                                        Selected:{" "}
+                                        <span className="ml-1 text-white/60">
+                                            {embeddingModel === "default" ? embeddingModelName : embeddingModel}
+                                        </span>
+                                    </div>
                                     <button
                                         onClick={handleUploadClick}
                                         disabled={isUploading || documentsLoading}

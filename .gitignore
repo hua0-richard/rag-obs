@@ -23,6 +23,8 @@ Thumbs.db
 logs/
 *.log
 
+backend/.hf-cache/
+
 docker-compose.override.yml
 
 *.pem

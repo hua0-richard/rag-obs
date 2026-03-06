@@ -139,6 +139,13 @@ def split_text_with_context(
                     chunks.append(f"{context_prefix}\n\nInline code: {code}")
                 else:
                     chunks.append(f"Inline code: {code}")
-        return chunks
+        if chunks:
+            return chunks
+
+        return [
+            chunk.strip()
+            for chunk in splitter.split_text(text)
+            if chunk.strip()
+        ]
 
     return [chunk.strip() for chunk in splitter.split_text(text) if chunk.strip()]

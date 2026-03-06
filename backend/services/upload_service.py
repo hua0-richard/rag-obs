@@ -3,15 +3,27 @@ from typing import List
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from db.models import Embeddings, Files, Sessions
-from db.session import SessionLocal, launch_db
-from services.embedding_service import embed_chunks
+from sqlalchemy import text as sql_text
+from db.models import Embeddings, EmbeddingsCode, EmbeddingsVerbose, Files, Sessions
+from db.session import SessionLocal
+from services.embedding_service import (
+    choose_embedding_profile,
+    embed_chunks,
+    get_embedding_table,
+    normalize_embedding_profile,
+    parse_embedding_profile,
+    DEFAULT_EMBEDDING_PROFILE,
+    CODE_EMBEDDING_PROFILE,
+    VERBOSE_EMBEDDING_PROFILE,
+    EmbeddingProfile,
+)
 from services.obsidian_service import build_obsidian_context, split_text_with_context
 
 
 async def stream_document_upload(
     files: List[UploadFile],
     session_id: int | None,
+    embedding_model: str | None = None,
 ) -> StreamingResponse:
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
@@ -29,7 +41,6 @@ async def stream_document_upload(
     async def event_stream():
         db = SessionLocal()
         try:
-            launch_db()
             active_session_id = session_id
             if active_session_id is not None:
                 session_row = db.get(Sessions, active_session_id)
@@ -61,6 +72,45 @@ async def stream_document_upload(
                     )
                 except UnicodeDecodeError:
                     decode_errors[filename] = "file is not valid utf-8 text"
+
+            raw_profile = getattr(session_row, "embedding_profile", None)
+            stored_profile = parse_embedding_profile(raw_profile)
+            requested_profile = parse_embedding_profile(embedding_model)
+            embedding_profile = stored_profile or DEFAULT_EMBEDDING_PROFILE
+
+            if requested_profile is not None:
+                embedding_profile = requested_profile
+                session_row.embedding_profile = embedding_profile
+                db.commit()
+                db.refresh(session_row)
+            elif stored_profile is None:
+                existing_profile: EmbeddingProfile | None = None
+                for profile in (CODE_EMBEDDING_PROFILE, VERBOSE_EMBEDDING_PROFILE, DEFAULT_EMBEDDING_PROFILE):
+                    table_name = get_embedding_table(profile)
+                    row = db.execute(
+                        sql_text(
+                            f"SELECT 1 FROM {table_name} WHERE session_id = :sid LIMIT 1"
+                        ),
+                        {"sid": active_session_id},
+                    ).fetchone()
+                    if row:
+                        existing_profile = profile
+                        break
+                if existing_profile is None:
+                    candidate_texts = [item.get("text", "") for item in decoded_files]
+                    embedding_profile = choose_embedding_profile(candidate_texts)
+                else:
+                    embedding_profile = existing_profile
+                session_row.embedding_profile = embedding_profile
+                db.commit()
+                db.refresh(session_row)
+
+            embedding_row_model_map = {
+                DEFAULT_EMBEDDING_PROFILE: Embeddings,
+                CODE_EMBEDDING_PROFILE: EmbeddingsCode,
+                VERBOSE_EMBEDDING_PROFILE: EmbeddingsVerbose,
+            }
+            embedding_row_model = embedding_row_model_map[embedding_profile]
 
             obsidian_context = build_obsidian_context(decoded_files)
 
@@ -126,10 +176,10 @@ async def stream_document_upload(
                     continue
                 try:
                     # non-blocking
-                    vectors = await embed_chunks(chunks)
+                    vectors = await embed_chunks(chunks, profile=embedding_profile)
 
                     db.add_all([
-                        Embeddings(
+                        embedding_row_model(
                             files_id=file_row.id,
                             session_id=active_session_id,
                             filename=filename,

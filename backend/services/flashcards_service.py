@@ -8,13 +8,26 @@ from fastapi import HTTPException
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_community.retrievers import BM25Retriever
-from langchain.retrievers import EnsembleRetriever
+try:
+    from langchain_community.retrievers import EnsembleRetriever
+except (ImportError, ModuleNotFoundError):
+    try:
+        from langchain.retrievers import EnsembleRetriever
+    except (ImportError, ModuleNotFoundError):
+        from langchain.retrievers.ensemble import EnsembleRetriever
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 from db.models import Flashcard, FlashcardDecks, Sessions
-from db.session import launch_db
 from prompt import FLASHCARD_PROMPT
-from services.embedding_service import embed_query, embed_query_sync
+from services.embedding_service import (
+    EmbeddingProfile,
+    DEFAULT_EMBEDDING_PROFILE,
+    embed_query,
+    embed_query_sync,
+    get_embedding_table,
+    normalize_embedding_profile,
+    parse_embedding_profile,
+)
 from utils.obsidian import format_context_content_for_llm, is_code_block_content
 
 FLASHCARD_CHARS_PER_CARD = 800
@@ -48,11 +61,12 @@ def _fetch_embedding_rows(
     session_id: int | None,
     file_ids: list[int] | None,
     *,
+    table_name: str,
     order_by: str | None = None,
     limit: int | None = None,
     qvec: object | None = None,
 ):
-    base_query = "SELECT filename, chunk_index, content FROM embeddings "
+    base_query = f"SELECT filename, chunk_index, content FROM {table_name} "
     clauses, params = _build_embedding_filters(session_id, file_ids)
     if clauses:
         base_query += "WHERE " + " AND ".join(clauses) + " "
@@ -215,6 +229,8 @@ class PgVectorRetriever(BaseRetriever):
     session_id: int | None
     file_ids: list[int] | None
     k: int | None
+    embedding_profile: EmbeddingProfile
+    embedding_table: str
 
     if ConfigDict is not None:
         model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -223,22 +239,24 @@ class PgVectorRetriever(BaseRetriever):
             arbitrary_types_allowed = True
 
     def _get_relevant_documents(self, query: str) -> list[Document]:
-        qvec = embed_query_sync(query)
+        qvec = embed_query_sync(query, profile=self.embedding_profile)
         rows = _fetch_embedding_rows(
             self.db,
             self.session_id,
             self.file_ids,
+            table_name=self.embedding_table,
             qvec=qvec,
             limit=self.k,
         )
         return _rows_to_documents(rows)
 
     async def _aget_relevant_documents(self, query: str) -> list[Document]:
-        qvec = await embed_query(query)
+        qvec = await embed_query(query, profile=self.embedding_profile)
         rows = _fetch_embedding_rows(
             self.db,
             self.session_id,
             self.file_ids,
+            table_name=self.embedding_table,
             qvec=qvec,
             limit=self.k,
         )
@@ -440,12 +458,12 @@ async def generate_flashcards(
     session_id: int | None,
     file_ids: list[int] | None,
     replace: bool,
+    embedding_model: str | None,
     db: Session,
 ):
     """
     Retrieve chunks via hybrid BM25 + pgvector and ask llm to generate flashcards.
     """
-    launch_db()
 
     if not prompt and session_id is None:
         raise HTTPException(
@@ -453,8 +471,25 @@ async def generate_flashcards(
             detail="prompt is required unless session_id is provided",
         )
 
-    if session_id is not None and db.get(Sessions, session_id) is None:
-        raise HTTPException(status_code=404, detail="session_id not found")
+    session_row = None
+    if session_id is not None:
+        session_row = db.get(Sessions, session_id)
+        if session_row is None:
+            raise HTTPException(status_code=404, detail="session_id not found")
+
+    requested_profile = parse_embedding_profile(embedding_model)
+    embedding_profile = (
+        normalize_embedding_profile(session_row.embedding_profile)
+        if session_row is not None
+        else DEFAULT_EMBEDDING_PROFILE
+    )
+    if requested_profile is not None:
+        embedding_profile = requested_profile
+        if session_row is not None and session_row.embedding_profile != requested_profile:
+            session_row.embedding_profile = requested_profile
+            db.commit()
+            db.refresh(session_row)
+    embedding_table = get_embedding_table(embedding_profile)
 
     effective_k = k
     if effective_k is None and session_id is None:
@@ -466,6 +501,7 @@ async def generate_flashcards(
             db,
             session_id,
             file_ids,
+            table_name=embedding_table,
             order_by="chunk_index",
             limit=None,
         )
@@ -479,6 +515,8 @@ async def generate_flashcards(
                 session_id=session_id,
                 file_ids=file_ids,
                 k=effective_k,
+                embedding_profile=embedding_profile,
+                embedding_table=embedding_table,
             )
             ensemble = EnsembleRetriever(
                 retrievers=[bm25_retriever, vector_retriever],
@@ -491,6 +529,7 @@ async def generate_flashcards(
             db,
             session_id,
             file_ids,
+            table_name=embedding_table,
             order_by="chunk_index",
             limit=effective_k,
         )
@@ -513,7 +552,7 @@ async def generate_flashcards(
     if session_id is not None and len(code_items) < FLASHCARD_MIN_CODE_CARDS:
         code_query = (
             "SELECT filename, chunk_index, content "
-            "FROM embeddings "
+            f"FROM {embedding_table} "
             "WHERE session_id = :sid AND content LIKE 'Code block%' "
             "ORDER BY chunk_index "
             "LIMIT :k"
@@ -521,7 +560,7 @@ async def generate_flashcards(
         if file_ids:
             code_query = (
                 "SELECT filename, chunk_index, content "
-                "FROM embeddings "
+                f"FROM {embedding_table} "
                 "WHERE session_id = :sid AND files_id = ANY(:file_ids) AND content LIKE 'Code block%' "
                 "ORDER BY chunk_index "
                 "LIMIT :k"
@@ -680,7 +719,6 @@ async def generate_flashcards(
 
 
 def get_flashcards(session_id: int, db: Session):
-    launch_db()
     if db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
     rows = db.execute(
@@ -705,7 +743,6 @@ def get_flashcards(session_id: int, db: Session):
 
 
 def get_files(session_id: int, db: Session):
-    launch_db()
     if db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
     rows = db.execute(
@@ -731,7 +768,6 @@ def get_files(session_id: int, db: Session):
 
 
 def get_flashcard_decks(session_id: int, db: Session):
-    launch_db()
     if db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
     rows = db.execute(

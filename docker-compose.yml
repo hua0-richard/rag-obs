@@ -12,6 +12,11 @@ services:
       OLLAMA_HOST: "http://host.docker.internal:11434"
       DATABASE_URL: "postgresql+psycopg2://raguser:ragpass@db:5432/ragobs"
       ENV: "DEV"
+      HF_HOME: "/app/.hf-cache"
+      SENTENCE_TRANSFORMERS_HOME: "/app/.hf-cache"
+      TRANSFORMERS_CACHE: "/app/.hf-cache/transformers"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
 
     volumes:
       - ./backend:/app

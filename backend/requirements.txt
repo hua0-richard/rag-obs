@@ -1,13 +1,14 @@
 fastapi
 uvicorn[standard]
-langchain
+langchain==0.1.20
 python-multipart
-langchain
+alembic
 langchain-core
 langchain-community
 # langchain-openai
 langchain-text-splitters
-sentence-transformers 
+sentence-transformers==2.6.1
+transformers==4.38.2
 faiss-cpu 
 numpy
 ollama
