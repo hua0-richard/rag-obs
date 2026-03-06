@@ -7,10 +7,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "infra": "docker compose up --build",
-    "ollama": "OLLAMA_HOST=localhost:11434 ollama serve",
-    "dev:full": "pnpm run models:download:docker && pnpm run infra & pnpm run ollama",
+    "ollama": "OLLAMA_HOST=0.0.0.0:11434 ollama serve",
+    "dev:full": "pnpm run models:download:docker && pnpm run infra",
     "models:download": "python backend/scripts/download_models.py",
-    "models:download:docker": "docker compose run --rm -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 api python scripts/download_models.py"
+    "models:download:docker": "docker compose run --rm -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 api python scripts/download_models.py",
+    "ollama:pull": "docker compose exec ollama ollama pull llama3.1"
   },
   "keywords": [],
   "author": "",

@@ -9,7 +9,7 @@ services:
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
-      OLLAMA_HOST: "http://host.docker.internal:11434"
+      OLLAMA_HOST: "http://ollama:11434"
       DATABASE_URL: "postgresql+psycopg2://raguser:ragpass@db:5432/ragobs"
       ENV: "DEV"
       HF_HOME: "/app/.hf-cache"
@@ -24,6 +24,7 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+      - ollama
     
   frontend:
     build:
@@ -52,6 +53,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
   
   pgadmin:
     image: dpage/pgadmin4
@@ -67,3 +75,4 @@ services:
 
 volumes:
   pgdata:
+  ollama:

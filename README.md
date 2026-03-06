@@ -12,6 +12,46 @@
 pnpm run dev:full
 ```
 
+### Ollama Networking (macOS + Linux)
+
+This project runs Ollama in Docker and connects API to it over the Compose network.
+
+- API uses `OLLAMA_HOST=http://ollama:11434`
+- Ollama runs as the `ollama` service in `docker-compose.yml`
+- Pull the model once after startup: `pnpm run ollama:pull`
+
+Quick verification:
+
+```bash
+docker compose exec api python - <<'PY'
+import urllib.request
+print(urllib.request.urlopen("http://ollama:11434/api/tags", timeout=8).status)
+PY
+```
+
+## Database Migrations
+
+Run database migrations manually with Alembic. The API does not auto-run migrations on startup.
+
+On first start with a fresh database, run migrations before using upload/flashcard features.
+
+```bash
+# If containers are already running
+docker compose exec api alembic upgrade head
+```
+
+```bash
+# One-off migration container
+docker compose run --rm api alembic upgrade head
+```
+
+```bash
+# Local (non-docker) from backend/
+cd backend
+export DATABASE_URL='postgresql+psycopg2://raguser:ragpass@localhost:5432/ragobs'
+alembic upgrade head
+```
+
 ## Overview
 
 This project ingests an Obsidian vault (Markdown files), builds a structured knowledge index, and enables **question-answering with citations** to exact notes and sections.  
