@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/Select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/components/ui/Select";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 
@@ -22,22 +22,41 @@ type Document = {
 
 type Tab = "create" | "decks";
 type EmbeddingModelOption = "default" | "jina-embeddings-v2-base-code" | "bge-large-en-v1.5";
+type FlashcardAmountOption = "small" | "medium" | "large";
 
 const EMBEDDING_MODEL_OPTIONS: { value: EmbeddingModelOption; label: string; description: string }[] = [
     {
         value: "default",
         label: "all-MiniLM-L6-v2",
-        description: "Balanced default model.",
+        description: "Balanced default.",
     },
     {
         value: "jina-embeddings-v2-base-code",
         label: "jina-embeddings-v2-base-code",
-        description: "Optimized for code and math.",
+        description: "Code + math focus.",
     },
     {
         value: "bge-large-en-v1.5",
         label: "bge-large-en-v1.5",
-        description: "Best for longer conceptual notes.",
+        description: "Long-form notes.",
+    },
+];
+
+const FLASHCARD_AMOUNT_OPTIONS: { value: FlashcardAmountOption; label: string; description: string }[] = [
+    {
+        value: "small",
+        label: "Small",
+        description: "Quick pass.",
+    },
+    {
+        value: "medium",
+        label: "Medium",
+        description: "Balanced set.",
+    },
+    {
+        value: "large",
+        label: "Large",
+        description: "Deep review.",
     },
 ];
 
@@ -147,6 +166,7 @@ export function FlashcardsLabPage() {
     const [uploadIsError, setUploadIsError] = useState(false);
     const [embeddingModel, setEmbeddingModel] = useState<EmbeddingModelOption>("default");
     const [embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2");
+    const [flashcardAmount, setFlashcardAmount] = useState<FlashcardAmountOption>("medium");
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
     const [completedFiles, setCompletedFiles] = useState(0);
@@ -165,6 +185,9 @@ export function FlashcardsLabPage() {
     const selectedModelOption =
         EMBEDDING_MODEL_OPTIONS.find((option) => option.value === embeddingModel) ??
         EMBEDDING_MODEL_OPTIONS[0];
+    const selectedAmountOption =
+        FLASHCARD_AMOUNT_OPTIONS.find((option) => option.value === flashcardAmount) ??
+        FLASHCARD_AMOUNT_OPTIONS[1];
 
     const fetchDocuments = useCallback(async (sessionId: string) => {
         setDocumentsLoading(true);
@@ -376,6 +399,9 @@ export function FlashcardsLabPage() {
             });
             if (embeddingModel !== "default") {
                 params.set("embedding_model", embeddingModel);
+            }
+            if (flashcardAmount !== "medium") {
+                params.set("flashcard_amount", flashcardAmount);
             }
             selectedIds.forEach((id) => params.append("file_ids", String(id)));
 
@@ -799,12 +825,13 @@ export function FlashcardsLabPage() {
                                     ) : null}
                                 </div>
 
-                                <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
-                                    <div className="flex w-full min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:w-auto lg:max-w-[360px]">
-                                        <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
-                                            Model
-                                        </span>
-                                        <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
+                                <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end lg:gap-4">
+                                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+                                        <div className="flex w-full min-w-0 items-center gap-2 px-1 py-1.5 sm:w-auto lg:max-w-[360px]">
+                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                                                Model
+                                            </span>
+                                            <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
                                             <Select
                                                 value={embeddingModel}
                                                 onValueChange={(value) => setEmbeddingModel(value as EmbeddingModelOption)}
@@ -813,21 +840,22 @@ export function FlashcardsLabPage() {
                                                 <SelectTrigger
                                                     id="embedding-model"
                                                     aria-label="Embedding model"
-                                                    className="h-8 rounded-full border border-white/10 bg-[#0f1012]/70 px-3 py-0 text-[11px] font-medium text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors hover:border-white/20 hover:bg-white/[0.08] focus:ring-2 focus:ring-[hsl(var(--accent))/25]"
-                                                    title={`${selectedModelOption.label} — ${selectedModelOption.description}`}
+                                                    className="h-8 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-0 text-[11px] font-medium text-white/75 transition-colors hover:border-white/10 hover:bg-white/[0.07] focus:ring-0 focus:outline-none whitespace-nowrap font-mono"
+                                                    title={selectedModelOption.label}
                                                 >
-                                                    <SelectValue className="truncate" />
+                                                    <span className="truncate">{selectedModelOption.label}</span>
                                                 </SelectTrigger>
-                                                <SelectContent className="w-[min(90vw,280px)] border border-white/10 bg-[#0f1014]/95 p-1">
+                                                <SelectContent className="w-[min(90vw,280px)] rounded-lg bg-[#121215] p-1 shadow-none backdrop-blur-none font-mono">
                                                     {EMBEDDING_MODEL_OPTIONS.map((option) => (
                                                         <SelectItem
                                                             key={option.value}
                                                             value={option.value}
-                                                            className="items-start py-2.5 pr-8"
+                                                            textValue={option.label}
+                                                            className="items-start py-3 pr-8"
                                                         >
                                                             <div className="flex min-w-0 flex-col gap-0.5">
-                                                                <span className="line-clamp-1 text-[11px] text-white/85">{option.label}</span>
-                                                                <span className="line-clamp-2 text-[10px] leading-tight text-white/45">
+                                                                <span className="line-clamp-1 text-[11px] text-white/90">{option.label}</span>
+                                                                <span className="line-clamp-2 text-[10px] leading-snug text-white/55">
                                                                     {option.description}
                                                                 </span>
                                                             </div>
@@ -836,46 +864,80 @@ export function FlashcardsLabPage() {
                                                 </SelectContent>
                                             </Select>
                                         </div>
+                                        </div>
+                                        <div className="flex w-full min-w-0 items-center gap-2 px-1 py-1.5 sm:w-auto lg:max-w-[260px]">
+                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                                                Amount
+                                            </span>
+                                            <div className="min-w-0 flex-1 sm:w-[160px] sm:flex-none">
+                                            <Select
+                                                value={flashcardAmount}
+                                                onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
+                                                disabled={isUploading || isGenerating}
+                                            >
+                                                <SelectTrigger
+                                                    id="flashcard-amount"
+                                                    aria-label="Flashcard amount"
+                                                    className="h-8 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-0 text-[11px] font-medium text-white/75 transition-colors hover:border-white/10 hover:bg-white/[0.07] focus:ring-0 focus:outline-none whitespace-nowrap font-mono"
+                                                    title={selectedAmountOption.label}
+                                                >
+                                                    <span className="truncate">{selectedAmountOption.label}</span>
+                                                </SelectTrigger>
+                                                <SelectContent className="w-[min(90vw,240px)] rounded-lg bg-[#121215] p-1 shadow-none backdrop-blur-none font-mono">
+                                                    {FLASHCARD_AMOUNT_OPTIONS.map((option) => (
+                                                        <SelectItem
+                                                            key={option.value}
+                                                            value={option.value}
+                                                            textValue={option.label}
+                                                            className="items-start py-3 pr-8"
+                                                        >
+                                                            <div className="flex min-w-0 flex-col gap-0.5">
+                                                                <span className="line-clamp-1 text-[11px] text-white/90">{option.label}</span>
+                                                                <span className="line-clamp-2 text-[10px] leading-snug text-white/55">
+                                                                    {option.description}
+                                                                </span>
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        </div>
                                     </div>
-                                    <div className="hidden min-w-0 max-w-[220px] items-center text-[10px] font-mono text-white/30 xl:flex">
-                                        Selected:{" "}
-                                        <span
-                                            className="ml-1 truncate text-white/60"
-                                            title={embeddingModel === "default" ? embeddingModelName : embeddingModel}
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => {
+                                                if (documentsLoading) {
+                                                    return;
+                                                }
+                                                setSelected(documents.map((doc) => doc.id));
+                                            }}
+                                            className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
                                         >
-                                            {embeddingModel === "default" ? embeddingModelName : embeddingModel}
-                                        </span>
+                                            Select All
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (documentsLoading) {
+                                                    return;
+                                                }
+                                                setSelected([]);
+                                            }}
+                                            className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
+                                        >
+                                            Clear
+                                        </button>
+                                        <Button
+                                            onClick={handleUploadClick}
+                                            disabled={isUploading || documentsLoading}
+                                            variant="ghost"
+                                            size="sm"
+                                            className="group min-w-[120px] rounded-full px-4 text-[11px] bg-[#18181b] border border-white/5 border-t-white/10 text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200 ease-out"
+                                        >
+                                            <UploadCloud className="size-3.5 text-white/75 group-hover:text-white/90 transition-colors" />
+                                            <span>{isUploading ? "Uploading..." : "Upload More"}</span>
+                                        </Button>
                                     </div>
-                                    <button
-                                        onClick={handleUploadClick}
-                                        disabled={isUploading || documentsLoading}
-                                        className="inline-flex min-w-[120px] items-center gap-2 rounded-full px-1 text-[11px] font-medium text-white/40 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap"
-                                    >
-                                        <UploadCloud className="size-3.5" />
-                                        <span>{isUploading ? "Uploading..." : "Upload More"}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (documentsLoading) {
-                                                return;
-                                            }
-                                            setSelected(documents.map((doc) => doc.id));
-                                        }}
-                                        className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
-                                    >
-                                        Select All
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (documentsLoading) {
-                                                return;
-                                            }
-                                            setSelected([]);
-                                        }}
-                                        className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
-                                    >
-                                        Clear
-                                    </button>
                                 </div>
                             </div>
 
@@ -1074,7 +1136,7 @@ export function FlashcardsLabPage() {
             </main>
             {showToast ? (
                 <div
-                    className="fixed right-6 top-6 z-50 w-[min(84vw,320px)]"
+                    className="fixed z-50 w-[min(92vw,320px)] left-1/2 -translate-x-1/2 top-20 sm:left-auto sm:translate-x-0 sm:top-6 sm:right-6"
                     role="status"
                     aria-live="polite"
                     onMouseEnter={() => setIsHoveringToast(true)}

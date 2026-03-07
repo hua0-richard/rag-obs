@@ -19,6 +19,7 @@ async def llm_flashcards(
     file_ids: list[int] | None = Query(None),
     replace: bool = Query(False),
     embedding_model: str | None = Query(None),
+    flashcard_amount: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     return await generate_flashcards(
@@ -28,6 +29,7 @@ async def llm_flashcards(
         file_ids=file_ids,
         replace=replace,
         embedding_model=embedding_model,
+        flashcard_amount=flashcard_amount,
         db=db,
     )
 

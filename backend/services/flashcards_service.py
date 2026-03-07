@@ -47,7 +47,6 @@ from utils.obsidian import format_context_content_for_llm, is_code_block_content
 
 FLASHCARD_CHARS_PER_CARD = 500
 FLASHCARD_MIN_COUNT = 1
-FLASHCARD_MAX_COUNT = 30
 FLASHCARD_CHUNKS_PER_CARD = 2
 FLASHCARD_DEFAULT_RETRIEVAL_K = 40
 FLASHCARD_BM25_CANDIDATE_MULTIPLIER = 6
@@ -62,6 +61,11 @@ FLASHCARD_LLM_MODEL = os.getenv("FLASHCARD_LLM_MODEL", "llama3.1")
 FLASHCARD_LLM_KEEP_ALIVE = os.getenv("FLASHCARD_LLM_KEEP_ALIVE", "30m")
 FLASHCARD_MAX_TOKENS_PER_CARD = int(os.getenv("FLASHCARD_MAX_TOKENS_PER_CARD", "110"))
 FLASHCARD_LLM_MAX_TOKENS = int(os.getenv("FLASHCARD_LLM_MAX_TOKENS", "1800"))
+FLASHCARD_AMOUNT_MULTIPLIERS = {
+    "small": 0.6,
+    "medium": 1.0,
+    "large": 2.0,
+}
 
 try:
     from pydantic import ConfigDict
@@ -158,6 +162,16 @@ def _fetch_source_files(
     fallback_filenames: list[str],
 ) -> list[dict]:
     rows = []
+    filename_filter: list[str] = []
+    seen_names: set[str] = set()
+    for name in fallback_filenames:
+        if not isinstance(name, str):
+            continue
+        trimmed = name.strip()
+        if not trimmed or trimmed in seen_names:
+            continue
+        seen_names.add(trimmed)
+        filename_filter.append(trimmed)
     if file_ids:
         rows = db.execute(
             sql_text(
@@ -167,6 +181,16 @@ def _fetch_source_files(
                 "ORDER BY id"
             ),
             {"sid": session_id, "file_ids": file_ids},
+        ).fetchall()
+    elif filename_filter:
+        rows = db.execute(
+            sql_text(
+                "SELECT id, filename "
+                "FROM notes "
+                "WHERE session_id = :sid AND filename = ANY(:filenames) "
+                "ORDER BY id"
+            ),
+            {"sid": session_id, "filenames": filename_filter},
         ).fetchall()
     else:
         rows = db.execute(
@@ -546,6 +570,17 @@ def _parse_flashcards(text: str) -> list[dict]:
     return _parse_qa_blocks(text)
 
 
+def _apply_flashcard_amount(n_flashcards: int, amount: str | None) -> int:
+    if not amount:
+        return n_flashcards
+    key = amount.strip().lower()
+    if key == "small":
+        return math.floor(n_flashcards * FLASHCARD_AMOUNT_MULTIPLIERS["small"])
+    if key == "large":
+        return math.ceil(n_flashcards * FLASHCARD_AMOUNT_MULTIPLIERS["large"])
+    return n_flashcards
+
+
 async def generate_flashcards(
     prompt: str | None,
     k: int | None,
@@ -553,6 +588,7 @@ async def generate_flashcards(
     file_ids: list[int] | None,
     replace: bool,
     embedding_model: str | None,
+    flashcard_amount: str | None,
     db: Session,
 ):
     """
@@ -723,14 +759,12 @@ async def generate_flashcards(
         n_flashcards = math.ceil(context_len / FLASHCARD_CHARS_PER_CARD)
         chunk_based_count = math.ceil(len(bounded_row_items) / FLASHCARD_CHUNKS_PER_CARD)
         n_flashcards = max(n_flashcards, chunk_based_count)
-        n_flashcards = min(
-            FLASHCARD_MAX_COUNT,
-            max(FLASHCARD_MIN_COUNT, n_flashcards),
-        )
+        n_flashcards = _apply_flashcard_amount(n_flashcards, flashcard_amount)
+        n_flashcards = max(FLASHCARD_MIN_COUNT, n_flashcards)
         if bounded_code_items:
             n_flashcards = max(
                 n_flashcards,
-                min(len(bounded_code_items), FLASHCARD_MAX_COUNT),
+                len(bounded_code_items),
             )
     llm_prompt = FLASHCARD_PROMPT.format(context=context, n_flashcards=n_flashcards)
     target_tokens = min(

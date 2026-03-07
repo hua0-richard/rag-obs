@@ -38,17 +38,16 @@ export function FlashcardsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [files, setFiles] = useState<ApiFile[]>([]);
-    const [filesLoading, setFilesLoading] = useState(true);
-    const [filesError, setFilesError] = useState<string | null>(null);
     const [deckSourceLabel, setDeckSourceLabel] = useState<string | null>(null);
+    const [deckSources, setDeckSources] = useState<NonNullable<ApiDeck["source"]>>([]);
 
     useEffect(() => {
         const sessionId = localStorage.getItem("session_id");
         if (!sessionId) {
             setError("No session id found. Upload files to start a session.");
             setIsLoading(false);
-            setFilesLoading(false);
             setDeckSourceLabel(null);
+            setDeckSources([]);
             return;
         }
         const selectedDeckKey = `flashcards_selected_deck_id:${sessionId}`;
@@ -112,8 +111,6 @@ export function FlashcardsPage() {
         };
 
         const fetchFiles = async () => {
-            setFilesLoading(true);
-            setFilesError(null);
             try {
                 const response = await fetch(
                     `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
@@ -126,15 +123,13 @@ export function FlashcardsPage() {
                 const list = Array.isArray(data?.files) ? data.files : [];
                 setFiles(list);
             } catch (err) {
-                const message = err instanceof Error ? err.message : "Failed to load files";
-                setFilesError(message);
-            } finally {
-                setFilesLoading(false);
+                setFiles([]);
             }
         };
 
         const fetchDecks = async () => {
             setDeckSourceLabel(null);
+            setDeckSources([]);
             try {
                 const response = await fetch(
                     `${import.meta.env.SERVER_URL}/flashcard-decks?session_id=${encodeURIComponent(sessionId)}`
@@ -156,8 +151,10 @@ export function FlashcardsPage() {
                                 ? deck.title
                                 : null;
                     setDeckSourceLabel(label);
+                    setDeckSources(Array.isArray(deck?.source) ? deck.source : []);
                 }
             } catch {
+                setDeckSources([]);
                 // Ignore deck metadata failures and fall back to file-based label.
             }
         };
@@ -190,10 +187,38 @@ export function FlashcardsPage() {
         }
         return trimmed.split(/[\\/]/).pop() ?? trimmed;
     };
+    const uniqueDeckSources = (() => {
+        const seen = new Set<string>();
+        const unique: NonNullable<ApiDeck["source"]> = [];
+        for (const source of deckSources) {
+            if (!source || typeof source.filename !== "string") {
+                continue;
+            }
+            const name = source.filename.trim();
+            if (!name) {
+                continue;
+            }
+            const key =
+                typeof source.id === "number" && Number.isFinite(source.id)
+                    ? `id:${source.id}`
+                    : `name:${name}`;
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            unique.push(source);
+        }
+        return unique;
+    })();
+    const deckSourceNames = uniqueDeckSources
+        .map((source) => source.filename)
+        .filter((name): name is string => typeof name === "string" && name.trim().length > 0);
     const fallbackSourceLabel =
-        files.length > 0
-            ? buildDeckTitle(files.map((file) => file.filename ?? ""))
-            : null;
+        deckSourceNames.length > 0
+            ? buildDeckTitle(deckSourceNames)
+            : files.length > 0
+                ? buildDeckTitle(files.map((file) => file.filename ?? ""))
+                : null;
     const deckLabel = deckSourceLabel || fallbackSourceLabel || "Flashcards";
     const deckSubtitle = deckSourceLabel || fallbackSourceLabel ? "Flashcards" : "Study";
 
@@ -219,16 +244,16 @@ export function FlashcardsPage() {
             </nav>
 
             <main className="flex-1 flex flex-col items-center justify-center w-full px-4 md:px-8 relative z-10">
-                {!filesLoading && !filesError && files.length > 0 ? (
-                    <div className="mb-6 flex flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-widest font-mono text-white/30">
-                        <span className="mr-1 text-white/20">Sources</span>
-                        {files.map((file) => (
+                {uniqueDeckSources.length > 0 ? (
+                    <div className="mb-6 flex flex-nowrap items-center gap-2 overflow-x-auto pb-2 text-[10px] uppercase tracking-widest font-mono text-white/30 sm:flex-wrap sm:justify-center sm:overflow-visible sm:pb-0">
+                        <span className="mr-1 text-white/20 flex-none">Sources</span>
+                        {uniqueDeckSources.map((source, index) => (
                             <span
-                                key={file.id}
-                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] normal-case tracking-normal text-white/60"
-                                title={file.filename ?? undefined}
+                                key={source.id ?? source.filename ?? `source-${index}`}
+                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] normal-case tracking-normal text-white/60 whitespace-nowrap flex-none"
+                                title={source.filename ?? undefined}
                             >
-                                {formatFilename(file.filename)}
+                                {formatFilename(source.filename ?? null)}
                             </span>
                         ))}
                     </div>
