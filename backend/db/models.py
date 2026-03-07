@@ -1,4 +1,6 @@
+import uuid
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, LargeBinary, create_engine, DateTime
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base
@@ -12,7 +14,7 @@ VECTOR_DIM_VERBOSE = 1024
 
 class Sessions(Base):
     __tablename__ = "sessions"
-    id = Column(Integer, primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     token_usage = Column(Integer)
     embedding_profile = Column(String(32), nullable=True)
 
@@ -20,7 +22,7 @@ class Files(Base):
     __tablename__ = "notes"
     id = Column(Integer, primary_key=True)
     session_id = Column(
-        Integer,
+        UUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
         nullable=False,
     )
@@ -33,7 +35,7 @@ class Embeddings(Base):
     __tablename__ = "embeddings"
     id = Column(Integer, primary_key=True, index=True)
     files_id = Column(Integer, ForeignKey("notes.id"), nullable=False)
-    session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
 
     filename = Column(String(512), nullable=False)
     content_type = Column(String(255), nullable=True)
@@ -46,7 +48,7 @@ class EmbeddingsCode(Base):
     __tablename__ = "embeddings_code"
     id = Column(Integer, primary_key=True, index=True)
     files_id = Column(Integer, ForeignKey("notes.id"), nullable=False)
-    session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
 
     filename = Column(String(512), nullable=False)
     content_type = Column(String(255), nullable=True)
@@ -59,7 +61,7 @@ class EmbeddingsVerbose(Base):
     __tablename__ = "embeddings_verbose"
     id = Column(Integer, primary_key=True, index=True)
     files_id = Column(Integer, ForeignKey("notes.id"), nullable=False)
-    session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
 
     filename = Column(String(512), nullable=False)
     content_type = Column(String(255), nullable=True)
@@ -70,9 +72,9 @@ class EmbeddingsVerbose(Base):
 class Flashcard(Base):
     __tablename__ = "flashcards"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     session_id = Column(
-        Integer,
+        UUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
         nullable=True,
     )
@@ -90,7 +92,7 @@ class FlashcardDecks(Base):
     __tablename__ = "flashcard_decks"
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(
-        Integer,
+        UUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE", onupdate="CASCADE"),
         nullable=False,
         index=True,

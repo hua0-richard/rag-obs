@@ -4,6 +4,7 @@ import os
 import re
 from asyncio import TimeoutError as AsyncTimeoutError, wait_for
 from datetime import datetime, timezone
+from uuid import UUID
 import ollama
 from starlette.concurrency import run_in_threadpool
 from fastapi import HTTPException
@@ -73,7 +74,7 @@ except Exception:  # pragma: no cover - pydantic v1 fallback
     ConfigDict = None
 
 
-def _build_embedding_filters(session_id: int | None, file_ids: list[int] | None):
+def _build_embedding_filters(session_id: UUID | None, file_ids: list[int] | None):
     clauses: list[str] = []
     params: dict[str, object] = {}
     if session_id is not None:
@@ -87,7 +88,7 @@ def _build_embedding_filters(session_id: int | None, file_ids: list[int] | None)
 
 def _fetch_embedding_rows(
     db: Session,
-    session_id: int | None,
+    session_id: UUID | None,
     file_ids: list[int] | None,
     *,
     table_name: str,
@@ -157,7 +158,7 @@ def _build_deck_title(filenames: list[str]) -> str:
 
 def _fetch_source_files(
     db: Session,
-    session_id: int,
+    session_id: UUID,
     file_ids: list[int] | None,
     fallback_filenames: list[str],
 ) -> list[dict]:
@@ -230,7 +231,7 @@ def _fetch_source_files(
 
 def _persist_flashcard_deck(
     db: Session,
-    session_id: int,
+    session_id: UUID,
     source_files: list[dict],
     source_chunks: list[dict],
     card_count: int,
@@ -260,7 +261,7 @@ def _persist_flashcard_deck(
 
 class PgVectorRetriever(BaseRetriever):
     db: Session
-    session_id: int | None
+    session_id: UUID | None
     file_ids: list[int] | None
     k: int | None
     embedding_profile: EmbeddingProfile
@@ -308,7 +309,7 @@ async def _ainvoke_retriever(retriever, query: str):
 async def _ensure_embeddings_for_profile(
     db: Session,
     *,
-    session_id: int | None,
+    session_id: UUID | None,
     file_ids: list[int] | None,
     embedding_profile: EmbeddingProfile,
 ):
@@ -584,7 +585,7 @@ def _apply_flashcard_amount(n_flashcards: int, amount: str | None) -> int:
 async def generate_flashcards(
     prompt: str | None,
     k: int | None,
-    session_id: int | None,
+    session_id: UUID | None,
     file_ids: list[int] | None,
     replace: bool,
     embedding_model: str | None,
@@ -916,7 +917,7 @@ async def generate_flashcards(
     }
 
 
-def get_flashcards(session_id: int, deck_id: int | None, db: Session):
+def get_flashcards(session_id: UUID, deck_id: int | None, db: Session):
     if db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
 
@@ -972,7 +973,7 @@ def get_flashcards(session_id: int, deck_id: int | None, db: Session):
     return {"session_id": session_id, "deck_id": active_deck_id, "flashcards": flashcards}
 
 
-def get_files(session_id: int, db: Session):
+def get_files(session_id: UUID, db: Session):
     if db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
     rows = db.execute(
@@ -997,7 +998,7 @@ def get_files(session_id: int, db: Session):
     return {"session_id": session_id, "files": files}
 
 
-def get_flashcard_decks(session_id: int, db: Session):
+def get_flashcard_decks(session_id: UUID, db: Session):
     if db.get(Sessions, session_id) is None:
         raise HTTPException(status_code=404, detail="session_id not found")
     rows = db.execute(

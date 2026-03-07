@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from db.deps import get_db
@@ -9,7 +10,7 @@ router = APIRouter()
 
 @router.get("/session-id")
 def session_id(db: Session = Depends(get_db)):
-    """Create a new session row and return its integer id."""
+    """Create a new session row and return its UUID."""
     session_row = Sessions()
     db.add(session_row)
     db.commit()
@@ -18,7 +19,7 @@ def session_id(db: Session = Depends(get_db)):
 
 
 @router.get("/session-profile")
-def session_profile(session_id: int = Query(...), db: Session = Depends(get_db)):
+def session_profile(session_id: UUID = Query(...), db: Session = Depends(get_db)):
     session_row = db.get(Sessions, session_id)
     if session_row is None:
         raise HTTPException(status_code=404, detail="session_id not found")

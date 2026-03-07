@@ -1,5 +1,6 @@
 import json
 from typing import List
+from uuid import UUID
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -20,9 +21,13 @@ from services.embedding_service import (
 from services.obsidian_service import build_obsidian_context, split_text_with_context
 
 
+def _json_dumps(payload: dict) -> str:
+    return json.dumps(payload, default=str)
+
+
 async def stream_document_upload(
     files: List[UploadFile],
-    session_id: int | None,
+    session_id: UUID | None,
     embedding_model: str | None = None,
 ) -> StreamingResponse:
     if not files:
@@ -46,7 +51,7 @@ async def stream_document_upload(
                 session_row = db.get(Sessions, active_session_id)
                 if session_row is None:
                     payload = {"status": "error", "detail": "session_id not found"}
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {_json_dumps(payload)}\n\n"
                     return
             else:
                 session_row = Sessions()
@@ -55,7 +60,7 @@ async def stream_document_upload(
                 db.refresh(session_row)
                 active_session_id = session_row.id
 
-            yield f"data: {json.dumps({'status': 'session', 'session_id': active_session_id})}\n\n"
+            yield f"data: {_json_dumps({'status': 'session', 'session_id': active_session_id})}\n\n"
 
             decoded_files: list[dict] = []
             decode_errors: dict[str, str] = {}
@@ -126,7 +131,7 @@ async def stream_document_upload(
                         "filename": filename,
                         "detail": "empty file",
                     }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {_json_dumps(payload)}\n\n"
                     continue
 
                 try:
@@ -188,7 +193,7 @@ async def stream_document_upload(
                         "filename": filename,
                         "detail": f"failed to save file: {e}",
                     }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {_json_dumps(payload)}\n\n"
                     continue
 
                 if filename in decode_errors:
@@ -197,7 +202,7 @@ async def stream_document_upload(
                         "filename": filename,
                         "detail": decode_errors[filename],
                     }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {_json_dumps(payload)}\n\n"
                     continue
 
                 text = obsidian_context.get(filename, {}).get("embedding_text")
@@ -216,7 +221,7 @@ async def stream_document_upload(
                         "filename": filename,
                         "detail": "no text chunks produced",
                     }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {_json_dumps(payload)}\n\n"
                     continue
                 try:
                     # non-blocking
@@ -238,7 +243,7 @@ async def stream_document_upload(
                     db.commit()
 
                     payload = {"status": "embedded", "filename": filename}
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {_json_dumps(payload)}\n\n"
                 except Exception as e:
                     try:
                         db.rollback()
@@ -249,7 +254,7 @@ async def stream_document_upload(
                         "filename": filename,
                         "detail": str(e),
                     }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {_json_dumps(payload)}\n\n"
 
             yield "data: [DONE]\n\n"
         except Exception as e:
@@ -258,7 +263,7 @@ async def stream_document_upload(
             except Exception:
                 pass
             payload = {"status": "error", "detail": str(e)}
-            yield f"data: {json.dumps(payload)}\n\n"
+            yield f"data: {_json_dumps(payload)}\n\n"
         finally:
             db.close()
 
