@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base RAG
 
-> Local-first Retrieval-Augmented Generation (RAG) system for querying Obsidian Markdown vaults with **source-level citations**.
+> Retrieval-Augmented Generation (RAG) system for querying Obsidian Markdown vaults with **source-level citations**.
 
 ---
 
@@ -142,8 +142,7 @@ Primary use cases:
 
 ## Architecture
 
-
-GitHub Models LLM on Prod
-Ollama models on Local
-
-`all-MiniLM-L6-v2` Embeddings
+`all-MiniLM-L6-v2` For general purpose embeddings
+`jia` For
+`bge` For larger, more complicated notes
+`qwen2.5:14b-instruct` LLM
