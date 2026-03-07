@@ -13,7 +13,7 @@
     "dev:full": "pnpm run models:download:docker && pnpm run infra",
     "models:download": "python backend/scripts/download_models.py",
     "models:download:docker": "docker compose run --rm -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 api python scripts/download_models.py",
-    "ollama:pull": "docker compose exec ollama ollama pull llama3.1"
+    "ollama:pull": "docker compose exec ollama ollama pull qwen2.5:14b-instruct"
   },
   "keywords": [],
   "author": "",
