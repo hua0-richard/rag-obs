@@ -5,6 +5,8 @@ import re
 from asyncio import TimeoutError as AsyncTimeoutError, wait_for
 from datetime import datetime, timezone
 from uuid import UUID
+from urllib import request as urlrequest
+from urllib.error import HTTPError, URLError
 import ollama
 from starlette.concurrency import run_in_threadpool
 from fastapi import HTTPException
@@ -62,6 +64,13 @@ FLASHCARD_LLM_MODEL = os.getenv("FLASHCARD_LLM_MODEL", "llama3.1")
 FLASHCARD_LLM_KEEP_ALIVE = os.getenv("FLASHCARD_LLM_KEEP_ALIVE", "30m")
 FLASHCARD_MAX_TOKENS_PER_CARD = int(os.getenv("FLASHCARD_MAX_TOKENS_PER_CARD", "110"))
 FLASHCARD_LLM_MAX_TOKENS = int(os.getenv("FLASHCARD_LLM_MAX_TOKENS", "1800"))
+ENV = os.getenv("ENV", "DEV").upper()
+USE_OPENROUTER = ENV in {"PROD", "PRODUCTION"}
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", FLASHCARD_LLM_MODEL)
+OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "").strip()
+OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "").strip()
 FLASHCARD_AMOUNT_MULTIPLIERS = {
     "small": 0.6,
     "medium": 1.0,
@@ -143,6 +152,74 @@ def _clean_filename(value: str) -> str:
     base = re.split(r"[\\/]", trimmed)[-1]
     base = re.sub(r"\.[^/.]+$", "", base)
     return base or trimmed
+
+
+def _openrouter_chat(prompt: str, target_tokens: int) -> str:
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="OpenRouter API key not configured. Set OPENROUTER_API_KEY.",
+        )
+    url = OPENROUTER_BASE_URL.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": target_tokens,
+        "temperature": 0.2,
+    }
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    if OPENROUTER_REFERER:
+        headers["HTTP-Referer"] = OPENROUTER_REFERER
+    if OPENROUTER_TITLE:
+        headers["X-Title"] = OPENROUTER_TITLE
+    data = json.dumps(payload).encode("utf-8")
+    request = urlrequest.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urlrequest.urlopen(request, timeout=FLASHCARD_LLM_TIMEOUT_SECONDS) as resp:
+            body = resp.read()
+    except HTTPError as exc:
+        detail = "OpenRouter request failed."
+        try:
+            error_body = exc.read().decode("utf-8")
+        except Exception:
+            error_body = ""
+        if error_body:
+            detail = f"{detail} {error_body}"
+        raise HTTPException(status_code=502, detail=detail) from exc
+    except URLError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="OpenRouter request failed to connect.",
+        ) from exc
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="OpenRouter returned malformed JSON.",
+        ) from exc
+    if isinstance(payload, dict) and payload.get("error"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"OpenRouter error: {payload['error']}",
+        )
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise HTTPException(
+            status_code=502,
+            detail="OpenRouter response missing choices.",
+        )
+    message = choices[0].get("message") if isinstance(choices[0], dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, str):
+        raise HTTPException(
+            status_code=502,
+            detail="OpenRouter response missing message content.",
+        )
+    return content
 
 
 def _build_deck_title(filenames: list[str]) -> str:
@@ -774,19 +851,30 @@ async def generate_flashcards(
     )
 
     try:
-        resp = await wait_for(
-            run_in_threadpool(
-                ollama.chat,
-                model=FLASHCARD_LLM_MODEL,
-                messages=[{"role": "user", "content": llm_prompt}],
-                options={
-                    "num_predict": target_tokens,
-                    "temperature": 0.2,
-                },
-                keep_alive=FLASHCARD_LLM_KEEP_ALIVE,
-            ),
-            timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
-        )
+        if USE_OPENROUTER:
+            content = await wait_for(
+                run_in_threadpool(
+                    _openrouter_chat,
+                    llm_prompt,
+                    target_tokens,
+                ),
+                timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
+            )
+        else:
+            resp = await wait_for(
+                run_in_threadpool(
+                    ollama.chat,
+                    model=FLASHCARD_LLM_MODEL,
+                    messages=[{"role": "user", "content": llm_prompt}],
+                    options={
+                        "num_predict": target_tokens,
+                        "temperature": 0.2,
+                    },
+                    keep_alive=FLASHCARD_LLM_KEEP_ALIVE,
+                ),
+                timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
+            )
+            content = resp["message"]["content"]
     except AsyncTimeoutError as exc:
         raise HTTPException(
             status_code=504,
@@ -795,7 +883,6 @@ async def generate_flashcards(
                 "Try fewer files or a smaller selection."
             ),
         ) from exc
-    content = resp["message"]["content"]
 
     flashcards = None
     saved_count = 0
