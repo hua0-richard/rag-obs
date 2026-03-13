@@ -214,7 +214,20 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> str:
                 error_body = exc.read().decode("utf-8")
             except Exception:
                 error_body = ""
-            if exc.code == 429:
+            # Check HTTP status OR parse body for rate-limit signals (OpenRouter
+            # sometimes proxies upstream 429s as 502 with the error in the body).
+            is_rate_limit = exc.code == 429
+            if not is_rate_limit and error_body:
+                try:
+                    err_json = json.loads(error_body)
+                    inner = err_json.get("error") if isinstance(err_json, dict) else None
+                    if isinstance(inner, dict):
+                        is_rate_limit = _is_rate_limit_error(inner)
+                    elif isinstance(inner, str):
+                        is_rate_limit = "rate limit" in inner.lower()
+                except json.JSONDecodeError:
+                    is_rate_limit = "rate limit" in error_body.lower()
+            if is_rate_limit:
                 last_error = f"Model {model} rate limited. {error_body}".strip()
                 continue
             detail = f"OpenRouter request failed with model {model}."
