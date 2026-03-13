@@ -38,7 +38,7 @@ jobs:
           push: true
           tags: ragobsacr.azurecr.io/ragobs-api:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
       - name: Deploy to Container Apps
         uses: azure/container-apps-deploy-action@v1

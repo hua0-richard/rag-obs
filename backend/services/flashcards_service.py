@@ -165,11 +165,7 @@ def _clean_filename(value: str) -> str:
     return base or trimmed
 
 
-def _is_rate_limit_error(error: dict) -> bool:
-    """Return True if the OpenRouter error payload indicates upstream rate limiting."""
-    code = error.get("code")
-    message = str(error.get("message", "")).lower()
-    return code == 429 or "rate limit" in message or "rate_limit" in message
+_AUTH_ERROR_CODES = {401, 403}
 
 
 def _openrouter_chat(prompt: str, target_tokens: int) -> str:
@@ -198,6 +194,7 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> str:
 
     last_error: str = "OpenRouter request failed."
     for model in candidates:
+        print(f"[OpenRouter] Trying model: {model}")
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
@@ -214,68 +211,57 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> str:
                 error_body = exc.read().decode("utf-8")
             except Exception:
                 error_body = ""
-            # Check HTTP status OR parse body for rate-limit signals (OpenRouter
-            # sometimes proxies upstream 429s as 502 with the error in the body).
-            is_rate_limit = exc.code == 429
-            if not is_rate_limit and error_body:
-                try:
-                    err_json = json.loads(error_body)
-                    inner = err_json.get("error") if isinstance(err_json, dict) else None
-                    if isinstance(inner, dict):
-                        is_rate_limit = _is_rate_limit_error(inner)
-                    elif isinstance(inner, str):
-                        is_rate_limit = "rate limit" in inner.lower()
-                except json.JSONDecodeError:
-                    is_rate_limit = "rate limit" in error_body.lower()
-            if is_rate_limit:
-                last_error = f"Model {model} rate limited. {error_body}".strip()
-                continue
-            detail = f"OpenRouter request failed with model {model}."
-            if error_body:
-                detail = f"{detail} {error_body}"
-            raise HTTPException(status_code=502, detail=detail) from exc
+            if exc.code in _AUTH_ERROR_CODES:
+                raise HTTPException(
+                    status_code=401,
+                    detail="OpenRouter authentication failed. Check your API key.",
+                ) from exc
+            try:
+                err_json = json.loads(error_body)
+                inner = err_json.get("error") if isinstance(err_json, dict) else None
+                reason = (inner.get("message") if isinstance(inner, dict) else None) or error_body
+            except (json.JSONDecodeError, AttributeError):
+                reason = error_body or f"HTTP {exc.code}"
+            print(f"[OpenRouter] {model} failed (HTTP {exc.code}): {reason}")
+            last_error = reason or f"HTTP {exc.code}"
+            continue
         except URLError as exc:
             raise HTTPException(
                 status_code=502,
-                detail="OpenRouter request failed to connect.",
+                detail="Could not connect to OpenRouter. Check your network.",
             ) from exc
 
         try:
             response = json.loads(body.decode("utf-8"))
-        except json.JSONDecodeError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail="OpenRouter returned malformed JSON.",
-            ) from exc
+        except json.JSONDecodeError:
+            print(f"[OpenRouter] {model} returned malformed JSON")
+            last_error = "malformed response"
+            continue
 
         if isinstance(response, dict) and response.get("error"):
             error = response["error"]
-            if isinstance(error, dict) and _is_rate_limit_error(error):
-                last_error = f"Model {model} rate limited: {error.get('message', '')}".strip()
-                continue
-            raise HTTPException(
-                status_code=502,
-                detail=f"OpenRouter error: {error}",
-            )
+            reason = error.get("message") if isinstance(error, dict) else str(error)
+            print(f"[OpenRouter] {model} error: {reason}")
+            last_error = reason or "unknown error"
+            continue
 
         choices = response.get("choices")
         if not isinstance(choices, list) or not choices:
-            raise HTTPException(
-                status_code=502,
-                detail="OpenRouter response missing choices.",
-            )
+            print(f"[OpenRouter] {model} response missing choices")
+            last_error = "missing choices in response"
+            continue
         message = choices[0].get("message") if isinstance(choices[0], dict) else None
         content = message.get("content") if isinstance(message, dict) else None
         if not isinstance(content, str):
-            raise HTTPException(
-                status_code=502,
-                detail="OpenRouter response missing message content.",
-            )
+            print(f"[OpenRouter] {model} response missing content")
+            last_error = "missing content in response"
+            continue
+        print(f"[OpenRouter] Success with model: {model}")
         return content
 
     raise HTTPException(
-        status_code=429,
-        detail=f"All OpenRouter models are rate limited. Last error: {last_error}",
+        status_code=503,
+        detail=f"All models failed. Last error: {last_error}",
     )
 
 
