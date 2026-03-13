@@ -74,11 +74,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat-v3-0324")
 OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "").strip()
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "").strip()
-OPENROUTER_FALLBACK_MODELS: list[str] = [
-    m.strip()
-    for m in os.getenv("OPENROUTER_FALLBACK_MODELS", "").split(",")
-    if m.strip()
-]
+
 FLASHCARD_AMOUNT_MULTIPLIERS = {
     "small": 0.6,
     "medium": 1.0,
@@ -185,101 +181,73 @@ def _openrouter_chat(
     if OPENROUTER_TITLE:
         headers["X-Title"] = OPENROUTER_TITLE
 
-    # Build candidate list: primary model first, then fallbacks (deduped, preserving order)
-    seen: set[str] = set()
-    candidates: list[str] = []
-    for m in [OPENROUTER_MODEL] + OPENROUTER_FALLBACK_MODELS:
-        if m not in seen:
-            seen.add(m)
-            candidates.append(m)
-
-    last_error: str = "OpenRouter request failed."
-    for model in candidates:
-        if status_callback is not None:
-            status_callback(model)
-        print(f"[OpenRouter] Trying model: {model}")
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": target_tokens,
-            "temperature": 0.2,
-        }
-        data = json.dumps(payload).encode("utf-8")
-        request = urlrequest.Request(url, data=data, headers=headers, method="POST")
+    if status_callback is not None:
+        status_callback(OPENROUTER_MODEL)
+    print(f"[OpenRouter] Trying model: {OPENROUTER_MODEL}")
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": target_tokens,
+        "temperature": 0.2,
+    }
+    data = json.dumps(payload).encode("utf-8")
+    request = urlrequest.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urlrequest.urlopen(request, timeout=FLASHCARD_LLM_TIMEOUT_SECONDS) as resp:
+            body = resp.read()
+    except HTTPError as exc:
         try:
-            with urlrequest.urlopen(request, timeout=FLASHCARD_LLM_TIMEOUT_SECONDS) as resp:
-                body = resp.read()
-        except HTTPError as exc:
-            try:
-                error_body = exc.read().decode("utf-8")
-            except Exception:
-                error_body = ""
-            if exc.code in _AUTH_ERROR_CODES:
-                raise HTTPException(
-                    status_code=401,
-                    detail="OpenRouter authentication failed. Check your API key.",
-                ) from exc
-            try:
-                err_json = json.loads(error_body)
-                inner = err_json.get("error") if isinstance(err_json, dict) else None
-                reason = (inner.get("message") if isinstance(inner, dict) else None) or error_body
-            except (json.JSONDecodeError, AttributeError):
-                reason = error_body or f"HTTP {exc.code}"
-            print(f"[OpenRouter] {model} failed (HTTP {exc.code}): {reason}")
-            last_error = reason or f"HTTP {exc.code}"
-            continue
-        except URLError as exc:
+            error_body = exc.read().decode("utf-8")
+        except Exception:
+            error_body = ""
+        if exc.code in _AUTH_ERROR_CODES:
             raise HTTPException(
-                status_code=502,
-                detail="Could not connect to OpenRouter. Check your network.",
+                status_code=401,
+                detail="OpenRouter authentication failed. Check your API key.",
             ) from exc
-
         try:
-            response = json.loads(body.decode("utf-8"))
-        except json.JSONDecodeError:
-            print(f"[OpenRouter] {model} returned malformed JSON")
-            last_error = "malformed response"
-            continue
+            err_json = json.loads(error_body)
+            inner = err_json.get("error") if isinstance(err_json, dict) else None
+            reason = (inner.get("message") if isinstance(inner, dict) else None) or error_body
+        except (json.JSONDecodeError, AttributeError):
+            reason = error_body or f"HTTP {exc.code}"
+        raise HTTPException(
+            status_code=503,
+            detail=f"OpenRouter request failed: {reason or f'HTTP {exc.code}'}",
+        ) from exc
+    except URLError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to OpenRouter. Check your network.",
+        ) from exc
 
-        if isinstance(response, dict) and response.get("error"):
-            error = response["error"]
-            reason = error.get("message") if isinstance(error, dict) else str(error)
-            print(f"[OpenRouter] {model} error: {reason}")
-            last_error = reason or "unknown error"
-            continue
+    try:
+        response = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=503, detail="OpenRouter returned malformed JSON.") from exc
 
-        choices = response.get("choices")
-        if not isinstance(choices, list) or not choices:
-            print(f"[OpenRouter] {model} response missing choices")
-            last_error = "missing choices in response"
-            continue
-        message = choices[0].get("message") if isinstance(choices[0], dict) else None
-        if not isinstance(message, dict):
-            print(f"[OpenRouter] {model} response missing message")
-            last_error = "missing message in response"
-            continue
-        content = message.get("content")
-        if not isinstance(content, str):
-            # Some thinking/reasoning models return content: null with a reasoning field
-            reasoning = message.get("reasoning")
-            if isinstance(reasoning, str) and reasoning.strip():
-                print(f"[OpenRouter] {model} using reasoning field as content fallback")
-                content = reasoning
-            else:
-                msg_keys = list(message.keys())
-                finish = choices[0].get("finish_reason") if isinstance(choices[0], dict) else None
-                print(f"[OpenRouter] {model} missing content (finish_reason={finish!r}, message keys={msg_keys})")
-                last_error = "missing content in response"
-                continue
-        raw_model = response.get("model")
-        actual_model = raw_model if isinstance(raw_model, str) else model
-        print(f"[OpenRouter] Success with model: {actual_model}")
-        return content, actual_model
+    if isinstance(response, dict) and response.get("error"):
+        error = response["error"]
+        reason = error.get("message") if isinstance(error, dict) else str(error)
+        raise HTTPException(status_code=503, detail=f"OpenRouter error: {reason or 'unknown'}")
 
-    raise HTTPException(
-        status_code=503,
-        detail=f"All models failed. Last error: {last_error}",
-    )
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise HTTPException(status_code=503, detail="OpenRouter response missing choices.")
+    message = choices[0].get("message") if isinstance(choices[0], dict) else None
+    if not isinstance(message, dict):
+        raise HTTPException(status_code=503, detail="OpenRouter response missing message.")
+    content = message.get("content")
+    if not isinstance(content, str):
+        reasoning = message.get("reasoning")
+        if isinstance(reasoning, str) and reasoning.strip():
+            content = reasoning
+        else:
+            raise HTTPException(status_code=503, detail="OpenRouter response missing content.")
+    raw_model = response.get("model")
+    actual_model = raw_model if isinstance(raw_model, str) else OPENROUTER_MODEL
+    print(f"[OpenRouter] Success with model: {actual_model}")
+    return content, actual_model
 
 
 def _build_deck_title(filenames: list[str]) -> str:
