@@ -68,7 +68,7 @@ ENV = os.getenv("ENV", "DEV").upper()
 USE_OPENROUTER = ENV in {"PROD", "PRODUCTION"}
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", FLASHCARD_LLM_MODEL)
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-next-80b-a3b-instruct:free")
 OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "").strip()
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "").strip()
 OPENROUTER_FALLBACK_MODELS: list[str] = [
@@ -76,8 +76,8 @@ OPENROUTER_FALLBACK_MODELS: list[str] = [
     for m in os.getenv(
         "OPENROUTER_FALLBACK_MODELS",
         "meta-llama/llama-3.3-70b-instruct:free,"
-        "google/gemma-3-27b-it:free,"
-        "mistralai/mistral-small-3.1-24b-instruct:free,"
+        "qwen/qwen3-coder:free,"
+        "openai/gpt-oss-120b:free,"
         "nvidia/nemotron-3-super-120b-a12b:free",
     ).split(",")
     if m.strip()

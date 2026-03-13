@@ -10,9 +10,10 @@
 
 **LLM Fallback Chain** · tried in order when a model is unavailable or rate-limited:
 
+[![Qwen3 Next 80B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/qwen3-next-80b.json&style=flat&labelColor=09090b)](https://openrouter.ai/qwen/qwen3-next-80b-a3b-instruct:free)
 [![Llama 3.3 70B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/llama-3.3-70b.json&style=flat&labelColor=09090b)](https://openrouter.ai/meta-llama/llama-3.3-70b-instruct:free)
-[![Gemma 3 27B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/gemma-3-27b.json&style=flat&labelColor=09090b)](https://openrouter.ai/google/gemma-3-27b-it:free)
-[![Mistral Small 3.1](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/mistral-small.json&style=flat&labelColor=09090b)](https://openrouter.ai/mistralai/mistral-small-3.1-24b-instruct:free)
+[![Qwen3 Coder](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/qwen3-coder.json&style=flat&labelColor=09090b)](https://openrouter.ai/qwen/qwen3-coder:free)
+[![GPT OSS 120B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/gpt-oss-120b.json&style=flat&labelColor=09090b)](https://openrouter.ai/openai/gpt-oss-120b:free)
 [![Nemotron 120B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/nemotron-120b.json&style=flat&labelColor=09090b)](https://openrouter.ai/nvidia/nemotron-3-super-120b-a12b:free)
 
 ---
