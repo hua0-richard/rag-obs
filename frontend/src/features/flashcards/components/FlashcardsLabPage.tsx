@@ -165,7 +165,7 @@ export function FlashcardsLabPage() {
     const [uploadStatus, setUploadStatus] = useState<string | null>(null);
     const [uploadIsError, setUploadIsError] = useState(false);
     const [embeddingModel, setEmbeddingModel] = useState<EmbeddingModelOption>("default");
-    const [embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2");
+    const [_embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2");
     const [flashcardAmount, setFlashcardAmount] = useState<FlashcardAmountOption>("medium");
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
