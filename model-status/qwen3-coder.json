@@ -1,1 +1,6 @@
-{ "schemaVersion": 1, "label": "Qwen3 Coder", "message": "checking...", "color": "lightgrey", "namedLogo": "alibabacloud", "logoColor": "white" }
+{
+  "schemaVersion": 1,
+  "label": "Qwen3 Coder",
+  "message": "unavailable",
+  "color": "red"
+}

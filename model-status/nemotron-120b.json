@@ -1,1 +1,8 @@
-{ "schemaVersion": 1, "label": "Nemotron 120B", "message": "checking...", "color": "lightgrey", "namedLogo": "nvidia", "logoColor": "white" }
+{
+  "schemaVersion": 1,
+  "label": "Nemotron 120B",
+  "message": "online",
+  "color": "brightgreen",
+  "namedLogo": "nvidia",
+  "logoColor": "white"
+}

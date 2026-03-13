@@ -1,1 +1,8 @@
-{ "schemaVersion": 1, "label": "Llama 3.3 70B", "message": "checking...", "color": "lightgrey", "namedLogo": "meta", "logoColor": "white" }
+{
+  "schemaVersion": 1,
+  "label": "Llama 3.3 70B",
+  "message": "unavailable",
+  "color": "red",
+  "namedLogo": "meta",
+  "logoColor": "white"
+}

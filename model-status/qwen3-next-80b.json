@@ -1,1 +1,6 @@
-{ "schemaVersion": 1, "label": "Qwen3 Next 80B", "message": "checking...", "color": "lightgrey", "namedLogo": "alibabacloud", "logoColor": "white" }
+{
+  "schemaVersion": 1,
+  "label": "Qwen3 Next 80B",
+  "message": "unavailable",
+  "color": "red"
+}

@@ -1,1 +1,8 @@
-{ "schemaVersion": 1, "label": "OpenRouter Auto", "message": "checking...", "color": "lightgrey", "namedLogo": "openrouter", "logoColor": "white" }
+{
+  "schemaVersion": 1,
+  "label": "OpenRouter Auto",
+  "message": "online",
+  "color": "brightgreen",
+  "namedLogo": "openrouter",
+  "logoColor": "white"
+}
