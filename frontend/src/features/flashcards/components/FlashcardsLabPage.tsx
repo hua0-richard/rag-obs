@@ -423,7 +423,9 @@ export function FlashcardsLabPage() {
                     : undefined;
 
             const modelLabel = typeof data?.model_used === "string"
-                ? data.model_used.replace(/:free$/, "").split("/").pop() ?? data.model_used
+                ? data.model_used === "openrouter/free"
+                    ? "OpenRouter (auto)"
+                    : data.model_used.replace(/:free$/, "").split("/").pop() ?? data.model_used
                 : null;
             setLoadingMessage(
                 typeof data?.saved_count === "number"

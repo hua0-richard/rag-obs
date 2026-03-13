@@ -78,7 +78,8 @@ OPENROUTER_FALLBACK_MODELS: list[str] = [
         "meta-llama/llama-3.3-70b-instruct:free,"
         "qwen/qwen3-coder:free,"
         "openai/gpt-oss-120b:free,"
-        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-3-super-120b-a12b:free,"
+        "openrouter/free",
     ).split(",")
     if m.strip()
 ]

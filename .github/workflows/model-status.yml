@@ -26,11 +26,12 @@ jobs:
           URL = "https://openrouter.ai/api/v1/chat/completions"
 
           MODELS = [
-              ("qwen/qwen3-next-80b-a3b-instruct:free", "Qwen3 Next 80B",  "qwen3-next-80b",  None),
-              ("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B",  "llama-3.3-70b",   "meta"),
-              ("qwen/qwen3-coder:free",                  "Qwen3 Coder",     "qwen3-coder",     None),
-              ("openai/gpt-oss-120b:free",               "GPT OSS 120B",    "gpt-oss-120b",    None),
-              ("nvidia/nemotron-3-super-120b-a12b:free", "Nemotron 120B",   "nemotron-120b",   "nvidia"),
+              ("qwen/qwen3-next-80b-a3b-instruct:free", "Qwen3 Next 80B",  "qwen3-next-80b",   None),
+              ("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B",  "llama-3.3-70b",    "meta"),
+              ("qwen/qwen3-coder:free",                  "Qwen3 Coder",     "qwen3-coder",      None),
+              ("openai/gpt-oss-120b:free",               "GPT OSS 120B",    "gpt-oss-120b",     None),
+              ("nvidia/nemotron-3-super-120b-a12b:free", "Nemotron 120B",   "nemotron-120b",    "nvidia"),
+              ("openrouter/free",                        "OpenRouter Auto", "openrouter-auto",  "openrouter"),
           ]
 
           os.makedirs("/tmp/model-status", exist_ok=True)
