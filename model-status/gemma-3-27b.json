@@ -1,1 +1,6 @@
-{ "schemaVersion": 1, "label": "Gemma 3 27B", "message": "checking...", "color": "lightgrey" }
+{
+  "schemaVersion": 1,
+  "label": "Gemma 3 27B",
+  "message": "unavailable",
+  "color": "red"
+}
