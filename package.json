@@ -13,10 +13,20 @@
     "dev:full": "pnpm run models:download:docker && pnpm run infra",
     "models:download": "python backend/scripts/download_models.py",
     "models:download:docker": "docker compose run --rm -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 api python scripts/download_models.py",
-    "ollama:pull": "docker compose exec ollama ollama pull qwen2.5:14b-instruct"
+    "ollama:pull": "docker compose exec ollama ollama pull qwen2.5:14b-instruct",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.15.0"
+  "packageManager": "pnpm@10.15.0",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.3"
+  },
+  "lint-staged": {
+    "frontend/src/**/*.{ts,tsx}": [
+      "eslint --fix --config frontend/eslint.config.js"
+    ]
+  }
 }
