@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from db.deps import get_db
 from db.models import Sessions
-from services.embedding_service import EMBEDDING_MODEL_NAMES, normalize_embedding_profile
+from services.embedding_service import active_embed_model, normalize_embedding_profile
 
 router = APIRouter()
 
@@ -27,5 +27,5 @@ def session_profile(session_id: UUID = Query(...), db: Session = Depends(get_db)
     return {
         "session_id": session_id,
         "embedding_profile": embedding_profile,
-        "embedding_model": EMBEDDING_MODEL_NAMES[embedding_profile],
+        "embedding_model": active_embed_model(embedding_profile),
     }

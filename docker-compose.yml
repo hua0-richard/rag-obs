@@ -22,6 +22,14 @@ services:
       FLASHCARD_LLM_KEEP_ALIVE: "30m"
       FLASHCARD_MAX_TOKENS_PER_CARD: "110"
       FLASHCARD_LLM_MAX_TOKENS: "1800"
+      # Embedding backend: "ollama" (default for DEV) | "openrouter" | "sentence_transformers"
+      EMBEDDING_BACKEND: "ollama"
+      # Ollama embedding model — run: docker exec ollama ollama pull nomic-embed-text
+      # Swap for a Qwen embedding model if preferred, e.g. qwen3:embedding
+      OLLAMA_EMBED_MODEL: "nomic-embed-text"
+      # OpenRouter (set these when deploying to prod with EMBEDDING_BACKEND=openrouter)
+      # OPENROUTER_API_KEY: ""
+      # OPENROUTER_EMBED_MODEL: "openai/text-embedding-3-small"
 
     volumes:
       - ./backend:/app

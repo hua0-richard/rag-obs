@@ -1,9 +1,11 @@
+import json
+import os
 from functools import lru_cache
 from typing import Literal
+from urllib import request as urlrequest
+from urllib.error import HTTPError, URLError
 
 import numpy as np
-
-from sentence_transformers import SentenceTransformer
 from starlette.concurrency import run_in_threadpool
 
 from utils.obsidian import (
@@ -19,13 +21,29 @@ DEFAULT_EMBEDDING_PROFILE: EmbeddingProfile = "default"
 CODE_EMBEDDING_PROFILE: EmbeddingProfile = "code"
 VERBOSE_EMBEDDING_PROFILE: EmbeddingProfile = "verbose"
 
-EMBEDDING_MODEL_NAMES: dict[EmbeddingProfile, str] = {
+# --- Backend selection ---
+ENV = os.getenv("ENV", "DEV").upper()
+EMBEDDING_BACKEND = os.getenv(
+    "EMBEDDING_BACKEND",
+    "ollama" if ENV in {"DEV", "DEVELOPMENT"} else "openrouter",
+)
+
+# --- Ollama config (local dev) ---
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+
+# --- OpenRouter config (prod) ---
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_EMBED_MODEL = os.getenv("OPENROUTER_EMBED_MODEL", "openai/text-embedding-3-small")
+
+# --- SentenceTransformers config (legacy local, kept for backwards compat) ---
+ST_EMBEDDING_MODEL_NAMES: dict[EmbeddingProfile, str] = {
     DEFAULT_EMBEDDING_PROFILE: "all-MiniLM-L6-v2",
     CODE_EMBEDDING_PROFILE: "jina-embeddings-v2-base-code",
     VERBOSE_EMBEDDING_PROFILE: "bge-large-en-v1.5",
 }
-
-MODEL_ID_ALIASES: dict[str, str] = {
+ST_MODEL_ID_ALIASES: dict[str, str] = {
     "all-minilm-l6-v2": "sentence-transformers/all-MiniLM-L6-v2",
     "all_minilm_l6_v2": "sentence-transformers/all-MiniLM-L6-v2",
     "sentence-transformers/all-minilm-l6-v2": "sentence-transformers/all-MiniLM-L6-v2",
@@ -34,15 +52,21 @@ MODEL_ID_ALIASES: dict[str, str] = {
     "bge-large-en-v1_5": "BAAI/bge-large-en-v1.5",
     "baai/bge-large-en-v1.5": "BAAI/bge-large-en-v1.5",
 }
+ST_TRUST_REMOTE_CODE_MODELS = {"jinaai/jina-embeddings-v2-base-code"}
 
-TRUST_REMOTE_CODE_MODELS = {
-    "jinaai/jina-embeddings-v2-base-code",
-}
-
+# --- Shared constants ---
 EMBEDDING_TABLES: dict[EmbeddingProfile, str] = {
     DEFAULT_EMBEDDING_PROFILE: "embeddings",
     CODE_EMBEDDING_PROFILE: "embeddings_code",
     VERBOSE_EMBEDDING_PROFILE: "embeddings_verbose",
+}
+
+# DB vector dimensions per profile — OpenRouter passes these as `dimensions` to the model.
+# For Ollama, the model's native output dimension must match these values.
+EMBEDDING_DIMS: dict[EmbeddingProfile, int] = {
+    DEFAULT_EMBEDDING_PROFILE: 384,
+    CODE_EMBEDDING_PROFILE: 768,
+    VERBOSE_EMBEDDING_PROFILE: 1024,
 }
 
 PROFILE_ALIASES: dict[str, EmbeddingProfile] = {
@@ -109,15 +133,72 @@ def choose_embedding_profile(texts: list[str]) -> EmbeddingProfile:
     return DEFAULT_EMBEDDING_PROFILE
 
 
-def _resolve_model_id(model_name: str) -> str:
+# ---------------------------------------------------------------------------
+# Ollama backend
+# ---------------------------------------------------------------------------
+
+def _ollama_embed_sync(texts: list[str]) -> np.ndarray:
+    import ollama as _ollama
+
+    client = _ollama.Client(host=OLLAMA_HOST)
+    response = client.embed(model=OLLAMA_EMBED_MODEL, input=texts)
+    return np.array(response.embeddings, dtype=np.float32)
+
+
+# ---------------------------------------------------------------------------
+# OpenRouter backend
+# ---------------------------------------------------------------------------
+
+def _openrouter_embed_sync(texts: list[str], profile: EmbeddingProfile) -> np.ndarray:
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError(
+            "OPENROUTER_API_KEY is not set. Cannot use openrouter embedding backend."
+        )
+
+    url = OPENROUTER_BASE_URL.rstrip("/") + "/embeddings"
+    payload: dict = {
+        "model": OPENROUTER_EMBED_MODEL,
+        "input": texts,
+        "dimensions": EMBEDDING_DIMS[profile],
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urlrequest.Request(
+        url,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=30) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenRouter embedding request failed: {detail}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"OpenRouter embedding connection error: {exc.reason}") from exc
+
+    embeddings = [item["embedding"] for item in body["data"]]
+    return np.array(embeddings, dtype=np.float32)
+
+
+# ---------------------------------------------------------------------------
+# SentenceTransformers backend (legacy / backwards compat)
+# ---------------------------------------------------------------------------
+
+def _st_resolve_model_id(model_name: str) -> str:
     key = model_name.strip().lower()
-    return MODEL_ID_ALIASES.get(key, model_name)
+    return ST_MODEL_ID_ALIASES.get(key, model_name)
 
 
 @lru_cache(maxsize=None)
-def _load_model(model_name: str) -> SentenceTransformer:
-    resolved = _resolve_model_id(model_name)
-    needs_trust = resolved in TRUST_REMOTE_CODE_MODELS
+def _st_load_model(model_name: str):
+    from sentence_transformers import SentenceTransformer
+
+    resolved = _st_resolve_model_id(model_name)
+    needs_trust = resolved in ST_TRUST_REMOTE_CODE_MODELS
     if needs_trust:
         try:
             return SentenceTransformer(resolved, trust_remote_code=True)
@@ -126,11 +207,7 @@ def _load_model(model_name: str) -> SentenceTransformer:
     return SentenceTransformer(resolved)
 
 
-def _get_model(profile: EmbeddingProfile) -> SentenceTransformer:
-    model_name = EMBEDDING_MODEL_NAMES[profile]
-    return _load_model(model_name)
-
-def _encode_texts(model: SentenceTransformer, texts: list[str]) -> np.ndarray:
+def _st_encode_sync(model, texts: list[str]) -> np.ndarray:
     try:
         return model.encode(texts, convert_to_numpy=True)
     except TypeError:
@@ -142,16 +219,47 @@ def _encode_texts(model: SentenceTransformer, texts: list[str]) -> np.ndarray:
         return np.asarray(vectors)
 
 
+def _st_embed_sync(texts: list[str], profile: EmbeddingProfile) -> np.ndarray:
+    model_name = ST_EMBEDDING_MODEL_NAMES[profile]
+    model = _st_load_model(model_name)
+    return _st_encode_sync(model, texts)
+
+
+# ---------------------------------------------------------------------------
+# Unified embed interface
+# ---------------------------------------------------------------------------
+
+def _embed_sync(texts: list[str], profile: EmbeddingProfile) -> np.ndarray:
+    backend = EMBEDDING_BACKEND.lower()
+    if backend == "ollama":
+        return _ollama_embed_sync(texts)
+    if backend == "openrouter":
+        return _openrouter_embed_sync(texts, profile)
+    if backend in {"sentence_transformers", "local"}:
+        return _st_embed_sync(texts, profile)
+    raise ValueError(
+        f"Unknown EMBEDDING_BACKEND={EMBEDDING_BACKEND!r}. "
+        "Expected one of: ollama, openrouter, sentence_transformers."
+    )
+
+
 async def embed_chunks(chunks: list[str], profile: EmbeddingProfile = DEFAULT_EMBEDDING_PROFILE):
-    model = _get_model(profile)
-    return await run_in_threadpool(_encode_texts, model, chunks)
+    return await run_in_threadpool(_embed_sync, chunks, profile)
 
 
 async def embed_query(prompt: str, profile: EmbeddingProfile = DEFAULT_EMBEDDING_PROFILE):
-    model = _get_model(profile)
-    return (await run_in_threadpool(_encode_texts, model, [prompt]))[0]
+    return (await run_in_threadpool(_embed_sync, [prompt], profile))[0]
 
 
 def embed_query_sync(prompt: str, profile: EmbeddingProfile = DEFAULT_EMBEDDING_PROFILE):
-    model = _get_model(profile)
-    return _encode_texts(model, [prompt])[0]
+    return _embed_sync([prompt], profile)[0]
+
+
+def active_embed_model(profile: EmbeddingProfile) -> str:
+    """Return the model name that will be used for the given profile under the active backend."""
+    backend = EMBEDDING_BACKEND.lower()
+    if backend == "ollama":
+        return f"ollama/{OLLAMA_EMBED_MODEL}"
+    if backend == "openrouter":
+        return f"openrouter/{OPENROUTER_EMBED_MODEL}"
+    return ST_EMBEDDING_MODEL_NAMES.get(profile, "unknown")
