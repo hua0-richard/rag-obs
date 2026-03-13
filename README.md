@@ -62,7 +62,7 @@ flowchart LR
 
     subgraph AI["AI Inference"]
         direction TB
-        OR["OpenRouter<br/>(LLM + Embeddings)"]
+        OR["OpenRouter<br/>(DeepSeek V3 + Embeddings)"]
         Ollama["Ollama<br/>(Local Dev)"]
     end
 
@@ -113,13 +113,15 @@ flowchart LR
 
 ## Key Components
 
-The architecture integrates a React frontend on Netlify with a FastAPI backend on Azure Container Apps, PostgreSQL + pgvector (Neon) for vector search, and OpenRouter for LLM inference.
+The architecture integrates a React frontend on Netlify with a FastAPI backend on Azure Container Apps, PostgreSQL + pgvector (Neon) for vector search, and OpenRouter for LLM inference (DeepSeek V3) and embeddings.
 
 ## Technology Stack
 
-React 19 + Vite + Tailwind CSS on the frontend. FastAPI + Python 3.12 on the backend. PostgreSQL with pgvector via Neon for embeddings. OpenRouter for cloud LLM and embedding inference. Ollama for local LLM and embedding inference. GitHub Actions for CI/CD.
+React 19 + Vite + Tailwind CSS on the frontend. FastAPI + Python 3.12 on the backend. PostgreSQL with pgvector via Neon for embeddings. OpenRouter (DeepSeek V3) for cloud LLM inference. OpenRouter for cloud embedding inference. Ollama for local LLM and embedding inference. GitHub Actions for CI/CD.
 
 ## Notable Engineering Approaches
+
+**Client-Side Session ID**: Session UUIDs are generated in the browser via `crypto.randomUUID()` and written to `localStorage` immediately on page load — no server round-trip required. The session row is created lazily in the database on the first upload.
 
 **Embedding Routing**: Embedding backend is swappable via `EMBEDDING_BACKEND` env var. In development, Ollama serves embeddings locally. In production, OpenRouter's API is used — keeping the API container lightweight with no local model weights.
 
@@ -180,6 +182,6 @@ alembic upgrade head
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model |
 | `OPENROUTER_EMBED_MODEL` | `openai/text-embedding-3-small` | OpenRouter embedding model |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-chat-v3-0324` | OpenRouter LLM model |
-| `OPENROUTER_API_KEY` | — | Required when `EMBEDDING_BACKEND=openrouter` |
+| `OPENROUTER_API_KEY` | — | Required in production (LLM + embeddings) |
 | `DATABASE_URL` | local postgres | PostgreSQL connection string |
 | `FRONTEND_URL` | — | Added to CORS allowed origins |
