@@ -1,9 +1,12 @@
+import asyncio
 import json
 import math
 import os
 import re
 from asyncio import TimeoutError as AsyncTimeoutError, wait_for
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from typing import Callable
 from uuid import UUID
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
@@ -169,7 +172,11 @@ def _clean_filename(value: str) -> str:
 _AUTH_ERROR_CODES = {401, 403}
 
 
-def _openrouter_chat(prompt: str, target_tokens: int) -> tuple[str, str]:
+def _openrouter_chat(
+    prompt: str,
+    target_tokens: int,
+    status_callback: Callable[[str], None] | None = None,
+) -> tuple[str, str]:
     if not OPENROUTER_API_KEY:
         raise HTTPException(
             status_code=500,
@@ -195,6 +202,8 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> tuple[str, str]:
 
     last_error: str = "OpenRouter request failed."
     for model in candidates:
+        if status_callback is not None:
+            status_callback(model)
         print(f"[OpenRouter] Trying model: {model}")
         payload = {
             "model": model,
@@ -252,11 +261,23 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> tuple[str, str]:
             last_error = "missing choices in response"
             continue
         message = choices[0].get("message") if isinstance(choices[0], dict) else None
-        content = message.get("content") if isinstance(message, dict) else None
-        if not isinstance(content, str):
-            print(f"[OpenRouter] {model} response missing content")
-            last_error = "missing content in response"
+        if not isinstance(message, dict):
+            print(f"[OpenRouter] {model} response missing message")
+            last_error = "missing message in response"
             continue
+        content = message.get("content")
+        if not isinstance(content, str):
+            # Some thinking/reasoning models return content: null with a reasoning field
+            reasoning = message.get("reasoning")
+            if isinstance(reasoning, str) and reasoning.strip():
+                print(f"[OpenRouter] {model} using reasoning field as content fallback")
+                content = reasoning
+            else:
+                msg_keys = list(message.keys())
+                finish = choices[0].get("finish_reason") if isinstance(choices[0], dict) else None
+                print(f"[OpenRouter] {model} missing content (finish_reason={finish!r}, message keys={msg_keys})")
+                last_error = "missing content in response"
+                continue
         print(f"[OpenRouter] Success with model: {model}")
         return content, model
 
@@ -712,6 +733,7 @@ async def generate_flashcards(
     embedding_model: str | None,
     flashcard_amount: str | None,
     db: Session,
+    _status_queue: asyncio.Queue | None = None,
 ):
     """
     Retrieve chunks via hybrid BM25 + pgvector and ask llm to generate flashcards.
@@ -897,11 +919,20 @@ async def generate_flashcards(
     model_used: str | None = None
     try:
         if USE_OPENROUTER:
+            _loop = asyncio.get_event_loop()
+
+            def _on_trying(model: str) -> None:
+                if _status_queue is not None:
+                    _loop.call_soon_threadsafe(
+                        _status_queue.put_nowait, {"type": "trying", "model": model}
+                    )
+
             content, model_used = await wait_for(
                 run_in_threadpool(
                     _openrouter_chat,
                     llm_prompt,
                     target_tokens,
+                    _on_trying,
                 ),
                 timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
             )
@@ -1049,6 +1080,49 @@ async def generate_flashcards(
         "model_used": model_used,
         "deck": deck_payload,
     }
+
+
+async def generate_flashcards_sse(
+    prompt: str | None,
+    k: int | None,
+    session_id: UUID | None,
+    file_ids: list[int] | None,
+    replace: bool,
+    embedding_model: str | None,
+    flashcard_amount: str | None,
+    db: Session,
+) -> AsyncGenerator[str, None]:
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def _run() -> None:
+        try:
+            result = await generate_flashcards(
+                prompt=prompt,
+                k=k,
+                session_id=session_id,
+                file_ids=file_ids,
+                replace=replace,
+                embedding_model=embedding_model,
+                flashcard_amount=flashcard_amount,
+                db=db,
+                _status_queue=queue,
+            )
+            await queue.put({"type": "result", **result})
+        except HTTPException as exc:
+            await queue.put({"type": "error", "detail": exc.detail})
+        except Exception as exc:
+            await queue.put({"type": "error", "detail": str(exc)})
+
+    task = asyncio.create_task(_run())
+    try:
+        while True:
+            event = await queue.get()
+            yield f"data: {json.dumps(event)}\n\n"
+            if event.get("type") in ("result", "error"):
+                break
+    finally:
+        await task
+    yield "data: [DONE]\n\n"
 
 
 def get_flashcards(session_id: UUID, deck_id: int | None, db: Session):

@@ -174,6 +174,7 @@ export function FlashcardsLabPage() {
     const [showToast, setShowToast] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
     const [isHoveringToast, setIsHoveringToast] = useState(false);
+    const [tryingModel, setTryingModel] = useState<string | null>(null);
     const [decks, setDecks] = useState<FlashcardDeck[]>(() => loadDecks());
     const [documents, setDocuments] = useState<Document[]>([]);
     const [documentsLoading, setDocumentsLoading] = useState(true);
@@ -406,20 +407,59 @@ export function FlashcardsLabPage() {
             selectedIds.forEach((id) => params.append("file_ids", String(id)));
 
             const response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
-            if (!response.ok) {
+            if (!response.ok || !response.body) {
                 const detail = await response.text();
                 throw new Error(detail || "Flashcard generation failed.");
             }
-            const data = await response.json();
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let data: Record<string, unknown> | null = null;
+
+            outer: while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() ?? "";
+                for (const line of lines) {
+                    if (!line.startsWith("data: ")) continue;
+                    const payloadText = line.slice(6).trim();
+                    if (!payloadText || payloadText === "[DONE]") continue;
+                    let payload: Record<string, unknown>;
+                    try {
+                        payload = JSON.parse(payloadText) as Record<string, unknown>;
+                    } catch {
+                        continue;
+                    }
+                    if (payload.type === "trying" && typeof payload.model === "string") {
+                        const label = payload.model === "openrouter/free"
+                            ? "OpenRouter (auto)"
+                            : payload.model.replace(/:free$/, "").split("/").pop() ?? payload.model;
+                        setTryingModel(label);
+                    } else if (payload.type === "result") {
+                        data = payload;
+                        setTryingModel(null);
+                        break outer;
+                    } else if (payload.type === "error") {
+                        throw new Error(typeof payload.detail === "string" ? payload.detail : "Flashcard generation failed.");
+                    }
+                }
+            }
+
+            if (!data) throw new Error("Flashcard generation failed.");
+
             const savedCount =
                 typeof data?.saved_count === "number"
                     ? data.saved_count
                     : Array.isArray(data?.flashcards)
-                        ? data.flashcards.length
+                        ? (data.flashcards as unknown[]).length
                         : 0;
             const backendDeckId =
-                typeof data?.deck?.id === "number" && Number.isFinite(data.deck.id)
-                    ? data.deck.id
+                typeof (data?.deck as Record<string, unknown> | null)?.id === "number" &&
+                Number.isFinite((data?.deck as Record<string, unknown>)?.id)
+                    ? (data.deck as Record<string, unknown>).id as number
                     : undefined;
 
             const modelLabel = typeof data?.model_used === "string"
@@ -458,6 +498,7 @@ export function FlashcardsLabPage() {
             const message = error instanceof Error ? error.message : "Flashcard generation failed.";
             setGenerateError(message);
             setLoadingMessage(message);
+            setTryingModel(null);
         } finally {
             setIsGenerating(false);
         }
@@ -1173,6 +1214,11 @@ export function FlashcardsLabPage() {
                             <div className="mt-2 text-[13px] font-medium text-white">
                                 {loadingMessage || (isGenerating ? "Generating flashcards..." : "Preparing embeddings...")}
                             </div>
+                            {isGenerating && tryingModel ? (
+                                <div className="mt-1 text-[10px] text-white/40 font-mono truncate">
+                                    trying {tryingModel}
+                                </div>
+                            ) : null}
                             {isUploading || isGenerating ? (
                                 <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
                                     <div className="progress-flow h-full w-[60%] rounded-full" />

@@ -1,9 +1,10 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from db.deps import get_db
 from services.flashcards_service import (
-    generate_flashcards,
+    generate_flashcards_sse,
     get_flashcard_decks,
     get_flashcards,
     get_files,
@@ -23,15 +24,18 @@ async def llm_flashcards(
     flashcard_amount: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    return await generate_flashcards(
-        prompt=prompt,
-        k=k,
-        session_id=session_id,
-        file_ids=file_ids,
-        replace=replace,
-        embedding_model=embedding_model,
-        flashcard_amount=flashcard_amount,
-        db=db,
+    return StreamingResponse(
+        generate_flashcards_sse(
+            prompt=prompt,
+            k=k,
+            session_id=session_id,
+            file_ids=file_ids,
+            replace=replace,
+            embedding_model=embedding_model,
+            flashcard_amount=flashcard_amount,
+            db=db,
+        ),
+        media_type="text/event-stream",
     )
 
 
