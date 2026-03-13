@@ -26,15 +26,15 @@ jobs:
           URL = "https://openrouter.ai/api/v1/chat/completions"
 
           MODELS = [
-              ("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B",  "llama-3.3-70b"),
-              ("google/gemma-3-27b-it:free",              "Gemma 3 27B",    "gemma-3-27b"),
-              ("deepseek/deepseek-r1:free",               "DeepSeek R1",    "deepseek-r1"),
-              ("qwen/qwen-2.5-72b-instruct:free",         "Qwen 2.5 72B",   "qwen-2.5-72b"),
+              ("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B",  "llama-3.3-70b", "meta"),
+              ("google/gemma-3-27b-it:free",              "Gemma 3 27B",    "gemma-3-27b",   "google"),
+              ("deepseek/deepseek-r1:free",               "DeepSeek R1",    "deepseek-r1",   "deepseek"),
+              ("qwen/qwen-2.5-72b-instruct:free",         "Qwen 2.5 72B",   "qwen-2.5-72b",  "alibabacloud"),
           ]
 
           os.makedirs("/tmp/model-status", exist_ok=True)
 
-          for model_id, label, filename in MODELS:
+          for model_id, label, filename, logo in MODELS:
               payload = json.dumps({
                   "model": model_id,
                   "messages": [{"role": "user", "content": "hi"}],
@@ -63,6 +63,8 @@ jobs:
                   "label": label,
                   "message": message,
                   "color": color,
+                  "namedLogo": logo,
+                  "logoColor": "white",
               }
               with open(f"/tmp/model-status/{filename}.json", "w") as f:
                   json.dump(status, f, indent=2)
