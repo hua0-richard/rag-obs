@@ -69,7 +69,6 @@ export function HeroSection() {
     const [showToast, setShowToast] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
     const [isHoveringToast, setIsHoveringToast] = useState(false);
-    const [tryingModel, setTryingModel] = useState<string | null>(null);
     const pulseTimeoutRef = useRef<number | null>(null);
     const closeTimeoutRef = useRef<number | null>(null);
 
@@ -311,42 +310,15 @@ export function HeroSection() {
                         }
                         const llmUrl = `${import.meta.env.SERVER_URL}/llm?session_id=${encodeURIComponent(activeSessionId)}`;
                         const llmResponse = await fetch(llmUrl);
-                        if (!llmResponse.ok || !llmResponse.body) {
+                        if (!llmResponse.ok) {
                             const detail = await llmResponse.text();
                             throw new Error(detail || "Flashcard generation failed.");
                         }
-                        const reader = llmResponse.body.getReader();
-                        const decoder = new TextDecoder();
-                        let buffer = "";
-                        let data: Record<string, unknown> | null = null;
-                        outer: while (true) {
-                            const { value, done } = await reader.read();
-                            if (done) break;
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split("\n");
-                            buffer = lines.pop() ?? "";
-                            for (const line of lines) {
-                                if (!line.startsWith("data: ")) continue;
-                                const payloadText = line.slice(6).trim();
-                                if (!payloadText || payloadText === "[DONE]") continue;
-                                let payload: Record<string, unknown>;
-                                try { payload = JSON.parse(payloadText); } catch { continue; }
-                                if (payload.type === "trying" && typeof payload.model === "string") {
-                                    setTryingModel(formatModelLabel(payload.model));
-                                } else if (payload.type === "result") {
-                                    data = payload;
-                                    setTryingModel(null);
-                                    break outer;
-                                } else if (payload.type === "error") {
-                                    throw new Error(typeof payload.detail === "string" ? payload.detail : "Flashcard generation failed.");
-                                }
-                            }
-                        }
-                        if (!data) throw new Error("Flashcard generation failed.");
+                        const data = await llmResponse.json() as Record<string, unknown>;
                         const savedCount = typeof data?.saved_count === "number" ? data.saved_count : null;
                         const backendDeckId =
-                            typeof (data?.deck as Record<string, unknown> | null)?.id === "number" &&
-                            Number.isFinite((data?.deck as Record<string, unknown>)?.id)
+                            typeof data?.deck === "object" && data.deck !== null &&
+                            typeof (data.deck as Record<string, unknown>).id === "number"
                                 ? (data.deck as Record<string, unknown>).id as number
                                 : undefined;
                         const deckCardCount = savedCount ?? 0;
@@ -634,11 +606,6 @@ export function HeroSection() {
                                             ? "Generating flashcards..."
                                             : "Preparing embeddings...")}
                                 </div>
-                                {tryingModel && (
-                                    <div className="mt-1 text-[10px] font-mono text-white/35">
-                                        via {tryingModel}
-                                    </div>
-                                )}
                                 {isUploading || isGeneratingFlashcards ? (
                                     <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
                                         <div className="progress-flow h-full w-[60%] rounded-full" />

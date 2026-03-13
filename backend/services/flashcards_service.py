@@ -1,12 +1,9 @@
-import asyncio
 import json
 import math
 import os
 import re
 from asyncio import TimeoutError as AsyncTimeoutError, wait_for
-from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Callable
 from uuid import UUID
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
@@ -164,7 +161,6 @@ _AUTH_ERROR_CODES = {401, 403}
 def _openrouter_chat(
     prompt: str,
     target_tokens: int,
-    status_callback: Callable[[str], None] | None = None,
 ) -> tuple[str, str]:
     if not OPENROUTER_API_KEY:
         raise HTTPException(
@@ -181,8 +177,6 @@ def _openrouter_chat(
     if OPENROUTER_TITLE:
         headers["X-Title"] = OPENROUTER_TITLE
 
-    if status_callback is not None:
-        status_callback(OPENROUTER_MODEL)
     print(f"[OpenRouter] Trying model: {OPENROUTER_MODEL}")
     payload = {
         "model": OPENROUTER_MODEL,
@@ -696,7 +690,6 @@ async def generate_flashcards(
     embedding_model: str | None,
     flashcard_amount: str | None,
     db: Session,
-    _status_queue: asyncio.Queue | None = None,
 ):
     """
     Retrieve chunks via hybrid BM25 + pgvector and ask llm to generate flashcards.
@@ -882,20 +875,11 @@ async def generate_flashcards(
     model_used: str | None = None
     try:
         if USE_OPENROUTER:
-            _loop = asyncio.get_event_loop()
-
-            def _on_trying(model: str) -> None:
-                if _status_queue is not None:
-                    _loop.call_soon_threadsafe(
-                        _status_queue.put_nowait, {"type": "trying", "model": model}
-                    )
-
             content, model_used = await wait_for(
                 run_in_threadpool(
                     _openrouter_chat,
                     llm_prompt,
                     target_tokens,
-                    _on_trying,
                 ),
                 timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
             )
@@ -1045,47 +1029,6 @@ async def generate_flashcards(
     }
 
 
-async def generate_flashcards_sse(
-    prompt: str | None,
-    k: int | None,
-    session_id: UUID | None,
-    file_ids: list[int] | None,
-    replace: bool,
-    embedding_model: str | None,
-    flashcard_amount: str | None,
-    db: Session,
-) -> AsyncGenerator[str, None]:
-    queue: asyncio.Queue = asyncio.Queue()
-
-    async def _run() -> None:
-        try:
-            result = await generate_flashcards(
-                prompt=prompt,
-                k=k,
-                session_id=session_id,
-                file_ids=file_ids,
-                replace=replace,
-                embedding_model=embedding_model,
-                flashcard_amount=flashcard_amount,
-                db=db,
-                _status_queue=queue,
-            )
-            await queue.put({"type": "result", **result})
-        except HTTPException as exc:
-            await queue.put({"type": "error", "detail": exc.detail})
-        except Exception as exc:
-            await queue.put({"type": "error", "detail": str(exc)})
-
-    task = asyncio.create_task(_run())
-    try:
-        while True:
-            event = await queue.get()
-            yield f"data: {json.dumps(event)}\n\n"
-            if event.get("type") in ("result", "error"):
-                break
-    finally:
-        await task
-    yield "data: [DONE]\n\n"
 
 
 def get_flashcards(session_id: UUID, deck_id: int | None, db: Session):
