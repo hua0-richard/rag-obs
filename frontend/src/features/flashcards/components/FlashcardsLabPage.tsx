@@ -5,6 +5,7 @@ import { Button } from "@/shared/components/ui/Button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/components/ui/Select";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
+import { formatModelLabel } from "@/shared/utils/modelLabel";
 
 type ApiFile = {
     id: number;
@@ -60,14 +61,6 @@ const FLASHCARD_AMOUNT_OPTIONS: { value: FlashcardAmountOption; label: string; d
     },
 ];
 
-const MODEL_PRETTY_NAMES: Record<string, string> = {
-    "openrouter/auto": "OpenRouter (auto)",
-    "openrouter/free": "OpenRouter (auto)",
-    "deepseek/deepseek-chat-v3-0324": "DeepSeek V3",
-};
-
-const formatModelLabel = (model: string): string =>
-    MODEL_PRETTY_NAMES[model] ?? model.replace(/:free$/, "").split("/").pop() ?? model;
 
 const isEmbeddingModelOption = (value: string | null): value is EmbeddingModelOption =>
     EMBEDDING_MODEL_OPTIONS.some((option) => option.value === value);
