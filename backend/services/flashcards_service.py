@@ -71,6 +71,17 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", FLASHCARD_LLM_MODEL)
 OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "").strip()
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "").strip()
+OPENROUTER_FALLBACK_MODELS: list[str] = [
+    m.strip()
+    for m in os.getenv(
+        "OPENROUTER_FALLBACK_MODELS",
+        "meta-llama/llama-3.3-70b-instruct:free,"
+        "meta-llama/llama-3.1-8b-instruct:free,"
+        "mistralai/mistral-7b-instruct:free,"
+        "google/gemma-3-27b-it:free",
+    ).split(",")
+    if m.strip()
+]
 FLASHCARD_AMOUNT_MULTIPLIERS = {
     "small": 0.6,
     "medium": 1.0,
@@ -154,6 +165,13 @@ def _clean_filename(value: str) -> str:
     return base or trimmed
 
 
+def _is_rate_limit_error(error: dict) -> bool:
+    """Return True if the OpenRouter error payload indicates upstream rate limiting."""
+    code = error.get("code")
+    message = str(error.get("message", "")).lower()
+    return code == 429 or "rate limit" in message or "rate_limit" in message
+
+
 def _openrouter_chat(prompt: str, target_tokens: int) -> str:
     if not OPENROUTER_API_KEY:
         raise HTTPException(
@@ -161,12 +179,6 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> str:
             detail="OpenRouter API key not configured. Set OPENROUTER_API_KEY.",
         )
     url = OPENROUTER_BASE_URL.rstrip("/") + "/chat/completions"
-    payload = {
-        "model": OPENROUTER_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": target_tokens,
-        "temperature": 0.2,
-    }
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -175,51 +187,83 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> str:
         headers["HTTP-Referer"] = OPENROUTER_REFERER
     if OPENROUTER_TITLE:
         headers["X-Title"] = OPENROUTER_TITLE
-    data = json.dumps(payload).encode("utf-8")
-    request = urlrequest.Request(url, data=data, headers=headers, method="POST")
-    try:
-        with urlrequest.urlopen(request, timeout=FLASHCARD_LLM_TIMEOUT_SECONDS) as resp:
-            body = resp.read()
-    except HTTPError as exc:
-        detail = "OpenRouter request failed."
+
+    # Build candidate list: primary model first, then fallbacks (deduped, preserving order)
+    seen: set[str] = set()
+    candidates: list[str] = []
+    for m in [OPENROUTER_MODEL] + OPENROUTER_FALLBACK_MODELS:
+        if m not in seen:
+            seen.add(m)
+            candidates.append(m)
+
+    last_error: str = "OpenRouter request failed."
+    for model in candidates:
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": target_tokens,
+            "temperature": 0.2,
+        }
+        data = json.dumps(payload).encode("utf-8")
+        request = urlrequest.Request(url, data=data, headers=headers, method="POST")
         try:
-            error_body = exc.read().decode("utf-8")
-        except Exception:
-            error_body = ""
-        if error_body:
-            detail = f"{detail} {error_body}"
-        raise HTTPException(status_code=502, detail=detail) from exc
-    except URLError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="OpenRouter request failed to connect.",
-        ) from exc
-    try:
-        payload = json.loads(body.decode("utf-8"))
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="OpenRouter returned malformed JSON.",
-        ) from exc
-    if isinstance(payload, dict) and payload.get("error"):
-        raise HTTPException(
-            status_code=502,
-            detail=f"OpenRouter error: {payload['error']}",
-        )
-    choices = payload.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise HTTPException(
-            status_code=502,
-            detail="OpenRouter response missing choices.",
-        )
-    message = choices[0].get("message") if isinstance(choices[0], dict) else None
-    content = message.get("content") if isinstance(message, dict) else None
-    if not isinstance(content, str):
-        raise HTTPException(
-            status_code=502,
-            detail="OpenRouter response missing message content.",
-        )
-    return content
+            with urlrequest.urlopen(request, timeout=FLASHCARD_LLM_TIMEOUT_SECONDS) as resp:
+                body = resp.read()
+        except HTTPError as exc:
+            try:
+                error_body = exc.read().decode("utf-8")
+            except Exception:
+                error_body = ""
+            if exc.code == 429:
+                last_error = f"Model {model} rate limited. {error_body}".strip()
+                continue
+            detail = f"OpenRouter request failed with model {model}."
+            if error_body:
+                detail = f"{detail} {error_body}"
+            raise HTTPException(status_code=502, detail=detail) from exc
+        except URLError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="OpenRouter request failed to connect.",
+            ) from exc
+
+        try:
+            response = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="OpenRouter returned malformed JSON.",
+            ) from exc
+
+        if isinstance(response, dict) and response.get("error"):
+            error = response["error"]
+            if isinstance(error, dict) and _is_rate_limit_error(error):
+                last_error = f"Model {model} rate limited: {error.get('message', '')}".strip()
+                continue
+            raise HTTPException(
+                status_code=502,
+                detail=f"OpenRouter error: {error}",
+            )
+
+        choices = response.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise HTTPException(
+                status_code=502,
+                detail="OpenRouter response missing choices.",
+            )
+        message = choices[0].get("message") if isinstance(choices[0], dict) else None
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str):
+            raise HTTPException(
+                status_code=502,
+                detail="OpenRouter response missing message content.",
+            )
+        return content
+
+    raise HTTPException(
+        status_code=429,
+        detail=f"All OpenRouter models are rate limited. Last error: {last_error}",
+    )
 
 
 def _build_deck_title(filenames: list[str]) -> str:
