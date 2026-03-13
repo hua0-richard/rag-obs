@@ -6,10 +6,16 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/deploy-frontend.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
 
     steps:
       - name: Checkout
@@ -33,11 +39,20 @@ jobs:
         run: pnpm build
 
       - name: Deploy to Netlify
+        id: netlify
         uses: nwtgck/actions-netlify@v3
         with:
           publish-dir: frontend/dist
           production-branch: main
-          production-deploy: true
+          production-deploy: ${{ github.event_name == 'push' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: ${{ github.event.pull_request.title || github.event.head_commit.message }}
+          enable-pull-request-comment: true
+          enable-commit-comment: true
+          overwrites-pull-request-comment: true
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      - name: Print deploy URL
+        run: echo "Deploy URL ${{ steps.netlify.outputs.deploy-url }}"
