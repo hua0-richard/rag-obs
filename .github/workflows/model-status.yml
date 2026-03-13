@@ -50,7 +50,12 @@ jobs:
                   if body.get("error"):
                       raise ValueError(body["error"])
                   message, color = "online", "brightgreen"
+              except urllib.error.HTTPError as e:
+                  err_body = e.read().decode()
+                  print(f"  HTTP {e.code}: {err_body[:300]}")
+                  message, color = "unavailable", "red"
               except Exception as e:
+                  print(f"  Error: {e}")
                   message, color = "unavailable", "red"
 
               status = {
