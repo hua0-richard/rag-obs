@@ -1,0 +1,84 @@
+name: Model Status
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # every hour
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ping models
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python3 << 'EOF'
+          import json, os, urllib.request, urllib.error
+
+          API_KEY = os.environ["OPENROUTER_API_KEY"]
+          URL = "https://openrouter.ai/api/v1/chat/completions"
+
+          MODELS = [
+              ("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B", "llama-3.3-70b"),
+              ("meta-llama/llama-3.1-8b-instruct:free",  "Llama 3.1 8B",  "llama-3.1-8b"),
+              ("mistralai/mistral-7b-instruct:free",      "Mistral 7B",    "mistral-7b"),
+              ("google/gemma-3-27b-it:free",              "Gemma 3 27B",   "gemma-3-27b"),
+          ]
+
+          os.makedirs("/tmp/model-status", exist_ok=True)
+
+          for model_id, label, filename in MODELS:
+              payload = json.dumps({
+                  "model": model_id,
+                  "messages": [{"role": "user", "content": "hi"}],
+                  "max_tokens": 1,
+              }).encode()
+              req = urllib.request.Request(URL, data=payload, headers={
+                  "Authorization": f"Bearer {API_KEY}",
+                  "Content-Type": "application/json",
+              })
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as resp:
+                      body = json.loads(resp.read())
+                  if body.get("error"):
+                      raise ValueError(body["error"])
+                  message, color = "online", "brightgreen"
+              except Exception as e:
+                  message, color = "unavailable", "red"
+
+              status = {
+                  "schemaVersion": 1,
+                  "label": label,
+                  "message": message,
+                  "color": color,
+              }
+              with open(f"/tmp/model-status/{filename}.json", "w") as f:
+                  json.dump(status, f, indent=2)
+              print(f"{label}: {message}")
+          EOF
+
+      - name: Push to status branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin
+
+          if git ls-remote --exit-code origin status; then
+            git checkout status
+          else
+            git checkout --orphan status
+            git rm -rf . --quiet
+          fi
+
+          mkdir -p model-status
+          cp /tmp/model-status/*.json model-status/
+
+          git add model-status/
+          git diff --staged --quiet || git commit -m "chore: update model status [skip ci]"
+          git push origin status
