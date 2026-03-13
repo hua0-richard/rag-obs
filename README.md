@@ -10,7 +10,7 @@
 
 **LLM** · DeepSeek V3 via OpenRouter:
 
-[![DeepSeek V3](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/deepseek-v3.json&style=flat&labelColor=09090b)](https://openrouter.ai/deepseek/deepseek-chat-v3-0324)
+[![DeepSeek V3](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/deepseek-v3.json&style=flat&labelColor=09090b&logo=deepseek&logoColor=white)](https://openrouter.ai/deepseek/deepseek-chat-v3-0324)
 
 ---
 
