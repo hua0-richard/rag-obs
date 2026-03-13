@@ -1,6 +1,1 @@
-{
-  "schemaVersion": 1,
-  "label": "Gemma 3 27B",
-  "message": "unavailable",
-  "color": "red"
-}
+{ "schemaVersion": 1, "label": "Gemma 3 27B", "message": "checking...", "color": "lightgrey", "namedLogo": "google", "logoColor": "white" }
