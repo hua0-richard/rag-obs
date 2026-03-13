@@ -173,12 +173,15 @@ def _openrouter_embed_sync(texts: list[str], profile: EmbeddingProfile) -> np.nd
     )
     try:
         with urlrequest.urlopen(req, timeout=30) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read().decode("utf-8")
+        body = json.loads(raw)
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"OpenRouter embedding request failed: {detail}") from exc
     except URLError as exc:
         raise RuntimeError(f"OpenRouter embedding connection error: {exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("OpenRouter embedding returned malformed JSON.") from exc
 
     embeddings = [item["embedding"] for item in body["data"]]
     return np.array(embeddings, dtype=np.float32)
