@@ -168,7 +168,7 @@ def _clean_filename(value: str) -> str:
 _AUTH_ERROR_CODES = {401, 403}
 
 
-def _openrouter_chat(prompt: str, target_tokens: int) -> str:
+def _openrouter_chat(prompt: str, target_tokens: int) -> tuple[str, str]:
     if not OPENROUTER_API_KEY:
         raise HTTPException(
             status_code=500,
@@ -257,7 +257,7 @@ def _openrouter_chat(prompt: str, target_tokens: int) -> str:
             last_error = "missing content in response"
             continue
         print(f"[OpenRouter] Success with model: {model}")
-        return content
+        return content, model
 
     raise HTTPException(
         status_code=503,
@@ -893,9 +893,10 @@ async def generate_flashcards(
         max(128, n_flashcards * FLASHCARD_MAX_TOKENS_PER_CARD),
     )
 
+    model_used: str | None = None
     try:
         if USE_OPENROUTER:
-            content = await wait_for(
+            content, model_used = await wait_for(
                 run_in_threadpool(
                     _openrouter_chat,
                     llm_prompt,
@@ -918,6 +919,7 @@ async def generate_flashcards(
                 timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
             )
             content = resp["message"]["content"]
+            model_used = FLASHCARD_LLM_MODEL
     except AsyncTimeoutError as exc:
         raise HTTPException(
             status_code=504,
@@ -1043,6 +1045,7 @@ async def generate_flashcards(
         "sources": sources,
         "raw": content,
         "saved_count": saved_count,
+        "model_used": model_used,
         "deck": deck_payload,
     }
 

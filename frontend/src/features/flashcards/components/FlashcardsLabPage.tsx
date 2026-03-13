@@ -165,7 +165,7 @@ export function FlashcardsLabPage() {
     const [uploadStatus, setUploadStatus] = useState<string | null>(null);
     const [uploadIsError, setUploadIsError] = useState(false);
     const [embeddingModel, setEmbeddingModel] = useState<EmbeddingModelOption>("default");
-    const [_embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2");
+    const [_embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2"); // eslint-disable-line @typescript-eslint/no-unused-vars
     const [flashcardAmount, setFlashcardAmount] = useState<FlashcardAmountOption>("medium");
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
@@ -422,9 +422,12 @@ export function FlashcardsLabPage() {
                     ? data.deck.id
                     : undefined;
 
+            const modelLabel = typeof data?.model_used === "string"
+                ? data.model_used.replace(/:free$/, "").split("/").pop() ?? data.model_used
+                : null;
             setLoadingMessage(
                 typeof data?.saved_count === "number"
-                    ? `Flashcards generated (${savedCount} saved).`
+                    ? `Generated ${savedCount} cards${modelLabel ? ` via ${modelLabel}` : ""}.`
                     : "Flashcards generated."
             );
             const deckSessionId = String(sessionId);
