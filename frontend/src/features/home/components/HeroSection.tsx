@@ -73,33 +73,10 @@ export function HeroSection() {
 
     useEffect(() => {
         const sessionKey = "session_id";
-        if (localStorage.getItem(sessionKey)) {
-            setIsSessionLoading(false);
-            return;
+        if (!localStorage.getItem(sessionKey)) {
+            localStorage.setItem(sessionKey, crypto.randomUUID());
         }
-        console.log("Fetching new session id");
-        const fetchSessionId = async () => {
-            setIsSessionLoading(true);
-            try {
-                const response = await fetch(`${import.meta.env.SERVER_URL}/session-id`);
-                if (!response.ok) {
-                    console.error("Failed to fetch session id:", response.statusText);
-                    return;
-                }
-
-                const data = await response.json();
-                const sessionId = data?.["session_id"];
-                console.log(sessionId);
-                if (sessionId && !localStorage.getItem(sessionKey)) {
-                    localStorage.setItem(sessionKey, sessionId);
-                }
-            } catch (error) {
-                console.error("Error fetching session id:", error);
-            } finally {
-                setIsSessionLoading(false);
-            }
-        };
-        fetchSessionId();
+        setIsSessionLoading(false);
     }, []);
 
     const closeToast = () => {

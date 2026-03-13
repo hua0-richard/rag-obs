@@ -50,9 +50,10 @@ async def stream_document_upload(
             if active_session_id is not None:
                 session_row = db.get(Sessions, active_session_id)
                 if session_row is None:
-                    payload = {"status": "error", "detail": "session_id not found"}
-                    yield f"data: {_json_dumps(payload)}\n\n"
-                    return
+                    session_row = Sessions(id=active_session_id)
+                    db.add(session_row)
+                    db.commit()
+                    db.refresh(session_row)
             else:
                 session_row = Sessions()
                 db.add(session_row)

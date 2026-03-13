@@ -60,6 +60,15 @@ const FLASHCARD_AMOUNT_OPTIONS: { value: FlashcardAmountOption; label: string; d
     },
 ];
 
+const MODEL_PRETTY_NAMES: Record<string, string> = {
+    "openrouter/auto": "OpenRouter (auto)",
+    "openrouter/free": "OpenRouter (auto)",
+    "deepseek/deepseek-chat-v3-0324": "DeepSeek V3",
+};
+
+const formatModelLabel = (model: string): string =>
+    MODEL_PRETTY_NAMES[model] ?? model.replace(/:free$/, "").split("/").pop() ?? model;
+
 const isEmbeddingModelOption = (value: string | null): value is EmbeddingModelOption =>
     EMBEDDING_MODEL_OPTIONS.some((option) => option.value === value);
 
@@ -434,10 +443,7 @@ export function FlashcardsLabPage() {
                         continue;
                     }
                     if (payload.type === "trying" && typeof payload.model === "string") {
-                        const label = payload.model === "openrouter/free"
-                            ? "OpenRouter (auto)"
-                            : payload.model.replace(/:free$/, "").split("/").pop() ?? payload.model;
-                        setTryingModel(label);
+                        setTryingModel(formatModelLabel(payload.model));
                     } else if (payload.type === "result") {
                         data = payload;
                         setTryingModel(null);
@@ -463,9 +469,7 @@ export function FlashcardsLabPage() {
                     : undefined;
 
             const modelLabel = typeof data?.model_used === "string"
-                ? data.model_used === "openrouter/free"
-                    ? "OpenRouter (auto)"
-                    : data.model_used.replace(/:free$/, "").split("/").pop() ?? data.model_used
+                ? formatModelLabel(data.model_used)
                 : null;
             setLoadingMessage(
                 typeof data?.saved_count === "number"

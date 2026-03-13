@@ -8,19 +8,9 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-3.12-009688?style=flat&logo=fastapi&logoColor=white&labelColor=09090b)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-v19-61dafb?style=flat&logo=react&logoColor=white&labelColor=09090b)](https://react.dev)
 
-**LLM Fallback Chain** · tried in order when a model is unavailable or rate-limited:
+**LLM** · DeepSeek V3 via OpenRouter:
 
-[![Qwen3 Next 80B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/qwen3-next-80b.json&style=flat&labelColor=09090b)](https://openrouter.ai/qwen/qwen3-next-80b-a3b-instruct:free)
-
-[![Llama 3.3 70B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/llama-3.3-70b.json&style=flat&labelColor=09090b)](https://openrouter.ai/meta-llama/llama-3.3-70b-instruct:free)
-
-[![Qwen3 Coder](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/qwen3-coder.json&style=flat&labelColor=09090b)](https://openrouter.ai/qwen/qwen3-coder:free)
-
-[![GPT OSS 120B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/gpt-oss-120b.json&style=flat&labelColor=09090b)](https://openrouter.ai/openai/gpt-oss-120b:free)
-
-[![Nemotron 120B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/nemotron-120b.json&style=flat&labelColor=09090b)](https://openrouter.ai/nvidia/nemotron-3-super-120b-a12b:free)
-
-[![OpenRouter Auto](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/openrouter-auto.json&style=flat&labelColor=09090b)](https://openrouter.ai/openrouter/free)
+[![DeepSeek V3](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/deepseek-v3.json&style=flat&labelColor=09090b)](https://openrouter.ai/deepseek/deepseek-chat-v3-0324)
 
 ---
 
@@ -189,7 +179,7 @@ alembic upgrade head
 | `EMBEDDING_BACKEND` | `ollama` | `ollama` \| `openrouter` \| `sentence_transformers` |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model |
 | `OPENROUTER_EMBED_MODEL` | `openai/text-embedding-3-small` | OpenRouter embedding model |
-| `OPENROUTER_MODEL` | `meta-llama/llama-3.3-70b-instruct:free` | OpenRouter LLM model |
+| `OPENROUTER_MODEL` | `deepseek/deepseek-chat-v3-0324` | OpenRouter LLM model |
 | `OPENROUTER_API_KEY` | — | Required when `EMBEDDING_BACKEND=openrouter` |
 | `DATABASE_URL` | local postgres | PostgreSQL connection string |
 | `FRONTEND_URL` | — | Added to CORS allowed origins |

@@ -71,19 +71,12 @@ ENV = os.getenv("ENV", "DEV").upper()
 USE_OPENROUTER = ENV in {"PROD", "PRODUCTION"}
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-next-80b-a3b-instruct:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat-v3-0324")
 OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "").strip()
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "").strip()
 OPENROUTER_FALLBACK_MODELS: list[str] = [
     m.strip()
-    for m in os.getenv(
-        "OPENROUTER_FALLBACK_MODELS",
-        "meta-llama/llama-3.3-70b-instruct:free,"
-        "qwen/qwen3-coder:free,"
-        "openai/gpt-oss-120b:free,"
-        "nvidia/nemotron-3-super-120b-a12b:free,"
-        "openrouter/free",
-    ).split(",")
+    for m in os.getenv("OPENROUTER_FALLBACK_MODELS", "").split(",")
     if m.strip()
 ]
 FLASHCARD_AMOUNT_MULTIPLIERS = {
@@ -278,8 +271,10 @@ def _openrouter_chat(
                 print(f"[OpenRouter] {model} missing content (finish_reason={finish!r}, message keys={msg_keys})")
                 last_error = "missing content in response"
                 continue
-        print(f"[OpenRouter] Success with model: {model}")
-        return content, model
+        raw_model = response.get("model")
+        actual_model = raw_model if isinstance(raw_model, str) else model
+        print(f"[OpenRouter] Success with model: {actual_model}")
+        return content, actual_model
 
     raise HTTPException(
         status_code=503,
