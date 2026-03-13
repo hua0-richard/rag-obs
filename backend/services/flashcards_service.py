@@ -77,8 +77,8 @@ OPENROUTER_FALLBACK_MODELS: list[str] = [
         "OPENROUTER_FALLBACK_MODELS",
         "meta-llama/llama-3.3-70b-instruct:free,"
         "google/gemma-3-27b-it:free,"
-        "deepseek/deepseek-r1:free,"
-        "qwen/qwen-2.5-72b-instruct:free",
+        "mistralai/mistral-small-3.1-24b-instruct:free,"
+        "nvidia/nemotron-3-super-120b-a12b:free",
     ).split(",")
     if m.strip()
 ]
