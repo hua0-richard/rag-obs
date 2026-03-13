@@ -11,9 +11,9 @@
 **LLM Fallback Chain** · tried in order when a model is unavailable or rate-limited:
 
 [![Llama 3.3 70B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/llama-3.3-70b.json&style=flat&labelColor=09090b)](https://openrouter.ai/meta-llama/llama-3.3-70b-instruct:free)
-[![Llama 3.1 8B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/llama-3.1-8b.json&style=flat&labelColor=09090b)](https://openrouter.ai/meta-llama/llama-3.1-8b-instruct:free)
-[![Mistral 7B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/mistral-7b.json&style=flat&labelColor=09090b)](https://openrouter.ai/mistralai/mistral-7b-instruct:free)
 [![Gemma 3 27B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/gemma-3-27b.json&style=flat&labelColor=09090b)](https://openrouter.ai/google/gemma-3-27b-it:free)
+[![DeepSeek R1](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/deepseek-r1.json&style=flat&labelColor=09090b)](https://openrouter.ai/deepseek/deepseek-r1:free)
+[![Qwen 2.5 72B](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/model-status/qwen-2.5-72b.json&style=flat&labelColor=09090b)](https://openrouter.ai/qwen/qwen-2.5-72b-instruct:free)
 
 ---
 

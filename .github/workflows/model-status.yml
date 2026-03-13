@@ -26,10 +26,10 @@ jobs:
           URL = "https://openrouter.ai/api/v1/chat/completions"
 
           MODELS = [
-              ("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B", "llama-3.3-70b"),
-              ("meta-llama/llama-3.1-8b-instruct:free",  "Llama 3.1 8B",  "llama-3.1-8b"),
-              ("mistralai/mistral-7b-instruct:free",      "Mistral 7B",    "mistral-7b"),
-              ("google/gemma-3-27b-it:free",              "Gemma 3 27B",   "gemma-3-27b"),
+              ("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B",  "llama-3.3-70b"),
+              ("google/gemma-3-27b-it:free",              "Gemma 3 27B",    "gemma-3-27b"),
+              ("deepseek/deepseek-r1:free",               "DeepSeek R1",    "deepseek-r1"),
+              ("qwen/qwen-2.5-72b-instruct:free",         "Qwen 2.5 72B",   "qwen-2.5-72b"),
           ]
 
           os.makedirs("/tmp/model-status", exist_ok=True)
