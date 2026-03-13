@@ -47,3 +47,5 @@ jobs:
           containerAppName: ragobs-api
           resourceGroup: gpu-store-rg
           imageToDeploy: ragobsacr.azurecr.io/ragobs-api:latest
+          acrUsername: ${{ secrets.REGISTRY_USERNAME }}
+          acrPassword: ${{ secrets.REGISTRY_PASSWORD }}
