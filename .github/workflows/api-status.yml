@@ -17,7 +17,7 @@ jobs:
 
       - name: Ping API
         env:
-          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          BACKEND_URL: ${{ secrets.SERVER_URL }}
         run: |
           python3 << 'EOF'
           import json, os, urllib.request, urllib.error
