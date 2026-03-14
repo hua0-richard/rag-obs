@@ -15,7 +15,7 @@
 
 ---
 
-![Demo](demo.png)
+![Demo](demo.gif)
 
 ---
 
