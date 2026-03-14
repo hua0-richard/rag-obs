@@ -763,7 +763,7 @@ export function FlashcardsLabPage() {
             {/* Nav */}
             <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 bg-transparent">
                 <div className="text-white/40 font-medium text-sm tracking-widest uppercase font-mono">
-                    <span className="text-[hsl(var(--accent))]">Flashcards</span> <span className="text-[hsl(var(--accent))/40] mx-2">/</span> Lab
+                    <span className="text-[hsl(var(--accent))]">Flashcards</span> <span className="text-white/20 mx-2">/</span> Lab
                 </div>
                 <Button
                     variant="ghost"
@@ -1089,11 +1089,22 @@ export function FlashcardsLabPage() {
                             className="mx-auto grid w-full max-w-[1200px] grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                         >
                             {sortedDecks.length === 0 ? (
-                                <div className="col-span-full min-h-[240px] max-h-[240px] rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center text-sm text-white/40 line-clamp-2">
-                                    No decks yet. Generate flashcards from your notes to save a deck.
-                                </div>
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                                    className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center"
+                                >
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/[0.04] text-white/20 mb-1">
+                                        <Layers className="size-5" />
+                                    </div>
+                                    <p className="text-sm text-white/40">No decks yet</p>
+                                    <p className="text-xs text-white/25 max-w-[220px] leading-relaxed">
+                                        Select notes in Create Deck and generate your first flashcard set.
+                                    </p>
+                                </motion.div>
                             ) : (
-                                sortedDecks.map((deck) => {
+                                sortedDecks.map((deck, index) => {
                                     const masteryValue =
                                         typeof deck.mastery === "number" && Number.isFinite(deck.mastery)
                                             ? Math.min(100, Math.max(0, deck.mastery))
@@ -1106,13 +1117,21 @@ export function FlashcardsLabPage() {
                                     const cardLabel = `${deck.cardCount} Card${deck.cardCount === 1 ? "" : "s"}`;
 
                                     return (
-                                        <div
+                                        <motion.div
                                             key={deck.id}
-                                            className="group relative flex h-[260px] min-h-[260px] max-h-[260px] flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-[#121215]/40 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-[#121215]/80 hover:border-white/10 shadow-[0_16px_40px_-30px_rgba(0,0,0,0.8)]"
+                                            initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1], delay: index * 0.07 }}
+                                            className="group relative flex h-[260px] min-h-[260px] max-h-[260px] flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-[#121215]/40 p-6 backdrop-blur-sm cursor-pointer
+                                                       transition-all duration-300
+                                                       hover:bg-[#16161a]/90 hover:border-[hsl(var(--accent)/0.2)]
+                                                       shadow-[0_16px_40px_-30px_rgba(0,0,0,0.8)]
+                                                       hover:shadow-[0_20px_50px_-30px_rgba(0,0,0,0.9),0_0_30px_-10px_hsl(var(--accent)/0.15)]"
+                                            onClick={() => handleStudyDeck(deck)}
                                         >
                                             <div>
                                                 <div className="flex items-start justify-between mb-4">
-                                                    <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]">
+                                                    <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))] transition-colors duration-300 group-hover:bg-[hsl(var(--accent)/0.18)]">
                                                         <Layers className="size-5" />
                                                     </div>
                                                     <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest bg-white/5 px-2 py-1 rounded-full line-clamp-1 max-w-[110px]" title={cardLabel}>
@@ -1120,39 +1139,35 @@ export function FlashcardsLabPage() {
                                                     </div>
                                                 </div>
 
-                                                <h3 className="text-lg font-medium text-white mb-1 line-clamp-2 group-hover:text-[hsl(var(--accent))] transition-colors" title={deck.title}>
+                                                <h3 className="text-base font-medium text-white/90 mb-1 line-clamp-2 group-hover:text-white transition-colors duration-300" title={deck.title}>
                                                     {deck.title}
                                                 </h3>
 
-                                                <div className="flex items-center gap-3 text-xs text-white/40 mb-6 min-w-0 overflow-hidden">
+                                                <div className="flex items-center gap-2.5 text-[11px] text-white/35 mb-6 min-w-0 overflow-hidden">
                                                     <span className="flex min-w-0 items-center gap-1.5">
-                                                        <Clock className="size-3" />
-                                                        <span className="line-clamp-1" title={timeLabel}>
-                                                            {timeLabel}
-                                                        </span>
+                                                        <Clock className="size-3 flex-none" />
+                                                        <span className="line-clamp-1" title={timeLabel}>{timeLabel}</span>
                                                     </span>
-                                                    <span className="w-1 h-1 rounded-full bg-white/20 flex-none" />
+                                                    <span className="w-1 h-1 rounded-full bg-white/15 flex-none" />
                                                     <span className="line-clamp-1 min-w-0" title={notesLabel}>{notesLabel}</span>
-                                                    <span className="w-1 h-1 rounded-full bg-white/20 flex-none" />
-                                                    <span className="line-clamp-1 min-w-0" title={masteryLabel}>{masteryLabel}</span>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
-                                                <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden mr-4">
-                                                    <div
-                                                        className="h-full bg-[hsl(var(--accent))] opacity-60 rounded-full"
-                                                        style={{ width: `${masteryValue}%` }}
-                                                    />
+                                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/[0.06]">
+                                                <div className="flex-1 mr-4">
+                                                    <div className="w-full bg-white/[0.06] h-0.5 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-[hsl(var(--accent))] opacity-70 rounded-full transition-all duration-700"
+                                                            style={{ width: `${masteryValue}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="mt-1.5 text-[10px] font-mono text-white/20">{masteryLabel}</div>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleStudyDeck(deck)}
-                                                    className="flex items-center gap-2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all duration-300"
-                                                >
+                                                <div className="flex items-center gap-1.5 text-xs font-medium text-white/40 group-hover:text-white/80 translate-x-1 group-hover:translate-x-0 transition-all duration-300">
                                                     Study <ArrowRight className="size-3" />
-                                                </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        </motion.div>
                                     );
                                 })
                             )}

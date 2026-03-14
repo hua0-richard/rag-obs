@@ -165,6 +165,15 @@ body {
     -webkit-backface-visibility: hidden;
   }
 
+  /* Hide scrollbar cross-browser */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   .flashcard-markdown p {
     margin: 0;
   }

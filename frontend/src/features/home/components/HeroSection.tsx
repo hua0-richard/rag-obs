@@ -380,7 +380,7 @@ export function HeroSection() {
     };
 
     return (
-        <section className="relative z-10 flex flex-col items-center justify-center min-h-screen min-w-screen px-4 pt-20 pb-16 text-center bg-[#09090b] overflow-hidden">
+        <section className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full px-4 pt-20 pb-16 text-center bg-[#09090b] overflow-hidden">
             <style>
                 {`
                 .loading-border {
@@ -506,11 +506,13 @@ export function HeroSection() {
                     className="relative z-10 p-8 rounded-[3rem]"
                 >
                     <div className="absolute inset-0 bg-[hsl(var(--accent))/10] blur-3xl rounded-full opacity-60 group-hover:opacity-80 transition-opacity duration-1000" />
-                    <img
+                    <motion.img
                         src="/obsidian-logo.png"
                         alt="Obsidian Logo"
                         className="w-48 h-48 md:w-64 md:h-64 object-contain drop-shadow-2xl relative z-20"
                         style={{ filter: "drop-shadow(0 0 40px rgba(139, 92, 246, 0.3))" }}
+                        animate={{ y: [0, -10, 0] }}
+                        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1.4 }}
                     />
                 </motion.div>
             </div>
@@ -572,7 +574,7 @@ export function HeroSection() {
                         </div>
                     )}
                     <p className="text-white/40 text-sm md:text-base font-light tracking-wide max-w-sm mx-auto">
-                        Turn your Markdown notes into a searchable,<br /> intelligent knowledge base.
+                        Turn your Markdown notes into a searchable, intelligent knowledge base.
                     </p>
                     <p className="text-white/20 text-xs font-mono tracking-widest">
                         Powered by DeepSeek V3
@@ -670,19 +672,32 @@ export function HeroSection() {
 
                 {/* Flow */}
                 <div className="w-px h-12 md:w-24 md:h-px bg-gradient-to-b md:bg-gradient-to-r from-transparent via-white/20 to-transparent relative">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-[hsl(var(--accent))] rounded-full shadow-[0_0_10px_hsl(var(--accent))]" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <span className="absolute inset-0 h-2 w-2 rounded-full bg-[hsl(var(--accent))] animate-ping opacity-50" />
+                        <span className="relative flex h-2 w-2 rounded-full bg-[hsl(var(--accent))] shadow-[0_0_10px_hsl(var(--accent))]" />
+                    </div>
                 </div>
 
                 {/* Output */}
                 <div className="flex flex-col items-center gap-3">
-                    <div className="w-64 h-24 bg-[#18181b] border border-white/10 rounded-xl p-4 flex flex-col justify-center shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-[hsl(var(--accent))]" />
+                    <motion.div
+                        className="w-64 h-24 bg-[#18181b] rounded-xl p-4 flex flex-col justify-center shadow-2xl relative overflow-hidden"
+                        animate={{
+                            boxShadow: [
+                                "0 0 0 1px rgba(255,255,255,0.08), 0 20px 40px -16px rgba(0,0,0,0.8)",
+                                "0 0 0 1px hsl(270 95% 65% / 0.25), 0 20px 40px -16px rgba(0,0,0,0.8), 0 0 20px -6px hsl(270 95% 65% / 0.2)",
+                                "0 0 0 1px rgba(255,255,255,0.08), 0 20px 40px -16px rgba(0,0,0,0.8)",
+                            ],
+                        }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                    >
+                        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[hsl(var(--accent)/0.9)] to-transparent rounded-l-xl" />
                         <div className="flex items-center gap-2 mb-2">
                             <Sparkles className="size-3 text-[hsl(var(--accent))]" />
                             <span className="text-[10px] uppercase tracking-widest text-white/40">Recall Generated</span>
                         </div>
                         <p className="text-sm text-white/80 font-medium">What is the primary function of the hippocampus?</p>
-                    </div>
+                    </motion.div>
                     <span className="text-xs text-white/30 font-mono">flashcard</span>
                 </div>
             </motion.div>
