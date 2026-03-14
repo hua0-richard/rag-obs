@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/shared/components/ui/Button';
@@ -31,15 +31,40 @@ type ApiDeck = {
     note_count?: number | null;
 };
 
+const cardVariants = {
+    enter: (d: number) => ({
+        opacity: 0,
+        x: d * 48,
+        filter: "blur(4px)",
+    }),
+    center: {
+        opacity: 1,
+        x: 0,
+        filter: "blur(0px)",
+    },
+    exit: (d: number) => ({
+        opacity: 0,
+        x: d * -48,
+        filter: "blur(4px)",
+    }),
+};
+
+const sourcePillVariants = {
+    hidden: { opacity: 0, y: 6, scale: 0.95 },
+    visible: { opacity: 1, y: 0, scale: 1 },
+};
+
 export function FlashcardsPage() {
     const navigate = useNavigate();
     const [cards, setCards] = useState<ApiFlashcard[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [direction, setDirection] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [files, setFiles] = useState<ApiFile[]>([]);
     const [deckSourceLabel, setDeckSourceLabel] = useState<string | null>(null);
     const [deckSources, setDeckSources] = useState<NonNullable<ApiDeck["source"]>>([]);
+    const sourcesRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const sessionId = localStorage.getItem("session_id");
@@ -82,9 +107,7 @@ export function FlashcardsPage() {
                 if (selectedDeckId !== null) {
                     flashcardsUrl.searchParams.set("deck_id", String(selectedDeckId));
                 }
-                const response = await fetch(
-                    flashcardsUrl.toString()
-                );
+                const response = await fetch(flashcardsUrl.toString());
                 if (!response.ok) {
                     const detail = await response.text();
                     throw new Error(detail || "Failed to load flashcards");
@@ -134,9 +157,7 @@ export function FlashcardsPage() {
                 const response = await fetch(
                     `${import.meta.env.SERVER_URL}/flashcard-decks?session_id=${encodeURIComponent(sessionId)}`
                 );
-                if (!response.ok) {
-                    return;
-                }
+                if (!response.ok) return;
                 const data = await response.json();
                 const list: ApiDeck[] = Array.isArray(data?.decks) ? data.decks : [];
                 if (list.length > 0) {
@@ -155,7 +176,6 @@ export function FlashcardsPage() {
                 }
             } catch {
                 setDeckSources([]);
-                // Ignore deck metadata failures and fall back to file-based label.
             }
         };
 
@@ -164,52 +184,57 @@ export function FlashcardsPage() {
         fetchDecks();
     }, []);
 
+    // Keyboard navigation
+    useEffect(() => {
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === "ArrowRight") handleNext();
+            if (e.key === "ArrowLeft") handlePrev();
+        };
+        window.addEventListener("keydown", handleKey);
+        return () => window.removeEventListener("keydown", handleKey);
+    });
+
     const handleNext = () => {
-        if (currentIndex < cards.length - 1) {
+        if (cards.length > 0 && currentIndex < cards.length - 1) {
+            setDirection(1);
             setCurrentIndex(prev => prev + 1);
         }
     };
 
     const handlePrev = () => {
         if (currentIndex > 0) {
+            setDirection(-1);
             setCurrentIndex(prev => prev - 1);
         }
     };
 
     const hasCards = cards.length > 0;
+
     const formatFilename = (value: string | null) => {
-        if (!value) {
-            return "Untitled";
-        }
+        if (!value) return "Untitled";
         const trimmed = value.trim();
-        if (!trimmed) {
-            return "Untitled";
-        }
+        if (!trimmed) return "Untitled";
         return trimmed.split(/[\\/]/).pop() ?? trimmed;
     };
+
     const uniqueDeckSources = (() => {
         const seen = new Set<string>();
         const unique: NonNullable<ApiDeck["source"]> = [];
         for (const source of deckSources) {
-            if (!source || typeof source.filename !== "string") {
-                continue;
-            }
+            if (!source || typeof source.filename !== "string") continue;
             const name = source.filename.trim();
-            if (!name) {
-                continue;
-            }
+            if (!name) continue;
             const key =
                 typeof source.id === "number" && Number.isFinite(source.id)
                     ? `id:${source.id}`
                     : `name:${name}`;
-            if (seen.has(key)) {
-                continue;
-            }
+            if (seen.has(key)) continue;
             seen.add(key);
             unique.push(source);
         }
         return unique;
     })();
+
     const deckSourceNames = uniqueDeckSources
         .map((source) => source.filename)
         .filter((name): name is string => typeof name === "string" && name.trim().length > 0);
@@ -225,53 +250,87 @@ export function FlashcardsPage() {
     return (
         <div className="min-h-screen w-screen bg-[#09090b] flex flex-col relative overflow-hidden selection:bg-white/10 selection:text-white">
 
-            {/* Ambient Vignette - Very subtle, static */}
+            {/* Ambient vignette */}
             <div className="absolute inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.0)_70%)]" />
 
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 bg-transparent">
-                <div className="text-white/40 font-medium text-sm tracking-widest uppercase font-mono">
-                    <span className="text-[hsl(var(--accent))]">{deckLabel}</span> <span className="text-[hsl(var(--accent))/40] mx-2">/</span> {deckSubtitle}
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 py-5 sm:py-6">
+                <div className="flex items-center gap-2 min-w-0 font-mono text-sm font-medium tracking-widest uppercase">
+                    <span className="text-[hsl(var(--accent))] truncate max-w-[40vw] sm:max-w-[55vw]" title={deckLabel}>
+                        {deckLabel}
+                    </span>
+                    <span className="text-white/20 flex-shrink-0">/</span>
+                    <span className="text-white/40 flex-shrink-0">{deckSubtitle}</span>
                 </div>
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => navigate('/upload')}
-                    className="text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-300"
+                    className="flex-shrink-0 text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-300"
                 >
                     <X className="size-5" />
                 </Button>
             </nav>
 
-            <main className="flex-1 flex flex-col items-center justify-center w-full px-4 md:px-8 relative z-10">
-                {uniqueDeckSources.length > 0 ? (
-                    <div className="mb-6 flex flex-nowrap items-center gap-2 overflow-x-auto pb-2 text-[10px] uppercase tracking-widest font-mono text-white/30 sm:flex-wrap sm:justify-center sm:overflow-visible sm:pb-0">
-                        <span className="mr-1 text-white/20 flex-none">Sources</span>
-                        {uniqueDeckSources.map((source, index) => (
-                            <span
-                                key={source.id ?? source.filename ?? `source-${index}`}
-                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] normal-case tracking-normal text-white/60 whitespace-nowrap flex-none"
-                                title={source.filename ?? undefined}
-                            >
-                                {formatFilename(source.filename ?? null)}
-                            </span>
-                        ))}
-                    </div>
-                ) : null}
+            <main className="flex-1 flex flex-col items-center justify-center w-full px-4 md:px-8 relative z-10 pt-20 pb-4">
 
-                {/* Card Container */}
-                <div className="w-full flex justify-center mb-16 relative perspective-1000">
-                    <AnimatePresence mode='wait'>
+                {/* Sources */}
+                <AnimatePresence>
+                    {uniqueDeckSources.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                            className="relative w-full max-w-3xl mb-4 sm:mb-6"
+                        >
+                            {/* Fade edges for horizontal scroll */}
+                            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-[#09090b] to-transparent z-10 pointer-events-none rounded-l" />
+                            <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[#09090b] to-transparent z-10 pointer-events-none rounded-r" />
+
+                            <motion.div
+                                ref={sourcesRef}
+                                className="flex items-center gap-2 overflow-x-auto px-2 pb-1 scrollbar-none"
+                                initial="hidden"
+                                animate="visible"
+                                variants={{ visible: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } }}
+                            >
+                                <motion.span
+                                    variants={sourcePillVariants}
+                                    transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                                    className="flex-none text-[10px] uppercase tracking-[0.2em] font-mono text-white/25 pr-1"
+                                >
+                                    Sources
+                                </motion.span>
+                                {uniqueDeckSources.map((source, index) => (
+                                    <motion.span
+                                        key={source.id ?? source.filename ?? `source-${index}`}
+                                        variants={sourcePillVariants}
+                                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                                        className="flex-none rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-mono text-white/50 whitespace-nowrap"
+                                        title={source.filename ?? undefined}
+                                    >
+                                        {formatFilename(source.filename ?? null)}
+                                    </motion.span>
+                                ))}
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Card */}
+                <div className="w-full flex justify-center mb-6 sm:mb-10 relative">
+                    <AnimatePresence mode="wait" custom={direction}>
                         {isLoading ? (
                             <motion.div
                                 key="loading"
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
-                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.3 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4">
+                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4">
                                     <div className="relative h-8 w-8">
                                         <div className="absolute inset-0 rounded-full border-2 border-white/5" />
                                         <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[hsl(var(--accent)/0.8)] animate-spin" />
@@ -282,29 +341,40 @@ export function FlashcardsPage() {
                         ) : error ? (
                             <motion.div
                                 key="error"
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
-                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                custom={direction}
+                                variants={cardVariants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
+                                transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex items-center justify-center text-white/40 px-10 text-center">
-                                    {error}
+                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
+                                    <p className="text-white/40 text-sm">{error}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate("/upload")}
+                                        className="text-sm text-[hsl(var(--accent))] hover:text-white transition-colors duration-200"
+                                    >
+                                        Go to upload →
+                                    </button>
                                 </div>
                             </motion.div>
                         ) : !hasCards ? (
                             <motion.div
                                 key="empty"
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
-                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                custom={direction}
+                                variants={cardVariants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
+                                transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
+                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
                                     {loadDecks().length === 0 ? (
                                         <>
-                                            <p className="text-white/40">No flashcards yet.</p>
+                                            <p className="text-white/40 text-sm">No flashcards yet.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => navigate("/upload")}
@@ -315,7 +385,7 @@ export function FlashcardsPage() {
                                         </>
                                     ) : (
                                         <>
-                                            <p className="text-white/40">No flashcards found for this deck.</p>
+                                            <p className="text-white/40 text-sm">No flashcards found for this deck.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => navigate("/flashcards-lab")}
@@ -330,10 +400,12 @@ export function FlashcardsPage() {
                         ) : (
                             <motion.div
                                 key={cards[currentIndex]?.id ?? currentIndex}
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
-                                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                                custom={direction}
+                                variants={cardVariants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
+                                transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
                                 <Flashcard
@@ -345,32 +417,44 @@ export function FlashcardsPage() {
                     </AnimatePresence>
                 </div>
 
-                {/* Controls - Quieter, aligned below */}
-                <div className="flex items-center gap-12 z-20">
+                {/* Controls */}
+                <div className="flex items-center gap-6 sm:gap-12 z-20">
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={handlePrev}
                         disabled={!hasCards || currentIndex === 0}
-                        className="h-14 w-14 rounded-full bg-[#18181b] 
+                        className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#18181b]
                                    border border-white/5 border-t-white/10
                                    shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)]
-                                   hover:scale-105 hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)] 
+                                   hover:scale-105 hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)]
                                    hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)]
                                    active:scale-95 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]
                                    disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100
-                                   transition-all duration-200 ease-out group relative z-20"
+                                   transition-all duration-200 ease-out group"
                     >
-                        <ChevronLeft className="size-6 text-white/40 group-hover:text-white transition-colors" />
+                        <ChevronLeft className="size-5 sm:size-6 text-white/40 group-hover:text-white transition-colors" />
                     </Button>
 
-                    <div className="text-white/20 text-xs font-mono tracking-widest uppercase">
+                    {/* Animated counter */}
+                    <div className="w-16 flex items-center justify-center text-xs font-mono tracking-widest uppercase text-white/20">
                         {hasCards ? (
-                            <>
-                                <span className="text-[hsl(var(--accent))]">{currentIndex + 1}</span>
-                                <span className="mx-1 opacity-50">/</span>
-                                {cards.length}
-                            </>
+                            <span className="flex items-center gap-1">
+                                <AnimatePresence mode="wait" initial={false}>
+                                    <motion.span
+                                        key={currentIndex}
+                                        initial={{ opacity: 0, y: direction > 0 ? 8 : -8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: direction > 0 ? -8 : 8 }}
+                                        transition={{ duration: 0.18, ease: "easeOut" }}
+                                        className="text-[hsl(var(--accent))] inline-block w-5 text-center"
+                                    >
+                                        {currentIndex + 1}
+                                    </motion.span>
+                                </AnimatePresence>
+                                <span className="opacity-40">/</span>
+                                <span>{cards.length}</span>
+                            </span>
                         ) : (
                             <span className="opacity-30">— / —</span>
                         )}
@@ -381,18 +465,28 @@ export function FlashcardsPage() {
                         size="icon"
                         onClick={handleNext}
                         disabled={!hasCards || currentIndex === cards.length - 1}
-                        className="h-14 w-14 rounded-full bg-[#18181b] 
+                        className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#18181b]
                                    border border-white/5 border-t-white/10
                                    shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)]
-                                   hover:scale-105 hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)] 
+                                   hover:scale-105 hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)]
                                    hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)]
                                    active:scale-95 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]
                                    disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100
-                                   transition-all duration-200 ease-out group relative z-20"
+                                   transition-all duration-200 ease-out group"
                     >
-                        <ChevronRight className="size-6 text-white/40 group-hover:text-white transition-colors" />
+                        <ChevronRight className="size-5 sm:size-6 text-white/40 group-hover:text-white transition-colors" />
                     </Button>
                 </div>
+
+                {/* Keyboard hint — desktop only */}
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 1.2, duration: 0.6 }}
+                    className="hidden sm:block mt-6 text-[10px] font-mono text-white/15 tracking-widest uppercase"
+                >
+                    ← → to navigate · click card to flip
+                </motion.p>
             </main>
         </div>
     );

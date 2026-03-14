@@ -112,50 +112,45 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
 
     return (
         <motion.div
-            className={cn("perspective-1000 w-full max-w-3xl h-96 cursor-pointer group relative z-10", className)}
+            className={cn("perspective-1000 w-full max-w-3xl cursor-pointer group relative z-10", className)}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             onClick={handleFlip}
             style={{
                 rotateX,
                 rotateY,
-                transformStyle: "preserve-3d"
+                transformStyle: "preserve-3d",
+                height: "clamp(260px, 42vh, 384px)",
             }}
         >
             <motion.div
                 className="relative w-full h-full text-center transform-style-3d will-change-transform"
                 initial={false}
                 animate={{ rotateX: isFlipped ? 180 : 0 }}
-                transition={{
-                    duration: 0.2,
-                    ease: "linear"
-                }}
+                transition={{ duration: 0.2, ease: "linear" }}
                 onAnimationComplete={() => setIsAnimating(false)}
             >
                 {/* Front */}
                 <div className="absolute inset-0 w-full h-full backface-hidden">
-                    <div className="relative flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
+                    <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:p-10 bg-[#18181b]
                                     border border-white/10 rounded-2xl overflow-hidden
-                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
+                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)]
                                     group-hover:border-[hsl(var(--accent)_/_0.22)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_26px_60px_-26px_rgba(0,0,0,0.75),0_0_30px_-8px_hsl(var(--accent)_/_0.35)]
                                     transition-all duration-300">
 
                         <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-[hsl(var(--accent)/0.8)] to-transparent" />
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.06),transparent_45%)] pointer-events-none" />
-
-                        {/* Top sheen */}
                         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent opacity-70" />
 
-                        <div className="max-h-48 overflow-y-auto pr-2">
+                        <div className="w-full max-h-[55%] overflow-y-auto px-1 flex items-center justify-center">
                             <MarkdownContent
                                 content={front}
-                                className="text-2xl md:text-3xl font-medium text-white/90 select-none tracking-tight"
+                                className="text-xl sm:text-2xl md:text-3xl font-medium text-white/90 select-none tracking-tight text-center"
                             />
                         </div>
 
-                        {/* Minimal hint */}
-                        <div className="absolute bottom-6 text-white/10 text-xs font-mono uppercase tracking-[0.2em] group-hover:text-[hsl(var(--accent))/60] transition-colors">
-                            Click to reveal
+                        <div className="absolute bottom-4 sm:bottom-6 text-white/10 text-[10px] font-mono uppercase tracking-[0.2em] group-hover:text-[hsl(var(--accent))/60] transition-colors">
+                            Tap to reveal
                         </div>
                     </div>
                 </div>
@@ -165,29 +160,27 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                     className="absolute inset-0 w-full h-full backface-hidden"
                     style={{ transform: "rotateX(180deg)" }}
                 >
-                    <div className="relative flex flex-col items-center justify-center w-full h-full p-10 bg-[#18181b] 
+                    <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:p-10 bg-[#18181b]
                                     border border-[hsl(var(--accent)_/_0.22)] rounded-2xl overflow-hidden
-                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)] 
-                                    relative">
+                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)]">
 
-                        {/* Soft ambient glow */}
                         <div className="absolute inset-0 bg-[hsl(var(--accent))/5] pointer-events-none" />
                         <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-[hsl(var(--accent)/0.8)] to-transparent" />
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_45%)] pointer-events-none" />
 
-                        <div className="max-h-48 overflow-y-auto pr-2 relative z-10">
+                        <div className="w-full max-h-[55%] overflow-y-auto px-1 flex items-center justify-center relative z-10">
                             <MarkdownContent
                                 content={back}
-                                className="text-xl md:text-2xl text-white/80 leading-relaxed select-none font-normal"
+                                className="text-base sm:text-xl md:text-2xl text-white/80 leading-relaxed select-none font-normal text-center"
                             />
                         </div>
 
-                        <div className="absolute bottom-6 text-[hsl(var(--accent))/60] text-xs font-mono uppercase tracking-[0.2em]">
+                        <div className="absolute bottom-4 sm:bottom-6 text-[hsl(var(--accent))/60] text-[10px] font-mono uppercase tracking-[0.2em]">
                             Answer
                         </div>
                     </div>
                 </div>
             </motion.div>
-        </motion.div >
+        </motion.div>
     );
 }
