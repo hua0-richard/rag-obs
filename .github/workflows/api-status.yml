@@ -1,0 +1,73 @@
+name: API Status
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # every 5 minutes (keep-alive + status)
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ping API
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          python3 << 'EOF'
+          import json, os, urllib.request, urllib.error
+
+          URL = os.environ["BACKEND_URL"]
+
+          os.makedirs("/tmp/server-status", exist_ok=True)
+
+          try:
+              req = urllib.request.Request(URL)
+              with urllib.request.urlopen(req, timeout=10) as resp:
+                  body = json.loads(resp.read())
+              if body.get("status") == "ok":
+                  message, color = "online", "brightgreen"
+              else:
+                  message, color = "degraded", "yellow"
+          except Exception as e:
+              print(f"  Error: {e}")
+              message, color = "offline", "red"
+
+          status = {
+              "schemaVersion": 1,
+              "label": "API",
+              "message": message,
+              "color": color,
+              "namedLogo": "microsoftazure",
+              "logoColor": "white",
+          }
+          with open("/tmp/server-status/api.json", "w") as f:
+              json.dump(status, f, indent=2)
+          print(f"API: {message}")
+          EOF
+
+      - name: Push to status branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin
+
+          if git ls-remote --exit-code origin status; then
+            git checkout status
+          else
+            git checkout --orphan status
+            git rm -rf . --quiet
+          fi
+
+          mkdir -p server-status
+          cp /tmp/server-status/*.json server-status/
+
+          git add server-status/
+          git diff --staged --quiet || git commit -m "chore: update api status [skip ci]"
+          git push origin status
