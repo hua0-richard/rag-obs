@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { FileText, Sparkles, UploadCloud, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { buildDeckTitle, upsertDeck } from "@/features/flashcards/utils/flashcardDecks";
+import { buildDeckTitle, loadDecks, upsertDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
 
 const LogoStreaks = () => {
@@ -61,6 +61,8 @@ export function HeroSection() {
     const [isUploading, setIsUploading] = useState(false);
     const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
     const selectedDeckKey = (sid: string) => `flashcards_selected_deck_id:${sid}`;
+    const existingDecks = loadDecks();
+    const isReturningUser = existingDecks.length > 0;
     const [isSessionLoading, setIsSessionLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
@@ -158,6 +160,7 @@ export function HeroSection() {
             const fileList = Array.from(files);
             const fileNames = fileList.map((file) => file.name);
             const embeddedFilenames: string[] = [];
+            const embeddedFileIds: number[] = [];
             const formData = new FormData();
 
             fileList.forEach((file) => {
@@ -247,6 +250,9 @@ export function HeroSection() {
                                     if (payload.filename) {
                                         embeddedFilenames.push(payload.filename);
                                     }
+                                    if (typeof payload.file_id === "number") {
+                                        embeddedFileIds.push(payload.file_id);
+                                    }
                                     embeddedCount += 1;
                                     setPulseComplete(true);
                                     if (pulseTimeoutRef.current) {
@@ -308,7 +314,9 @@ export function HeroSection() {
                         if (!activeSessionId) {
                             throw new Error("Missing session id for flashcard generation.");
                         }
-                        const llmUrl = `${import.meta.env.SERVER_URL}/llm?session_id=${encodeURIComponent(activeSessionId)}`;
+                        const llmParams = new URLSearchParams({ session_id: activeSessionId });
+                        embeddedFileIds.forEach((id) => llmParams.append("file_ids", String(id)));
+                        const llmUrl = `${import.meta.env.SERVER_URL}/llm?${llmParams.toString()}`;
                         const llmResponse = await fetch(llmUrl);
                         if (!llmResponse.ok) {
                             const detail = await llmResponse.text();
@@ -359,6 +367,7 @@ export function HeroSection() {
                         setLoadingMessage(message);
                     } finally {
                         setIsGeneratingFlashcards(false);
+                        navigate("/flashcards-lab", { replace: true });
                     }
                 }
             } catch (error) {
@@ -515,17 +524,28 @@ export function HeroSection() {
             >
                 <div className="space-y-4">
                     {totalFiles === 0 ? (
-                        <Button
-                            size="lg"
-                            disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
-                            className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group disabled:cursor-not-allowed disabled:hover:scale-100"
-                            onClick={handleUploadClick}
-                        >
-                            <UploadCloud className="mr-2 size-5 text-[hsl(var(--accent))]" />
-                            <span className="text-white font-medium">
-                                {isSessionLoading ? "Initializing session..." : "Upload your .md notes"}
-                            </span>
-                        </Button>
+                        <div className="flex flex-col items-center gap-3">
+                            <Button
+                                size="lg"
+                                disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
+                                className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group disabled:cursor-not-allowed disabled:hover:scale-100"
+                                onClick={handleUploadClick}
+                            >
+                                <UploadCloud className="mr-2 size-5 text-[hsl(var(--accent))]" />
+                                <span className="text-white font-medium">
+                                    {isSessionLoading ? "Initializing session..." : "Upload your .md notes"}
+                                </span>
+                            </Button>
+                            {isReturningUser && (
+                                <button
+                                    type="button"
+                                    onClick={() => navigate("/flashcards-lab")}
+                                    className="text-sm text-white/40 hover:text-white/70 transition-colors duration-200 font-mono tracking-wide"
+                                >
+                                    View your {existingDecks.length} existing deck{existingDecks.length !== 1 ? "s" : ""} →
+                                </button>
+                            )}
+                        </div>
                     ) : (
                         <div className="group luminous-btn inline-flex h-14 items-center rounded-full overflow-hidden">
                             <button
@@ -542,7 +562,7 @@ export function HeroSection() {
                             <div className="h-10 w-[2px] bg-white/55 shadow-[0_0_10px_rgba(255,255,255,0.18)]" />
                             <button
                                 type="button"
-                                onClick={() => navigate("/flashcards")}
+                                onClick={() => navigate("/flashcards-lab")}
                                 disabled={isUploading || isGeneratingFlashcards || completedFiles < totalFiles}
                                 className="group inline-flex h-14 items-center rounded-r-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-40"
                             >

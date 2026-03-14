@@ -243,7 +243,7 @@ async def stream_document_upload(
                     # Commit per file so embeddings persist even if the stream is interrupted.
                     db.commit()
 
-                    payload = {"status": "embedded", "filename": filename}
+                    payload = {"status": "embedded", "filename": filename, "file_id": file_row.id}
                     yield f"data: {_json_dumps(payload)}\n\n"
                 except Exception as e:
                     try:

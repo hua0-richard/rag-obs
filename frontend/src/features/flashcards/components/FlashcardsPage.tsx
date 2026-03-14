@@ -297,8 +297,30 @@ export function FlashcardsPage() {
                                 transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex items-center justify-center text-white/40 px-10 text-center">
-                                    No flashcards found for this session.
+                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
+                                    {loadDecks().length === 0 ? (
+                                        <>
+                                            <p className="text-white/40">No flashcards yet.</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate("/upload")}
+                                                className="text-sm text-[hsl(var(--accent))] hover:text-white transition-colors duration-200"
+                                            >
+                                                Upload your notes to get started →
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="text-white/40">No flashcards found for this deck.</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate("/flashcards-lab")}
+                                                className="text-sm text-[hsl(var(--accent))] hover:text-white transition-colors duration-200"
+                                            >
+                                                Select a different deck →
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </motion.div>
                         ) : (
@@ -339,7 +361,15 @@ export function FlashcardsPage() {
                     </Button>
 
                     <div className="text-white/20 text-xs font-mono tracking-widest uppercase">
-                        <span className="text-[hsl(var(--accent))]">{hasCards ? currentIndex + 1 : 0}</span> <span className="mx-1 opacity-50">/</span> {cards.length}
+                        {hasCards ? (
+                            <>
+                                <span className="text-[hsl(var(--accent))]">{currentIndex + 1}</span>
+                                <span className="mx-1 opacity-50">/</span>
+                                {cards.length}
+                            </>
+                        ) : (
+                            <span className="opacity-30">— / —</span>
+                        )}
                     </div>
 
                     <Button

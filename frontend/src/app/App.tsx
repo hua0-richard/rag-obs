@@ -1,48 +1,13 @@
-import { useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import { AmbientBackground } from '@/features/home/components/AmbientBackground';
 import { HeroSection } from '@/features/home/components/HeroSection';
 import { FlashcardsPage } from '@/features/flashcards/components/FlashcardsPage';
 import { FlashcardsLabPage } from '@/features/flashcards/components/FlashcardsLabPage';
+import { loadDecks } from '@/features/flashcards/utils/flashcardDecks';
 
 function RootRedirect() {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const sessionId = localStorage.getItem("session_id");
-    if (!sessionId) {
-      navigate("/upload", { replace: true });
-      return;
-    }
-
-    let isActive = true;
-    const validateSession = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
-        );
-        if (!response.ok) {
-          if (response.status === 404 || response.status === 422) {
-            localStorage.removeItem("session_id");
-          }
-          if (isActive) navigate("/upload", { replace: true });
-          return;
-        }
-        if (isActive) {
-          navigate("/flashcards-lab", { replace: true });
-        }
-      } catch {
-        if (isActive) navigate("/upload", { replace: true });
-      }
-    };
-
-    validateSession();
-    return () => {
-      isActive = false;
-    };
-  }, [navigate]);
-
-  return null;
+  const hasDecks = loadDecks().length > 0;
+  return <Navigate to={hasDecks ? "/flashcards-lab" : "/upload"} replace />;
 }
 
 function UploadPage() {
