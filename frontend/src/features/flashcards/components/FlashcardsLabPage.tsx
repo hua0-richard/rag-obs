@@ -164,8 +164,8 @@ export function FlashcardsLabPage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [generateError, setGenerateError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState<string | null>(null);
-    const [uploadIsError, setUploadIsError] = useState(false);
+    const [_uploadStatus, setUploadStatus] = useState<string | null>(null);
+    const [_uploadIsError, setUploadIsError] = useState(false);
     const [embeddingModel, setEmbeddingModel] = useState<EmbeddingModelOption>("default");
     const [_embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2"); // eslint-disable-line @typescript-eslint/no-unused-vars
     const [flashcardAmount, setFlashcardAmount] = useState<FlashcardAmountOption>("medium");
@@ -1077,7 +1077,7 @@ export function FlashcardsLabPage() {
                                     </p>
                                 </div>
                             ) : (
-                                sortedDecks.map((deck, index) => {
+                                sortedDecks.map((deck) => {
                                     const masteryValue =
                                         typeof deck.mastery === "number" && Number.isFinite(deck.mastery)
                                             ? Math.min(100, Math.max(0, deck.mastery))
