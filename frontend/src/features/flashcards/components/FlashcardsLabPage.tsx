@@ -1117,11 +1117,8 @@ export function FlashcardsLabPage() {
                                     const cardLabel = `${deck.cardCount} Card${deck.cardCount === 1 ? "" : "s"}`;
 
                                     return (
-                                        <motion.div
+                                        <div
                                             key={deck.id}
-                                            initial={{ opacity: 0, y: 20, scale: 0.97 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1], delay: index * 0.07 }}
                                             className="group relative flex h-[260px] min-h-[260px] max-h-[260px] flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-[#121215]/40 p-6 backdrop-blur-sm cursor-pointer
                                                        transition-all duration-300
                                                        hover:bg-[#16161a]/90 hover:border-[hsl(var(--accent)/0.2)]
@@ -1167,7 +1164,7 @@ export function FlashcardsLabPage() {
                                                     Study <ArrowRight className="size-3" />
                                                 </div>
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     );
                                 })
                             )}

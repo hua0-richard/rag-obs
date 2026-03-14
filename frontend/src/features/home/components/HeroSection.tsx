@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/shared/components/ui/Button";
-import { FileText, Sparkles, UploadCloud, X } from "lucide-react";
+import { UploadCloud, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, upsertDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
@@ -380,7 +379,7 @@ export function HeroSection() {
     };
 
     return (
-        <section className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full px-4 pt-20 pb-16 text-center bg-[#09090b] overflow-hidden">
+        <section className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full px-4 text-center bg-[#09090b] overflow-hidden">
             <style>
                 {`
                 .loading-border {
@@ -388,116 +387,78 @@ export function HeroSection() {
                     box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2);
                     animation: borderPulse 2.2s ease-in-out infinite;
                 }
-
                 .completion-pulse {
                     animation: completionPulse 0.9s ease-out;
                 }
-
                 .status-shell {
                     background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) padding-box,
                         linear-gradient(135deg, hsl(var(--accent) / 0.45), transparent 60%, hsl(var(--accent) / 0.2)) border-box;
                     border: 1px solid transparent;
                 }
-
                 .status-glow {
                     animation: glowPulse 3s ease-in-out infinite;
                 }
-
                 .status-sheen {
-                    background: linear-gradient(
-                        120deg,
-                        transparent 0%,
-                        rgba(255,255,255,0.12) 45%,
-                        rgba(255,255,255,0.03) 55%,
-                        transparent 100%
-                    );
+                    background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.03) 55%, transparent 100%);
                     animation: sheenSweep 2.8s ease-in-out infinite;
                 }
-
                 .status-card {
-                    background: radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 45%),
-                        #18181b;
+                    background: radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 45%), #18181b;
                     border: 1px solid rgba(255,255,255,0.08);
                 }
-
                 .accent-strip {
                     background: linear-gradient(180deg, hsl(var(--accent) / 0.9), transparent 90%);
                 }
-
                 .progress-flow {
-                    background: linear-gradient(
-                        90deg,
-                        hsl(var(--accent) / 0.15),
-                        hsl(var(--accent) / 0.65),
-                        hsl(var(--accent) / 0.15)
-                    );
+                    background: linear-gradient(90deg, hsl(var(--accent) / 0.15), hsl(var(--accent) / 0.65), hsl(var(--accent) / 0.15));
                     animation: progressSweep 1.6s ease-in-out infinite;
                 }
-
                 @keyframes borderPulse {
-                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
-                    50% { box-shadow: 0 0 14px 2px hsl(var(--accent) / 0.45); }
+                    0%   { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
+                    50%  { box-shadow: 0 0 14px 2px hsl(var(--accent) / 0.45); }
                     100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
                 }
-
                 @keyframes completionPulse {
-                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.6); }
+                    0%   { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.6); }
                     100% { box-shadow: 0 0 0 18px transparent; }
                 }
-
                 @keyframes glowPulse {
-                    0% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
-                    50% { box-shadow: 0 0 36px hsl(var(--accent) / 0.25); }
+                    0%   { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
+                    50%  { box-shadow: 0 0 36px hsl(var(--accent) / 0.25); }
                     100% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
                 }
-
                 @keyframes sheenSweep {
-                    0% { transform: translateX(-120%); opacity: 0; }
-                    30% { opacity: 0.7; }
-                    60% { opacity: 0.4; }
+                    0%   { transform: translateX(-120%); opacity: 0; }
+                    30%  { opacity: 0.7; }
+                    60%  { opacity: 0.4; }
                     100% { transform: translateX(120%); opacity: 0; }
                 }
-
                 @keyframes progressSweep {
-                    0% { transform: translateX(-40%); opacity: 0.4; }
-                    50% { transform: translateX(40%); opacity: 0.9; }
-                    100% { transform: translateX(140%); opacity: 0.4; }
+                    0%   { transform: translateX(-40%);  opacity: 0.4; }
+                    50%  { transform: translateX(40%);   opacity: 0.9; }
+                    100% { transform: translateX(140%);  opacity: 0.4; }
                 }
-
                 @keyframes toastIn {
-                    0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
+                    0%   { opacity: 0; transform: translateY(-10px) scale(0.98); }
                     100% { opacity: 1; transform: translateY(0) scale(1); }
                 }
-
                 @keyframes toastOut {
-                    0% { opacity: 1; transform: translateY(0) scale(1); }
+                    0%   { opacity: 1; transform: translateY(0) scale(1); }
                     100% { opacity: 0; transform: translateY(-8px) scale(0.98); }
                 }
-
-                .toast-enter {
-                    animation: toastIn 320ms ease-out;
-                }
-
-                .toast-exit {
-                    animation: toastOut 320ms ease-in;
-                }
-
+                .toast-enter { animation: toastIn 320ms ease-out; }
+                .toast-exit  { animation: toastOut 320ms ease-in; }
                 @media (prefers-reduced-motion: reduce) {
-                    .loading-border,
-                    .completion-pulse,
-                    .status-glow,
-                    .status-sheen,
-                    .progress-flow,
-                    .toast-enter,
-                    .toast-exit {
+                    .loading-border, .completion-pulse, .status-glow,
+                    .status-sheen, .progress-flow, .toast-enter, .toast-exit {
                         animation: none !important;
                     }
                 }
                 `}
             </style>
 
-            {/* Central Focal Point */}
-            <div className="relative z-10 mb-12 group perspective-1000">
+            {/* Logo */}
+            <div className="relative z-10 mb-10 group perspective-1000">
                 <LogoStreaks />
                 <motion.div
                     initial={{ scale: 0.8, opacity: 0, rotateX: 20 }}
@@ -517,190 +478,104 @@ export function HeroSection() {
                 </motion.div>
             </div>
 
-            {/* CTA Section */}
+            {/* CTA */}
             <motion.div
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-                className="relative z-20 space-y-8 max-w-2xl mx-auto"
+                transition={{ duration: 0.7, delay: 0.35 }}
+                className="relative z-20 flex flex-col items-center gap-5"
             >
-                <div className="space-y-4">
-                    {totalFiles === 0 ? (
-                        <div className="flex flex-col items-center gap-3">
-                            <Button
-                                size="lg"
-                                disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
-                                className="h-14 px-8 text-lg rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 hover:scale-105 group disabled:cursor-not-allowed disabled:hover:scale-100"
-                                onClick={handleUploadClick}
-                            >
-                                <UploadCloud className="mr-2 size-5 text-[hsl(var(--accent))]" />
-                                <span className="text-white font-medium">
-                                    {isSessionLoading ? "Initializing session..." : "Upload your .md notes"}
-                                </span>
-                            </Button>
-                            {isReturningUser && (
+                <button
+                    type="button"
+                    onClick={handleUploadClick}
+                    disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
+                    className="luminous-btn h-13 px-10 text-sm font-medium flex items-center gap-2.5 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed"
+                >
+                    <UploadCloud className="size-4" />
+                    {isSessionLoading ? "Initializing…" : "Upload notes"}
+                </button>
+
+                {isReturningUser && (
+                    <button
+                        type="button"
+                        onClick={() => navigate("/flashcards-lab")}
+                        className="text-xs text-white/30 hover:text-white/60 transition-colors duration-200 font-mono tracking-wide"
+                    >
+                        {existingDecks.length} saved deck{existingDecks.length !== 1 ? "s" : ""} — open lab →
+                    </button>
+                )}
+
+                <p className="text-white/30 text-sm font-light tracking-wide max-w-[260px] leading-relaxed">
+                    Upload Markdown notes and get a flashcard deck instantly.
+                </p>
+            </motion.div>
+
+            {/* Hidden File Input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept=".md,.markdown,.txt"
+                multiple
+            />
+
+            {/* Toast */}
+            {showToast ? (
+                <div
+                    className="fixed right-6 top-6 z-50 w-[min(84vw,320px)]"
+                    role="status"
+                    aria-live="polite"
+                    onMouseEnter={() => setIsHoveringToast(true)}
+                    onMouseLeave={() => setIsHoveringToast(false)}
+                    onFocusCapture={() => setIsHoveringToast(true)}
+                    onBlurCapture={() => setIsHoveringToast(false)}
+                >
+                    <div
+                        className={`status-shell status-glow relative overflow-hidden rounded-[18px] ${
+                            isUploading || isGeneratingFlashcards ? "loading-border" : ""
+                        } ${pulseComplete ? "completion-pulse" : ""} ${
+                            isClosing ? "toast-exit" : "toast-enter"
+                        }`}
+                    >
+                        <div className="absolute inset-0 status-sheen pointer-events-none" />
+                        <div className="status-card relative rounded-[16px] px-4 py-3 text-left text-sm text-white/80 backdrop-blur-xl">
+                            <div className="accent-strip absolute left-0 top-0 h-full w-1.5" />
+                            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.24em] text-white/45">
+                                <span>{isGeneratingFlashcards ? "Flashcards" : "Embedding"}</span>
                                 <button
                                     type="button"
-                                    onClick={() => navigate("/flashcards-lab")}
-                                    className="text-sm text-white/40 hover:text-white/70 transition-colors duration-200 font-mono tracking-wide"
+                                    onClick={closeToast}
+                                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] tracking-[0.16em] text-white/50 transition hover:text-white"
                                 >
-                                    View your {existingDecks.length} existing deck{existingDecks.length !== 1 ? "s" : ""} →
+                                    <span>Close</span>
+                                    <X className="size-3" />
                                 </button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="group luminous-btn inline-flex h-14 items-center rounded-full overflow-hidden">
-                            <button
-                                type="button"
-                                onClick={handleUploadClick}
-                                disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
-                                className="inline-flex h-14 items-center gap-2 rounded-l-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <UploadCloud className="size-5 text-white drop-shadow-[0_0_8px_hsl(var(--accent)/0.8)]" />
-                                <span className="font-medium">
-                                    {isSessionLoading ? "Initializing..." : "Upload"}
-                                </span>
-                            </button>
-                            <div className="h-10 w-[2px] bg-white/55 shadow-[0_0_10px_rgba(255,255,255,0.18)]" />
-                            <button
-                                type="button"
-                                onClick={() => navigate("/flashcards-lab")}
-                                disabled={isUploading || isGeneratingFlashcards || completedFiles < totalFiles}
-                                className="group inline-flex h-14 items-center rounded-r-full px-8 text-lg text-white font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))/35] disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                Flashcards
-                                <span className="ml-2 text-white/70 transition-transform duration-300 group-hover:translate-x-1">→</span>
-                            </button>
-                        </div>
-                    )}
-                    <p className="text-white/40 text-sm md:text-base font-light tracking-wide max-w-sm mx-auto">
-                        Turn your Markdown notes into a searchable, intelligent knowledge base.
-                    </p>
-                    <p className="text-white/20 text-xs font-mono tracking-widest">
-                        Powered by DeepSeek V3
-                    </p>
-                </div>
-
-                {/* Hidden File Input */}
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept=".md,.markdown,.txt"
-                    multiple
-                />
-
-                {showToast ? (
-                    <div
-                        className="fixed right-6 top-6 z-50 w-[min(84vw,320px)]"
-                        role="status"
-                        aria-live="polite"
-                        onMouseEnter={() => setIsHoveringToast(true)}
-                        onMouseLeave={() => setIsHoveringToast(false)}
-                        onFocusCapture={() => setIsHoveringToast(true)}
-                        onBlurCapture={() => setIsHoveringToast(false)}
-                    >
-                        <div
-                            className={`status-shell status-glow relative overflow-hidden rounded-[18px] ${
-                                isUploading || isGeneratingFlashcards ? "loading-border" : ""
-                            } ${pulseComplete ? "completion-pulse" : ""} ${
-                                isClosing ? "toast-exit" : "toast-enter"
-                            }`}
-                        >
-                            <div className="absolute inset-0 status-sheen pointer-events-none" />
-                            <div className="status-card relative rounded-[16px] px-4 py-3 text-left text-sm text-white/80 backdrop-blur-xl">
-                                <div className="accent-strip absolute left-0 top-0 h-full w-1.5" />
-                                <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.24em] text-white/45">
-                                    <span>{isGeneratingFlashcards ? "Flashcards" : "Embedding"}</span>
-                                    <button
-                                        type="button"
-                                        onClick={closeToast}
-                                        className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] tracking-[0.16em] text-white/50 transition hover:text-white"
-                                    >
-                                        <span>Close</span>
-                                        <X className="size-3" />
-                                    </button>
+                            </div>
+                            <div className="mt-2 text-[13px] font-medium text-white">
+                                {loadingMessage || (isGeneratingFlashcards ? "Generating flashcards..." : "Preparing embeddings...")}
+                            </div>
+                            {isUploading || isGeneratingFlashcards ? (
+                                <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
+                                    <div className="progress-flow h-full w-[60%] rounded-full" />
                                 </div>
-                                <div className="mt-2 text-[13px] font-medium text-white">
-                                    {loadingMessage ||
-                                        (isGeneratingFlashcards
-                                            ? "Generating flashcards..."
-                                            : "Preparing embeddings...")}
-                                </div>
-                                {isUploading || isGeneratingFlashcards ? (
-                                    <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
-                                        <div className="progress-flow h-full w-[60%] rounded-full" />
-                                    </div>
-                                ) : null}
-                                <div className="mt-2.5 flex items-center justify-between text-[10px] text-white/45">
-                                    <div className="flex items-center gap-2">
-                                        <span className="relative flex h-2 w-2">
-                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--accent)/0.6)] opacity-75" />
-                                            <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(var(--accent)/0.9)]" />
-                                        </span>
-                                        <span>
-                                            {isGeneratingFlashcards
-                                                ? "Generating flashcards"
-                                                : "Storing vector embeddings"}
-                                        </span>
-                                    </div>
+                            ) : null}
+                            <div className="mt-2.5 flex items-center justify-between text-[10px] text-white/45">
+                                <div className="flex items-center gap-2">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--accent)/0.6)] opacity-75" />
+                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(var(--accent)/0.9)]" />
+                                    </span>
                                     <span>
-                                        {isGeneratingFlashcards ? "…" : `${completedFiles}/${totalFiles}`}
+                                        {isGeneratingFlashcards ? "Generating flashcards" : "Storing vector embeddings"}
                                     </span>
                                 </div>
+                                <span>{isGeneratingFlashcards ? "…" : `${completedFiles}/${totalFiles}`}</span>
                             </div>
                         </div>
                     </div>
-                ) : null}
-            </motion.div>
-
-            {/* Minimal Demo */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 1, delay: 0.8 }}
-                className="mt-24 relative z-10 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-12 opacity-80 hover:opacity-100 transition-opacity duration-500"
-            >
-                {/* Input */}
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-16 h-20 bg-[#18181b] border border-white/10 rounded-lg flex items-center justify-center shadow-lg transform rotate-[-6deg]">
-                        <FileText className="text-white/20 size-8" />
-                    </div>
-                    <span className="text-xs text-white/30 font-mono">notes.md</span>
                 </div>
-
-                {/* Flow */}
-                <div className="w-px h-12 md:w-24 md:h-px bg-gradient-to-b md:bg-gradient-to-r from-transparent via-white/20 to-transparent relative">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <span className="absolute inset-0 h-2 w-2 rounded-full bg-[hsl(var(--accent))] animate-ping opacity-50" />
-                        <span className="relative flex h-2 w-2 rounded-full bg-[hsl(var(--accent))] shadow-[0_0_10px_hsl(var(--accent))]" />
-                    </div>
-                </div>
-
-                {/* Output */}
-                <div className="flex flex-col items-center gap-3">
-                    <motion.div
-                        className="w-64 h-24 bg-[#18181b] rounded-xl p-4 flex flex-col justify-center shadow-2xl relative overflow-hidden"
-                        animate={{
-                            boxShadow: [
-                                "0 0 0 1px rgba(255,255,255,0.08), 0 20px 40px -16px rgba(0,0,0,0.8)",
-                                "0 0 0 1px hsl(270 95% 65% / 0.25), 0 20px 40px -16px rgba(0,0,0,0.8), 0 0 20px -6px hsl(270 95% 65% / 0.2)",
-                                "0 0 0 1px rgba(255,255,255,0.08), 0 20px 40px -16px rgba(0,0,0,0.8)",
-                            ],
-                        }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                    >
-                        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[hsl(var(--accent)/0.9)] to-transparent rounded-l-xl" />
-                        <div className="flex items-center gap-2 mb-2">
-                            <Sparkles className="size-3 text-[hsl(var(--accent))]" />
-                            <span className="text-[10px] uppercase tracking-widest text-white/40">Recall Generated</span>
-                        </div>
-                        <p className="text-sm text-white/80 font-medium">What is the primary function of the hippocampus?</p>
-                    </motion.div>
-                    <span className="text-xs text-white/30 font-mono">flashcard</span>
-                </div>
-            </motion.div>
+            ) : null}
         </section>
     );
 }
