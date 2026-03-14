@@ -9,6 +9,12 @@ function Home() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Don't auto-redirect if the user has already been redirected this session
+    // (e.g. they navigated back to home intentionally).
+    if (sessionStorage.getItem("session_redirected")) {
+      return;
+    }
+
     const sessionId = localStorage.getItem("session_id");
     if (!sessionId) {
       return;
@@ -27,6 +33,7 @@ function Home() {
           return;
         }
         if (isActive) {
+          sessionStorage.setItem("session_redirected", "1");
           navigate("/flashcards-lab", { replace: true });
         }
       } catch {
