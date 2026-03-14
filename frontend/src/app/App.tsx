@@ -5,18 +5,13 @@ import { HeroSection } from '@/features/home/components/HeroSection';
 import { FlashcardsPage } from '@/features/flashcards/components/FlashcardsPage';
 import { FlashcardsLabPage } from '@/features/flashcards/components/FlashcardsLabPage';
 
-function Home() {
+function RootRedirect() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Don't auto-redirect if the user has already been redirected this session
-    // (e.g. they navigated back to home intentionally).
-    if (sessionStorage.getItem("session_redirected")) {
-      return;
-    }
-
     const sessionId = localStorage.getItem("session_id");
     if (!sessionId) {
+      navigate("/upload", { replace: true });
       return;
     }
 
@@ -30,14 +25,14 @@ function Home() {
           if (response.status === 404 || response.status === 422) {
             localStorage.removeItem("session_id");
           }
+          if (isActive) navigate("/upload", { replace: true });
           return;
         }
         if (isActive) {
-          sessionStorage.setItem("session_redirected", "1");
           navigate("/flashcards-lab", { replace: true });
         }
       } catch {
-        // Ignore validation errors and keep the user on the landing page.
+        if (isActive) navigate("/upload", { replace: true });
       }
     };
 
@@ -47,6 +42,10 @@ function Home() {
     };
   }, [navigate]);
 
+  return null;
+}
+
+function UploadPage() {
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden selection:bg-[hsl(var(--accent))/30] selection:text-white">
       <AmbientBackground />
@@ -58,7 +57,8 @@ function Home() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<RootRedirect />} />
+      <Route path="/upload" element={<UploadPage />} />
       <Route path="/flashcards" element={<FlashcardsPage />} />
       <Route path="/flashcards-lab" element={<FlashcardsLabPage />} />
     </Routes>

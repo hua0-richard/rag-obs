@@ -768,7 +768,7 @@ export function FlashcardsLabPage() {
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/upload')}
                     className="text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-300"
                 >
                     <X className="size-5" />
