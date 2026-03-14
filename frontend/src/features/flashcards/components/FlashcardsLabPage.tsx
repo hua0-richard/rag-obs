@@ -778,7 +778,7 @@ export function FlashcardsLabPage() {
             <main className="relative z-10 mx-auto flex h-screen w-screen max-w-[1500px] flex-col items-center px-6 pb-20 pt-32">
 
                 {/* Tabs */}
-                <div className="flex justify-center mb-12">
+                <div className="flex justify-center mb-8">
                     <div className="p-1 bg-[#18181b]/50 backdrop-blur-md border border-white/5 rounded-full inline-flex relative">
                         {[
                             { id: "create", label: "Create Deck", icon: PlusCircle },
@@ -823,20 +823,12 @@ export function FlashcardsLabPage() {
                                     >
                                         <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
                                     </div>
-                                    {uploadStatus ? (
-                                        <div
-                                            className={`text-[10px] font-mono line-clamp-1 max-w-[260px] sm:max-w-[360px] ${uploadIsError ? "text-rose-300/70" : "text-white/30"}`}
-                                            title={uploadStatus}
-                                        >
-                                            {uploadStatus}
-                                        </div>
-                                    ) : null}
                                 </div>
 
                                 <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end lg:gap-4">
                                     <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                                        <div className="flex w-full min-w-0 items-center gap-2 px-1 py-1.5 sm:w-auto lg:max-w-[360px]">
-                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                                        <div className="flex w-full min-w-0 items-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[360px]">
+                                            <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
                                                 Model
                                             </span>
                                             <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
@@ -848,22 +840,22 @@ export function FlashcardsLabPage() {
                                                 <SelectTrigger
                                                     id="embedding-model"
                                                     aria-label="Embedding model"
-                                                    className="h-8 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-0 text-[11px] font-medium text-white/75 transition-colors hover:border-white/10 hover:bg-white/[0.07] focus:ring-0 focus:outline-none whitespace-nowrap font-mono"
+                                                    className="h-8 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-[11px] font-mono text-white/50 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
                                                     title={selectedModelOption.label}
                                                 >
                                                     <span className="truncate">{selectedModelOption.label}</span>
                                                 </SelectTrigger>
-                                                <SelectContent className="w-[min(90vw,280px)] rounded-lg bg-[#121215] p-1 shadow-none backdrop-blur-none font-mono">
+                                                <SelectContent className="w-[min(90vw,280px)] rounded-xl border border-white/[0.07] bg-[#111113] p-1 shadow-2xl backdrop-blur-xl">
                                                     {EMBEDDING_MODEL_OPTIONS.map((option) => (
                                                         <SelectItem
                                                             key={option.value}
                                                             value={option.value}
                                                             textValue={option.label}
-                                                            className="items-start py-3 pr-8"
+                                                            className="items-start py-2.5 pr-8"
                                                         >
-                                                            <div className="flex min-w-0 flex-col gap-0.5">
-                                                                <span className="line-clamp-1 text-[11px] text-white/90">{option.label}</span>
-                                                                <span className="line-clamp-2 text-[10px] leading-snug text-white/55">
+                                                            <div className="flex min-w-0 flex-col gap-1">
+                                                                <span className="line-clamp-1 text-[11px] font-mono text-white/80">{option.label}</span>
+                                                                <span className="line-clamp-2 text-[10px] leading-snug text-white/35">
                                                                     {option.description}
                                                                 </span>
                                                             </div>
@@ -873,8 +865,8 @@ export function FlashcardsLabPage() {
                                             </Select>
                                         </div>
                                         </div>
-                                        <div className="flex w-full min-w-0 items-center gap-2 px-1 py-1.5 sm:w-auto lg:max-w-[260px]">
-                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                                        <div className="flex w-full min-w-0 items-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[260px]">
+                                            <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
                                                 Amount
                                             </span>
                                             <div className="min-w-0 flex-1 sm:w-[160px] sm:flex-none">
@@ -886,22 +878,22 @@ export function FlashcardsLabPage() {
                                                 <SelectTrigger
                                                     id="flashcard-amount"
                                                     aria-label="Flashcard amount"
-                                                    className="h-8 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-0 text-[11px] font-medium text-white/75 transition-colors hover:border-white/10 hover:bg-white/[0.07] focus:ring-0 focus:outline-none whitespace-nowrap font-mono"
+                                                    className="h-8 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
                                                     title={selectedAmountOption.label}
                                                 >
                                                     <span className="truncate">{selectedAmountOption.label}</span>
                                                 </SelectTrigger>
-                                                <SelectContent className="w-[min(90vw,240px)] rounded-lg bg-[#121215] p-1 shadow-none backdrop-blur-none font-mono">
+                                                <SelectContent className="w-[min(90vw,220px)] rounded-xl border border-white/[0.07] bg-[#111113] p-1 shadow-2xl backdrop-blur-xl">
                                                     {FLASHCARD_AMOUNT_OPTIONS.map((option) => (
                                                         <SelectItem
                                                             key={option.value}
                                                             value={option.value}
                                                             textValue={option.label}
-                                                            className="items-start py-3 pr-8"
+                                                            className="items-start py-2.5 pr-8"
                                                         >
-                                                            <div className="flex min-w-0 flex-col gap-0.5">
-                                                                <span className="line-clamp-1 text-[11px] text-white/90">{option.label}</span>
-                                                                <span className="line-clamp-2 text-[10px] leading-snug text-white/55">
+                                                            <div className="flex min-w-0 flex-col gap-1">
+                                                                <span className="line-clamp-1 text-xs text-white/80">{option.label}</span>
+                                                                <span className="line-clamp-2 text-[10px] leading-snug text-white/35">
                                                                     {option.description}
                                                                 </span>
                                                             </div>
@@ -1014,24 +1006,13 @@ export function FlashcardsLabPage() {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center gap-6 shrink-0">
-                                                    {doc.updatedAt ? (
-                                                        <span
-                                                            className="hidden sm:inline text-[10px] text-white/20 font-mono tracking-wider line-clamp-1 max-w-[140px]"
-                                                            title={doc.updatedAt}
-                                                        >
-                                                            {doc.updatedAt}
-                                                        </span>
-                                                    ) : null}
-
-                                                    <div
-                                                        className={`flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-200 ${isSelected
-                                                            ? "bg-[hsl(var(--accent))] border-[hsl(var(--accent))] text-white"
-                                                            : "bg-transparent border-white/10 text-transparent"
-                                                            }`}
-                                                    >
-                                                        <Check className="size-3 stroke-[3]" />
-                                                    </div>
+                                                <div
+                                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${isSelected
+                                                        ? "bg-[hsl(var(--accent))] border-[hsl(var(--accent))] text-white"
+                                                        : "bg-transparent border-white/10 text-transparent"
+                                                        }`}
+                                                >
+                                                    <Check className="size-3 stroke-[3]" />
                                                 </div>
                                             </button>
                                         );
@@ -1046,14 +1027,11 @@ export function FlashcardsLabPage() {
                                         <div className="text-[11px] font-mono text-rose-300/70 line-clamp-1" title={generateError}>
                                             {generateError}
                                         </div>
-                                    ) : (
-                                        <div
-                                            className="text-[11px] font-mono text-white/30 line-clamp-1"
-                                            title={isGenerating ? "Generating deck..." : "Select files to generate a deck."}
-                                        >
-                                            {isGenerating ? "Generating deck..." : "Select files to generate a deck."}
+                                    ) : isGenerating ? (
+                                        <div className="text-[11px] font-mono text-white/30 line-clamp-1">
+                                            Generating deck…
                                         </div>
-                                    )}
+                                    ) : null}
                                 </div>
                                 <button
                                     onClick={handleGenerate}
@@ -1089,12 +1067,7 @@ export function FlashcardsLabPage() {
                             className="mx-auto grid w-full max-w-[1200px] grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                         >
                             {sortedDecks.length === 0 ? (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-                                    className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center"
-                                >
+                                <div className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center">
                                     <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/[0.04] text-white/20 mb-1">
                                         <Layers className="size-5" />
                                     </div>
@@ -1102,7 +1075,7 @@ export function FlashcardsLabPage() {
                                     <p className="text-xs text-white/25 max-w-[220px] leading-relaxed">
                                         Select notes in Create Deck and generate your first flashcard set.
                                     </p>
-                                </motion.div>
+                                </div>
                             ) : (
                                 sortedDecks.map((deck, index) => {
                                     const masteryValue =
