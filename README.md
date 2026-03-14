@@ -3,6 +3,7 @@
 > RAG system for querying Obsidian Markdown vaults with **source-level citations** and AI-generated flashcards.
 
 [![Azure Deploy](https://custom-icon-badges.demolab.com/github/actions/workflow/status/hua0-richard/rag-obs/deploy-api.yml?style=flat&label=Azure+Deploy&logo=msazure&logoColor=white&labelColor=09090b&cacheSeconds=60)](https://github.com/hua0-richard/rag-obs/actions/workflows/deploy-api.yml)
+[![API Status](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/hua0-richard/rag-obs/status/server-status/api.json&style=flat&labelColor=09090b)](https://github.com/hua0-richard/rag-obs/actions/workflows/api-status.yml)
 [![Neon DB](https://img.shields.io/badge/Neon-pgvector-brightgreen?style=flat&logo=postgresql&logoColor=white&labelColor=09090b)](https://neon.tech)
 [![OpenRouter](https://img.shields.io/badge/OpenRouter-LLM-a855f7?style=flat&logoColor=white&labelColor=09090b)](https://openrouter.ai)
 [![FastAPI](https://img.shields.io/badge/FastAPI-3.12-009688?style=flat&logo=fastapi&logoColor=white&labelColor=09090b)](https://fastapi.tiangolo.com)
