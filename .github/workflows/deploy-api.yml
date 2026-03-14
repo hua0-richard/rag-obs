@@ -49,3 +49,10 @@ jobs:
           imageToDeploy: ragobsacr.azurecr.io/ragobs-api:latest
           acrUsername: ${{ secrets.REGISTRY_USERNAME }}
           acrPassword: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Disable scale to zero
+        run: |
+          az containerapp update \
+            --name ragobs-api \
+            --resource-group gpu-store-rg \
+            --min-replicas 1
