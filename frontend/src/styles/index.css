@@ -85,6 +85,11 @@ body {
   color: var(--foreground);
 }
 
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
 @layer utilities {
 
   /* 3D Luminous Primary Action */
