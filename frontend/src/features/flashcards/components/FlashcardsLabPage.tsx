@@ -952,8 +952,26 @@ export function FlashcardsLabPage() {
                             {/* List */}
                             <div className="flex-1 min-h-0 divide-y divide-white/5 overflow-y-auto">
                                 {documentsLoading ? (
-                                    <div className="px-6 py-10 text-center text-sm text-white/40 line-clamp-2">
-                                        Loading documents...
+                                    <div className="divide-y divide-white/5">
+                                        {[...Array(4)].map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className="flex h-20 items-center justify-between gap-4 px-6 py-3"
+                                                style={{ opacity: 1 - i * 0.18 }}
+                                            >
+                                                <div className="flex items-center gap-4 min-w-0 flex-1">
+                                                    <div className="h-10 w-10 shrink-0 rounded-lg bg-white/[0.04] animate-pulse" />
+                                                    <div className="min-w-0 flex-1 space-y-2.5">
+                                                        <div className="h-3 bg-white/[0.05] rounded-full animate-pulse" style={{ width: `${32 + (i % 3) * 14}%` }} />
+                                                        <div className="h-2 bg-white/[0.03] rounded-full animate-pulse" style={{ width: `${18 + (i % 2) * 10}%` }} />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-6 shrink-0">
+                                                    <div className="hidden sm:block h-2 w-16 bg-white/[0.03] rounded-full animate-pulse" />
+                                                    <div className="h-5 w-5 rounded-full bg-white/[0.04] animate-pulse" />
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : documentsError ? (
                                     <div

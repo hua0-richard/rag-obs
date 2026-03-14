@@ -271,8 +271,12 @@ export function FlashcardsPage() {
                                 transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex items-center justify-center text-white/40">
-                                    Loading flashcards...
+                                <div className="w-full max-w-3xl h-96 rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4">
+                                    <div className="relative h-8 w-8">
+                                        <div className="absolute inset-0 rounded-full border-2 border-white/5" />
+                                        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[hsl(var(--accent)/0.8)] animate-spin" />
+                                    </div>
+                                    <span className="text-[10px] font-mono uppercase tracking-widest text-white/25">Loading</span>
                                 </div>
                             </motion.div>
                         ) : error ? (
