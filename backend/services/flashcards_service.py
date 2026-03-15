@@ -38,6 +38,7 @@ from services.embedding_service import (
     CODE_EMBEDDING_PROFILE,
     DEFAULT_EMBEDDING_PROFILE,
     VERBOSE_EMBEDDING_PROFILE,
+    effective_profile,
     embed_chunks,
     embed_query,
     embed_query_sync,
@@ -415,13 +416,14 @@ async def _ensure_embeddings_for_profile(
     if session_id is None:
         return
 
-    embedding_table = get_embedding_table(embedding_profile)
+    storage_profile = effective_profile(embedding_profile)
+    embedding_table = get_embedding_table(storage_profile)
     embedding_row_model_map = {
         DEFAULT_EMBEDDING_PROFILE: Embeddings,
         CODE_EMBEDDING_PROFILE: EmbeddingsCode,
         VERBOSE_EMBEDDING_PROFILE: EmbeddingsVerbose,
     }
-    embedding_row_model = embedding_row_model_map[embedding_profile]
+    embedding_row_model = embedding_row_model_map[storage_profile]
 
     notes_query = db.query(Files).filter(Files.session_id == session_id)
     if file_ids:
@@ -719,7 +721,7 @@ async def generate_flashcards(
             session_row.embedding_profile = requested_profile
             db.commit()
             db.refresh(session_row)
-    embedding_table = get_embedding_table(embedding_profile)
+    embedding_table = get_embedding_table(effective_profile(embedding_profile))
     await _ensure_embeddings_for_profile(
         db=db,
         session_id=session_id,

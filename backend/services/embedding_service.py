@@ -31,6 +31,10 @@ EMBEDDING_BACKEND = os.getenv(
 # --- Ollama config (local dev) ---
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+# Profile to use for all Ollama embeddings. nomic-embed-text outputs 768 dims,
+# which matches the "code" profile table. Override via OLLAMA_EMBEDDING_PROFILE
+# if you swap in a model with different output dimensions.
+_OLLAMA_EMBEDDING_PROFILE_RAW = os.getenv("OLLAMA_EMBEDDING_PROFILE", CODE_EMBEDDING_PROFILE)
 
 # --- OpenRouter config (prod) ---
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
@@ -97,6 +101,11 @@ def normalize_embedding_profile(value: str | None) -> EmbeddingProfile:
     if parsed is not None:
         return parsed
     return DEFAULT_EMBEDDING_PROFILE
+
+
+OLLAMA_EMBEDDING_PROFILE: EmbeddingProfile = normalize_embedding_profile(
+    _OLLAMA_EMBEDDING_PROFILE_RAW
+)
 
 
 def get_embedding_table(profile: EmbeddingProfile) -> str:
@@ -231,6 +240,19 @@ def _st_embed_sync(texts: list[str], profile: EmbeddingProfile) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Unified embed interface
 # ---------------------------------------------------------------------------
+
+def effective_profile(profile: EmbeddingProfile) -> EmbeddingProfile:
+    """Return the profile that will actually be used for storage and retrieval.
+
+    When using the Ollama backend, all embeddings are produced by a single model
+    (default: nomic-embed-text, 768 dims), so we remap every profile to the one
+    whose DB table dimension matches that model's output.  Callers should use this
+    when determining which table to read/write.
+    """
+    if EMBEDDING_BACKEND.lower() == "ollama":
+        return OLLAMA_EMBEDDING_PROFILE
+    return profile
+
 
 def _embed_sync(texts: list[str], profile: EmbeddingProfile) -> np.ndarray:
     backend = EMBEDDING_BACKEND.lower()

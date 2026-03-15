@@ -9,6 +9,7 @@ from db.models import Embeddings, EmbeddingsCode, EmbeddingsVerbose, Files, Sess
 from db.session import SessionLocal
 from services.embedding_service import (
     choose_embedding_profile,
+    effective_profile,
     embed_chunks,
     get_embedding_table,
     normalize_embedding_profile,
@@ -111,12 +112,15 @@ async def stream_document_upload(
                 db.commit()
                 db.refresh(session_row)
 
+            # Remap the profile to what the active backend can actually produce.
+            # e.g. Ollama (nomic-embed-text) always outputs 768 dims → "code" profile.
+            storage_profile = effective_profile(embedding_profile)
             embedding_row_model_map = {
                 DEFAULT_EMBEDDING_PROFILE: Embeddings,
                 CODE_EMBEDDING_PROFILE: EmbeddingsCode,
                 VERBOSE_EMBEDDING_PROFILE: EmbeddingsVerbose,
             }
-            embedding_row_model = embedding_row_model_map[embedding_profile]
+            embedding_row_model = embedding_row_model_map[storage_profile]
             embedding_tables = (
                 get_embedding_table(DEFAULT_EMBEDDING_PROFILE),
                 get_embedding_table(CODE_EMBEDDING_PROFILE),
@@ -226,7 +230,7 @@ async def stream_document_upload(
                     continue
                 try:
                     # non-blocking
-                    vectors = await embed_chunks(chunks, profile=embedding_profile)
+                    vectors = await embed_chunks(chunks, profile=storage_profile)
 
                     db.add_all([
                         embedding_row_model(
