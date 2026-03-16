@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
+import { Input } from "@/shared/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/components/ui/Select";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
@@ -129,6 +130,7 @@ export function FlashcardsLabPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [_uploadStatus, setUploadStatus] = useState<string | null>(null);
     const [_uploadIsError, setUploadIsError] = useState(false);
+    const [studyFocus, setStudyFocus] = useState("");
     const [flashcardAmount, setFlashcardAmount] = useState<FlashcardAmountOption>("medium");
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
@@ -302,11 +304,16 @@ export function FlashcardsLabPage() {
             setGenerateError("Select at least one document to generate a deck.");
             return;
         }
+        const trimmedStudyFocus = studyFocus.trim();
 
         setGenerateError(null);
         setShowToast(true);
         setIsClosing(false);
-        setLoadingMessage("Generating flashcards...");
+        setLoadingMessage(
+            trimmedStudyFocus
+                ? "Generating flashcards with hybrid retrieval..."
+                : "Generating flashcards..."
+        );
         setTotalFiles((prev) => (prev > 0 ? prev : selectedIds.length));
         setCompletedFiles((prev) => (prev > 0 ? prev : selectedIds.length));
         setIsGenerating(true);
@@ -317,6 +324,9 @@ export function FlashcardsLabPage() {
             });
             if (flashcardAmount !== "medium") {
                 params.set("flashcard_amount", flashcardAmount);
+            }
+            if (trimmedStudyFocus) {
+                params.set("prompt", trimmedStudyFocus);
             }
             selectedIds.forEach((id) => params.append("file_ids", String(id)));
 
@@ -726,13 +736,30 @@ export function FlashcardsLabPage() {
                         >
                             {/* Top Bar */}
                             <div className="flex flex-col gap-3 border-b border-white/5 px-6 py-3 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                <div className="flex min-w-0 flex-1 flex-col gap-2">
                                     <div
                                         className="text-xs font-mono text-white/40 line-clamp-1"
                                         title={`${selectedCount} / ${totalDocs} selected`}
                                     >
                                         <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
                                     </div>
+                                    <label className="flex min-w-0 flex-col gap-1.5 lg:max-w-[480px]">
+                                        <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em]">
+                                            Study Focus
+                                        </span>
+                                        <Input
+                                            id="study-focus"
+                                            value={studyFocus}
+                                            onChange={(event) => setStudyFocus(event.target.value)}
+                                            placeholder="Optional: recursion base case, key formulas, React hooks..."
+                                            disabled={isUploading || isGenerating || documentsLoading}
+                                            maxLength={160}
+                                            className="h-9 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 text-sm text-white/75 placeholder:text-white/35 focus:border-[hsl(var(--accent)/0.35)]"
+                                        />
+                                        <span className="text-[11px] text-white/30">
+                                            Optional. When filled, we use it as a hybrid retrieval query across the selected notes.
+                                        </span>
+                                    </label>
                                 </div>
 
                                 <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end lg:gap-4">

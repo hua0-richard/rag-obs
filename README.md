@@ -53,7 +53,8 @@ flowchart LR
         direction TB
         API["FastAPI<br/>(Python 3.12)"]
         Embed["Embedding Router<br/>(default · code · verbose)"]
-        RAG["RAG + Flashcard<br/>Pipeline"]
+        Retrieve["Hybrid Retriever<br/>(BM25 + pgvector)"]
+        RAG["Flashcard Generator"]
     end
 
     subgraph Data["Data (State)"]
@@ -67,24 +68,26 @@ flowchart LR
         Ollama["Ollama<br/>(Local Dev)"]
     end
 
-    L_User_Web["HTTPS / Upload .md Files"]
+    L_User_Web["HTTPS / Upload .md Files<br/>+ optional study focus"]
     L_Web_API["REST API / JSON"]
     L_API_Embed["Text Chunks + Profile"]
-    L_API_RAG["Query + Retrieved Context"]
+    L_API_Retrieve["Optional study focus query"]
+    L_Retrieve_RAG["Ranked context"]
     L_API_DB["SQLAlchemy ORM<br/>(sessions · notes · flashcards)"]
     L_Embed_OR["Embed API — prod"]
     L_RAG_OR["LLM Completion"]
-    L_RAG_DB["pgvector Similarity Search"]
+    L_Retrieve_DB["Chunk fetch + pgvector similarity"]
 
     User --> L_User_Web --> Web
     Web --> L_Web_API --> API
     API --> L_API_Embed --> Embed
-    API --> L_API_RAG --> RAG
+    API --> L_API_Retrieve --> Retrieve
     API --> L_API_DB --> DB
     Embed --> L_Embed_OR --> OR
     Embed -.->|"Embed API — local dev"| Ollama
+    Retrieve --> L_Retrieve_DB --> DB
+    Retrieve --> L_Retrieve_RAG --> RAG
     RAG --> L_RAG_OR --> OR
-    RAG --> L_RAG_DB --> DB
 
     classDef neutral    fill:#111827,stroke:#334155,color:#ffffff;
     classDef netlify    fill:#00302c,stroke:#00c7b7,color:#00c7b7;
@@ -98,11 +101,11 @@ flowchart LR
     class User neutral;
     class Web netlify;
     class API fastapi;
-    class Embed,RAG violet;
+    class Embed,Retrieve,RAG violet;
     class DB neon;
     class OR openrouter;
     class Ollama ollama;
-    class L_User_Web,L_Web_API,L_API_Embed,L_API_RAG,L_API_DB,L_Embed_OR,L_RAG_OR,L_RAG_DB edgeText;
+    class L_User_Web,L_Web_API,L_API_Embed,L_API_Retrieve,L_Retrieve_RAG,L_API_DB,L_Embed_OR,L_RAG_OR,L_Retrieve_DB edgeText;
 
     style Frontend fill:#001f1c,stroke:#00c7b7,color:#00c7b7,stroke-width:1.5px
     style Backend  fill:#001229,stroke:#0078d4,color:#4da6ff,stroke-width:1.5px
@@ -114,7 +117,7 @@ flowchart LR
 
 ## Key Components
 
-The app uses a React frontend on Netlify, a FastAPI backend on Azure Container Apps, PostgreSQL + pgvector (Neon) for retrieval, and OpenRouter for production LLM inference (DeepSeek V3) and embeddings.
+The app uses a React frontend on Netlify, a FastAPI backend on Azure Container Apps, PostgreSQL + pgvector (Neon) for retrieval, and OpenRouter for production LLM inference (DeepSeek V3) and embeddings. Flashcard generation can optionally bias retrieval with a study-focus query.
 
 ## Technology Stack
 
@@ -127,6 +130,8 @@ React 19 + Vite + Tailwind CSS on the frontend. FastAPI + Python 3.12 on the bac
 **Embedding Routing**: Embedding backend is swappable via `EMBEDDING_BACKEND`. In development, Ollama serves embeddings locally. In production, OpenRouter is used to keep the API container lightweight and avoid shipping local model weights into Azure Container Apps.
 
 **Multi-Profile Embeddings**: Notes are classified at upload time into `default`, `code`, or `verbose` profiles based on content structure (code blocks, math, length). These profiles control retrieval/storage behavior and pgvector table selection for the active embedding backend.
+
+**Optional Hybrid Retrieval**: The flashcards UI accepts an optional study-focus query. When present, the backend combines BM25 keyword retrieval with pgvector semantic retrieval to pull more relevant chunks from the selected notes before generation.
 
 **Removed Manual Model Switching**: The old UI controls for manually switching embedding models were removed. In production, the extra model-loading and runtime overhead was not worth the added compute and memory pressure on Azure Container Apps, so the app now uses a single production embedding model with internal profile-based routing instead of user-facing model selection.
 
