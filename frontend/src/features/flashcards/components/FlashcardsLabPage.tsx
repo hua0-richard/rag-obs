@@ -561,7 +561,7 @@ export function FlashcardsLabPage() {
     };
 
     return (
-        <div className="min-h-screen w-full bg-[#09090b] text-white/90 selection:bg-[hsl(var(--accent)/0.3)] relative">
+        <div className="min-h-screen w-full overflow-x-hidden bg-[#09090b] text-white/90 selection:bg-[hsl(var(--accent)/0.3)] relative">
             <style>
                 {`
                 .loading-border {
@@ -694,7 +694,7 @@ export function FlashcardsLabPage() {
                 </Button>
             </nav>
 
-            <main className="relative z-10 mx-auto flex h-screen w-screen max-w-[1500px] flex-col items-center px-6 pb-20 pt-32">
+            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col items-center px-4 pb-20 pt-32 sm:px-6">
 
                 {/* Tabs */}
                 <div className="flex justify-center mb-8">
@@ -959,7 +959,7 @@ export function FlashcardsLabPage() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.3 }}
-                            className="mx-auto grid w-full max-w-[1200px] grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                            className="mx-auto grid w-full min-w-0 max-w-[1200px] grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-6"
                         >
                             {sortedDecks.length === 0 ? (
                                 <div className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center">
