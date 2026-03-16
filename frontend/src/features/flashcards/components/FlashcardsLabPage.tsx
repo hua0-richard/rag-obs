@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
-import { Input } from "@/shared/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/components/ui/Select";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
@@ -735,31 +734,31 @@ export function FlashcardsLabPage() {
                             className="group relative mx-auto flex w-full max-w-[1100px] flex-col rounded-2xl border border-white/5 bg-[#121215]/40 shadow-[0_20px_60px_-45px_rgba(0,0,0,0.8)] backdrop-blur-sm h-[min(72vh,720px)] min-h-[500px] sm:min-h-[540px] max-h-[760px] overflow-hidden"
                         >
                             {/* Top Bar */}
-                            <div className="flex flex-col gap-3 border-b border-white/5 px-6 py-3 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                                    <div
-                                        className="text-xs font-mono text-white/40 line-clamp-1"
-                                        title={`${selectedCount} / ${totalDocs} selected`}
-                                    >
-                                        <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
-                                    </div>
-                                    <label className="flex min-w-0 flex-col gap-1 lg:max-w-[320px]">
-                                        <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em]">
-                                            Focus
-                                        </span>
-                                        <Input
-                                            id="study-focus"
-                                            value={studyFocus}
-                                            onChange={(event) => setStudyFocus(event.target.value)}
-                                            placeholder="Optional: recursion, formulas, React hooks"
-                                            disabled={isUploading || isGenerating || documentsLoading}
-                                            maxLength={160}
-                                            className="h-8 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 text-[12px] text-white/65 placeholder:text-white/28 shadow-none transition-colors duration-200 hover:border-white/[0.1] hover:bg-white/[0.03] focus:border-white/[0.12] focus-visible:border-white/[0.12] focus:ring-0 focus-visible:ring-0 focus-visible:shadow-none"
-                                        />
-                                    </label>
+                            <div className="flex flex-col gap-2.5 border-b border-white/5 px-6 py-3">
+                                <div
+                                    className="text-center text-xs font-mono text-white/40 line-clamp-1"
+                                    title={`${selectedCount} / ${totalDocs} selected`}
+                                >
+                                    <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
                                 </div>
 
-                                <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end lg:gap-4">
+                                <div className="flex w-full flex-wrap items-center justify-center gap-3 lg:gap-4">
+                                    <div className="flex w-full min-w-0 items-center justify-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[360px]">
+                                        <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
+                                            Focus
+                                        </span>
+                                        <div className="min-w-0 flex-1 sm:w-[260px] sm:flex-none">
+                                            <input
+                                                id="study-focus"
+                                                value={studyFocus}
+                                                onChange={(event) => setStudyFocus(event.target.value)}
+                                                placeholder="Optional: recursion, formulas, React hooks"
+                                                disabled={isUploading || isGenerating || documentsLoading}
+                                                maxLength={160}
+                                                className="h-8 w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 outline-none transition-all duration-200 hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:border-[hsl(var(--accent)/0.3)] focus:bg-white/[0.05] focus:text-white/75 focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-white/28"
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="flex w-full min-w-0 items-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[260px]">
                                         <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
                                             Amount
