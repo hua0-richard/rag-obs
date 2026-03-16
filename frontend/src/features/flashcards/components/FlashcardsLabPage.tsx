@@ -333,45 +333,19 @@ export function FlashcardsLabPage() {
         setCompletedFiles((prev) => (prev > 0 ? prev : selectedIds.length));
         setIsGenerating(true);
         try {
-            const payload: {
-                session_id: string;
-                replace: boolean;
-                file_ids: number[];
-                flashcard_amount?: FlashcardAmountOption;
-                prompt?: string;
-            } = {
+            const params = new URLSearchParams({
                 session_id: sessionId,
-                replace: true,
-                file_ids: selectedIds,
-            };
+                replace: "true",
+            });
             if (flashcardAmount !== "medium") {
-                payload.flashcard_amount = flashcardAmount;
+                params.set("flashcard_amount", flashcardAmount);
             }
             if (trimmedStudyFocus) {
-                payload.prompt = trimmedStudyFocus;
+                params.set("prompt", trimmedStudyFocus);
             }
+            selectedIds.forEach((id) => params.append("file_ids", String(id)));
 
-            let response = await fetch(`${import.meta.env.SERVER_URL}/llm`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
-            if (response.status === 405) {
-                const params = new URLSearchParams({
-                    session_id: payload.session_id,
-                    replace: String(payload.replace),
-                });
-                if (payload.flashcard_amount) {
-                    params.set("flashcard_amount", payload.flashcard_amount);
-                }
-                if (payload.prompt) {
-                    params.set("prompt", payload.prompt);
-                }
-                payload.file_ids.forEach((id) => params.append("file_ids", String(id)));
-                response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
-            }
+            const response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
             if (!response.ok) {
                 const detail = await readErrorMessage(response, "Flashcard generation failed.");
                 throw new Error(detail);
