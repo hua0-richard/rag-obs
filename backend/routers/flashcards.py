@@ -1,5 +1,7 @@
+import traceback
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from db.deps import get_db
 from services.flashcards_service import (
@@ -12,6 +14,45 @@ from services.flashcards_service import (
 router = APIRouter()
 
 
+class FlashcardGenerationRequest(BaseModel):
+    prompt: str | None = None
+    k: int | None = None
+    session_id: UUID | None = None
+    file_ids: list[int] | None = None
+    replace: bool = False
+    flashcard_amount: str | None = None
+
+
+async def _run_flashcard_generation(
+    *,
+    prompt: str | None,
+    k: int | None,
+    session_id: UUID | None,
+    file_ids: list[int] | None,
+    replace: bool,
+    flashcard_amount: str | None,
+    db: Session,
+):
+    try:
+        return await generate_flashcards(
+            prompt=prompt,
+            k=k,
+            session_id=session_id,
+            file_ids=file_ids,
+            replace=replace,
+            flashcard_amount=flashcard_amount,
+            db=db,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail="Flashcard generation failed unexpectedly.",
+        ) from exc
+
+
 @router.get("/llm")
 async def llm_flashcards(
     prompt: str | None = None,
@@ -22,13 +63,29 @@ async def llm_flashcards(
     flashcard_amount: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    return await generate_flashcards(
+    return await _run_flashcard_generation(
         prompt=prompt,
         k=k,
         session_id=session_id,
         file_ids=file_ids,
         replace=replace,
         flashcard_amount=flashcard_amount,
+        db=db,
+    )
+
+
+@router.post("/llm")
+async def llm_flashcards_post(
+    payload: FlashcardGenerationRequest,
+    db: Session = Depends(get_db),
+):
+    return await _run_flashcard_generation(
+        prompt=payload.prompt,
+        k=payload.k,
+        session_id=payload.session_id,
+        file_ids=payload.file_ids,
+        replace=payload.replace,
+        flashcard_amount=payload.flashcard_amount,
         db=db,
     )
 

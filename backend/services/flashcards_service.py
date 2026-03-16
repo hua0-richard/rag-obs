@@ -773,6 +773,15 @@ async def generate_flashcards(
                         row_items = _documents_to_row_items(bm25_documents[:bm25_k])
         except Exception as retrieval_exc:
             print(f"[Hybrid Retrieval] Prompt path failed; falling back to chunk order: {retrieval_exc}")
+            rows = _fetch_embedding_rows(
+                db,
+                session_id,
+                file_ids,
+                table_name=embedding_table,
+                order_by="chunk_index",
+                limit=effective_k,
+            )
+            row_items = [(row.filename, row.chunk_index, row.content) for row in rows]
     else:
         rows = _fetch_embedding_rows(
             db,

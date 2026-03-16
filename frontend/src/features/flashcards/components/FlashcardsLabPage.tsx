@@ -3,6 +3,7 @@ import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Load
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/components/ui/Select";
+import { Textarea } from "@/shared/components/ui/Textarea";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
@@ -115,6 +116,22 @@ const buildDocument = (file: ApiFile): Document => {
         meta: `${typeLabel} · ${sizeLabel}`,
         updatedAt: "Stored in session",
     };
+};
+
+const readErrorMessage = async (response: Response, fallback: string) => {
+    const raw = await response.text();
+    if (!raw) {
+        return fallback;
+    }
+    try {
+        const data = JSON.parse(raw) as { detail?: unknown };
+        if (typeof data.detail === "string" && data.detail.trim()) {
+            return data.detail;
+        }
+    } catch {
+        // Fall back to the raw response body when it is not JSON.
+    }
+    return raw;
 };
 
 export function FlashcardsLabPage() {
@@ -317,22 +334,34 @@ export function FlashcardsLabPage() {
         setCompletedFiles((prev) => (prev > 0 ? prev : selectedIds.length));
         setIsGenerating(true);
         try {
-            const params = new URLSearchParams({
+            const payload: {
+                session_id: string;
+                replace: boolean;
+                file_ids: number[];
+                flashcard_amount?: FlashcardAmountOption;
+                prompt?: string;
+            } = {
                 session_id: sessionId,
-                replace: "true",
-            });
+                replace: true,
+                file_ids: selectedIds,
+            };
             if (flashcardAmount !== "medium") {
-                params.set("flashcard_amount", flashcardAmount);
+                payload.flashcard_amount = flashcardAmount;
             }
             if (trimmedStudyFocus) {
-                params.set("prompt", trimmedStudyFocus);
+                payload.prompt = trimmedStudyFocus;
             }
-            selectedIds.forEach((id) => params.append("file_ids", String(id)));
 
-            const response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
+            const response = await fetch(`${import.meta.env.SERVER_URL}/llm`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
             if (!response.ok) {
-                const detail = await response.text();
-                throw new Error(detail || "Flashcard generation failed.");
+                const detail = await readErrorMessage(response, "Flashcard generation failed.");
+                throw new Error(detail);
             }
 
             const data = await response.json() as Record<string, unknown>;
@@ -742,29 +771,37 @@ export function FlashcardsLabPage() {
                                     <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
                                 </div>
 
-                                <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                    <div className="flex w-full min-w-0 items-center gap-2.5 px-1 py-1.5 lg:max-w-[360px]">
-                                        <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
-                                            Focus
-                                        </span>
-                                        <div className="min-w-0 flex-1 sm:w-[260px] sm:flex-none">
-                                            <input
-                                                id="study-focus"
-                                                value={studyFocus}
-                                                onChange={(event) => setStudyFocus(event.target.value)}
-                                                placeholder="Optional: recursion, formulas, React hooks"
-                                                disabled={isUploading || isGenerating || documentsLoading}
-                                                maxLength={160}
-                                                className="h-8 w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 outline-none transition-all duration-200 hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:border-[hsl(var(--accent)/0.3)] focus:bg-white/[0.05] focus:text-white/75 focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-white/28"
-                                            />
+                                <div className="flex w-full min-w-0 flex-col gap-3.5">
+                                    <div className="flex min-w-0 flex-col gap-2 px-1">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <label
+                                                htmlFor="study-focus"
+                                                className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/25"
+                                            >
+                                                Focus
+                                            </label>
+                                            <span className="text-[10px] font-mono text-white/20">
+                                                {studyFocus.length}/160
+                                            </span>
                                         </div>
+                                        <Textarea
+                                            id="study-focus"
+                                            value={studyFocus}
+                                            onChange={(event) => setStudyFocus(event.target.value)}
+                                            placeholder="Optional: recursion, formulas, React hooks"
+                                            disabled={isUploading || isGenerating || documentsLoading}
+                                            maxLength={160}
+                                            rows={3}
+                                            className="min-h-[84px] resize-none rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-sm leading-relaxed text-white/70 hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] focus:ring-0 focus:border-[hsl(var(--accent)/0.3)] placeholder:text-white/28 sm:min-h-[76px] lg:min-h-[68px]"
+                                        />
                                     </div>
-                                    <div className="flex w-full flex-wrap items-center justify-end gap-3 lg:w-auto lg:flex-nowrap lg:pl-6">
-                                        <div className="flex min-w-0 items-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[260px]">
-                                            <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
+
+                                    <div className="flex w-full min-w-0 flex-col gap-3 px-1 lg:flex-row lg:items-end lg:justify-between">
+                                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                                            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/25 shrink-0">
                                                 Amount
                                             </span>
-                                            <div className="min-w-0 flex-1 sm:w-[160px] sm:flex-none">
+                                            <div className="min-w-0 w-full sm:w-[180px]">
                                                 <Select
                                                     value={flashcardAmount}
                                                     onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
@@ -773,7 +810,7 @@ export function FlashcardsLabPage() {
                                                     <SelectTrigger
                                                         id="flashcard-amount"
                                                         aria-label="Flashcard amount"
-                                                        className="h-8 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
+                                                        className="h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 text-sm text-white/65 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/85 focus:ring-0 focus:outline-none"
                                                         title={selectedAmountOption.label}
                                                     >
                                                         <span className="truncate">{selectedAmountOption.label}</span>
@@ -798,37 +835,40 @@ export function FlashcardsLabPage() {
                                                 </Select>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={() => {
-                                                    if (documentsLoading) {
-                                                        return;
-                                                    }
-                                                    setSelected(documents.map((doc) => doc.id));
-                                                }}
-                                                className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
-                                            >
-                                                Select All
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    if (documentsLoading) {
-                                                        return;
-                                                    }
-                                                    setSelected([]);
-                                                }}
-                                                className="text-[11px] font-medium text-white/30 hover:text-white transition-colors whitespace-nowrap"
-                                            >
-                                                Clear
-                                            </button>
+
+                                        <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:w-auto lg:flex-nowrap">
+                                            <div className="flex items-center gap-3 text-[11px]">
+                                                <button
+                                                    onClick={() => {
+                                                        if (documentsLoading) {
+                                                            return;
+                                                        }
+                                                        setSelected(documents.map((doc) => doc.id));
+                                                    }}
+                                                    className="font-medium text-white/30 transition-colors hover:text-white whitespace-nowrap"
+                                                >
+                                                    Select All
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (documentsLoading) {
+                                                            return;
+                                                        }
+                                                        setSelected([]);
+                                                    }}
+                                                    className="font-medium text-white/30 transition-colors hover:text-white whitespace-nowrap"
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
                                             <Button
                                                 onClick={handleUploadClick}
                                                 disabled={isUploading || documentsLoading}
                                                 variant="ghost"
                                                 size="sm"
-                                                className="group min-w-[120px] rounded-full px-4 text-[11px] bg-[#18181b] border border-white/5 border-t-white/10 text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200 ease-out"
+                                                className="group w-full justify-center rounded-full border border-white/5 border-t-white/10 bg-[#18181b] px-4 text-[11px] text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out hover:border-[hsl(var(--accent)_/_0.3)] hover:bg-[#202023] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100 sm:w-auto sm:min-w-[132px]"
                                             >
-                                                <UploadCloud className="size-3.5 text-white/75 group-hover:text-white/90 transition-colors" />
+                                                <UploadCloud className="size-3.5 text-white/75 transition-colors group-hover:text-white/90" />
                                                 <span>{isUploading ? "Uploading..." : "Upload More"}</span>
                                             </Button>
                                         </div>
@@ -916,14 +956,14 @@ export function FlashcardsLabPage() {
                             </div>
 
                             {/* Bottom Action Bar */}
-                            <div className="border-t border-white/5 px-6 py-3 flex items-center justify-between gap-4 h-20 overflow-hidden">
+                            <div className="flex flex-col gap-3 border-t border-white/5 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                     {generateError ? (
-                                        <div className="text-[11px] font-mono text-rose-300/70 line-clamp-1" title={generateError}>
+                                        <div className="text-[11px] font-mono text-rose-300/70 line-clamp-2 sm:line-clamp-1" title={generateError}>
                                             {generateError}
                                         </div>
                                     ) : isGenerating ? (
-                                        <div className="text-[11px] font-mono text-white/30 line-clamp-1">
+                                        <div className="text-[11px] font-mono text-white/30 line-clamp-2 sm:line-clamp-1">
                                             Generating deck…
                                         </div>
                                     ) : null}
@@ -931,7 +971,7 @@ export function FlashcardsLabPage() {
                                 <button
                                     onClick={handleGenerate}
                                     disabled={selectedCount === 0 || isGenerating || isUploading || documentsLoading || documents.length === 0 || !!documentsError}
-                                    className={`luminous-btn h-10 min-w-[170px] px-6 flex items-center justify-center gap-2 text-sm transition-all duration-300 whitespace-nowrap shrink-0 ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "opacity-30 grayscale cursor-not-allowed" : ""
+                                    className={`luminous-btn flex h-10 w-full items-center justify-center gap-2 px-6 text-sm transition-all duration-300 whitespace-nowrap sm:w-auto sm:min-w-[170px] ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "cursor-not-allowed opacity-30 grayscale" : ""
                                         }`}
                                 >
                                     {isGenerating ? (
