@@ -351,13 +351,27 @@ export function FlashcardsLabPage() {
                 payload.prompt = trimmedStudyFocus;
             }
 
-            const response = await fetch(`${import.meta.env.SERVER_URL}/llm`, {
+            let response = await fetch(`${import.meta.env.SERVER_URL}/llm`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(payload),
             });
+            if (response.status === 405) {
+                const params = new URLSearchParams({
+                    session_id: payload.session_id,
+                    replace: String(payload.replace),
+                });
+                if (payload.flashcard_amount) {
+                    params.set("flashcard_amount", payload.flashcard_amount);
+                }
+                if (payload.prompt) {
+                    params.set("prompt", payload.prompt);
+                }
+                payload.file_ids.forEach((id) => params.append("file_ids", String(id)));
+                response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
+            }
             if (!response.ok) {
                 const detail = await readErrorMessage(response, "Flashcard generation failed.");
                 throw new Error(detail);
