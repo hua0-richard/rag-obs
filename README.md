@@ -42,17 +42,17 @@
 } }%%
 
 flowchart LR
-    User(["User Browser<br/>(Client)"])
+    User(["User Browser"])
 
     subgraph Frontend["▲ Netlify — Frontend"]
         direction TB
-        Web["React 19<br/>(SPA / CDN)"]
+        Web["React 19 SPA<br/>(Vite)"]
     end
 
     subgraph Backend["☁ Azure Container Apps — Backend"]
         direction TB
-        API["FastAPI<br/>(Python 3.12)"]
-        Embed["Embedding Router<br/>(default · code · verbose)"]
+        API["FastAPI API<br/>(Python 3.12)"]
+        Embed["Embedding Router<br/>(profile-based)"]
         Retrieve["Hybrid Retriever<br/>(BM25 + pgvector)"]
         RAG["Flashcard Generator"]
     end
@@ -68,26 +68,17 @@ flowchart LR
         Ollama["Ollama<br/>(Local Dev)"]
     end
 
-    L_User_Web["HTTPS / Upload .md Files<br/>+ optional study focus"]
-    L_Web_API["REST API / JSON"]
-    L_API_Embed["Text Chunks + Profile"]
-    L_API_Retrieve["Optional study focus query"]
-    L_Retrieve_RAG["Ranked context"]
-    L_API_DB["SQLAlchemy ORM<br/>(sessions · notes · flashcards)"]
-    L_Embed_OR["Embed API — prod"]
-    L_RAG_OR["LLM Completion"]
-    L_Retrieve_DB["Chunk fetch + pgvector similarity"]
-
-    User --> L_User_Web --> Web
-    Web --> L_Web_API --> API
-    API --> L_API_Embed --> Embed
-    API --> L_API_Retrieve --> Retrieve
-    API --> L_API_DB --> DB
-    Embed --> L_Embed_OR --> OR
-    Embed -.->|"Embed API — local dev"| Ollama
-    Retrieve --> L_Retrieve_DB --> DB
-    Retrieve --> L_Retrieve_RAG --> RAG
-    RAG --> L_RAG_OR --> OR
+    User -->|"Upload notes + optional study focus"| Web
+    Web -->|"REST / JSON"| API
+    API -->|"Chunk + classify"| Embed
+    API -->|"Selected files + focus query"| Retrieve
+    API -->|"Sessions + files"| DB
+    Embed -->|"Prod embeddings"| OR
+    Embed -.->|"Local embeddings"| Ollama
+    Retrieve -->|"Chunk fetch + vector search"| DB
+    Retrieve -->|"Ranked context"| RAG
+    RAG -->|"LLM completion"| OR
+    RAG -->|"Decks + flashcards"| DB
 
     classDef neutral    fill:#111827,stroke:#334155,color:#ffffff;
     classDef netlify    fill:#00302c,stroke:#00c7b7,color:#00c7b7;
@@ -96,7 +87,6 @@ flowchart LR
     classDef neon       fill:#002b1f,stroke:#00e599,color:#00e599;
     classDef openrouter fill:#1a0a35,stroke:#a855f7,color:#c084fc;
     classDef ollama     fill:#1c1c1c,stroke:#555555,color:#888888;
-    classDef edgeText   fill:transparent,stroke:transparent,color:#94a3b8;
 
     class User neutral;
     class Web netlify;
@@ -105,7 +95,6 @@ flowchart LR
     class DB neon;
     class OR openrouter;
     class Ollama ollama;
-    class L_User_Web,L_Web_API,L_API_Embed,L_API_Retrieve,L_Retrieve_RAG,L_API_DB,L_Embed_OR,L_RAG_OR,L_Retrieve_DB edgeText;
 
     style Frontend fill:#001f1c,stroke:#00c7b7,color:#00c7b7,stroke-width:1.5px
     style Backend  fill:#001229,stroke:#0078d4,color:#4da6ff,stroke-width:1.5px
