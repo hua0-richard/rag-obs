@@ -791,12 +791,12 @@ export function FlashcardsLabPage() {
                                         </div>
                                     </div>
 
-                                    <div className="flex w-full min-w-0 flex-col gap-3 px-1 lg:w-auto lg:flex-row lg:items-center lg:justify-end lg:pl-6">
-                                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5 lg:max-w-[260px]">
+                                    <div className="flex w-full min-w-0 flex-col gap-3 px-1 md:flex-row md:items-center md:justify-between lg:w-auto lg:justify-end lg:pl-6">
+                                        <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-2.5 lg:max-w-[260px]">
                                             <span className="shrink-0 text-[9px] font-mono uppercase tracking-[0.2em] text-white/25">
                                                 Amount
                                             </span>
-                                            <div className="min-w-0 w-full sm:w-[160px] sm:flex-none">
+                                            <div className="min-w-0 w-full md:w-[160px] md:flex-none">
                                                 <Select
                                                     value={flashcardAmount}
                                                     onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
@@ -831,7 +831,7 @@ export function FlashcardsLabPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:w-auto lg:flex-nowrap">
+                                        <div className="flex w-full flex-col gap-2.5 md:w-auto md:flex-row md:flex-wrap md:items-center md:justify-end lg:flex-nowrap">
                                             <div className="flex items-center gap-3 text-[11px]">
                                                 <button
                                                     onClick={() => {
@@ -861,7 +861,7 @@ export function FlashcardsLabPage() {
                                                 disabled={isUploading || documentsLoading}
                                                 variant="ghost"
                                                 size="sm"
-                                                className="group w-full justify-center rounded-full border border-white/5 border-t-white/10 bg-[#18181b] px-4 text-[11px] text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out hover:border-[hsl(var(--accent)_/_0.3)] hover:bg-[#202023] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100 sm:w-auto sm:min-w-[120px]"
+                                                className="group w-full justify-center rounded-full border border-white/5 border-t-white/10 bg-[#18181b] px-4 text-[11px] text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out hover:border-[hsl(var(--accent)_/_0.3)] hover:bg-[#202023] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100 md:w-auto md:min-w-[120px]"
                                             >
                                                 <UploadCloud className="size-3.5 text-white/75 transition-colors group-hover:text-white/90" />
                                                 <span>{isUploading ? "Uploading..." : "Upload More"}</span>
