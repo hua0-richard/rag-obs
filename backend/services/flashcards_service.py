@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import math
 import os
@@ -142,6 +143,36 @@ def _documents_to_row_items(docs: list[Document]) -> list[tuple[str, int, str]]:
         if isinstance(filename, str) and isinstance(chunk_index, int):
             items.append((filename, chunk_index, doc.page_content))
     return items
+
+
+def _build_bm25_retriever(
+    documents: list[Document],
+    *,
+    limit: int,
+) -> BM25Retriever | None:
+    if not documents:
+        return None
+    if importlib.util.find_spec("rank_bm25") is None:
+        return None
+    try:
+        retriever = BM25Retriever.from_documents(documents)
+    except ImportError:
+        return None
+    retriever.k = limit
+    return retriever
+
+
+async def _retrieve_bm25_row_items(
+    documents: list[Document],
+    query: str,
+    *,
+    limit: int,
+) -> list[tuple[str, int, str]]:
+    retriever = _build_bm25_retriever(documents, limit=limit)
+    if retriever is None:
+        return []
+    docs = await _ainvoke_retriever(retriever, query)
+    return _documents_to_row_items(docs)
 
 
 def _clean_filename(value: str) -> str:
@@ -754,23 +785,39 @@ async def generate_flashcards(
                     embedding_profile=embedding_profile,
                     embedding_table=embedding_table,
                 )
-                try:
-                    bm25_retriever = BM25Retriever.from_documents(bm25_documents)
-                    bm25_retriever.k = bm25_k
-                    ensemble = EnsembleRetriever(
-                        retrievers=[bm25_retriever, vector_retriever],
-                        weights=[HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT],
-                    )
-                    hybrid_docs = await _ainvoke_retriever(ensemble, prompt)
-                    row_items = _documents_to_row_items(hybrid_docs)
-                except Exception as exc:
-                    print(f"[Hybrid Retrieval] Falling back to vector-only retrieval: {exc}")
+                bm25_retriever = _build_bm25_retriever(bm25_documents, limit=bm25_k)
+                if bm25_retriever is None:
+                    print("[Hybrid Retrieval] rank_bm25 unavailable; using vector-only retrieval.")
                     try:
                         vector_docs = await _ainvoke_retriever(vector_retriever, prompt)
                         row_items = _documents_to_row_items(vector_docs)
                     except Exception as vector_exc:
-                        print(f"[Hybrid Retrieval] Vector fallback failed: {vector_exc}")
+                        print(f"[Hybrid Retrieval] Vector-only retrieval failed: {vector_exc}")
                         row_items = _documents_to_row_items(bm25_documents[:bm25_k])
+                else:
+                    ensemble = EnsembleRetriever(
+                        retrievers=[bm25_retriever, vector_retriever],
+                        weights=[HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT],
+                    )
+                    try:
+                        hybrid_docs = await _ainvoke_retriever(ensemble, prompt)
+                        row_items = _documents_to_row_items(hybrid_docs)
+                    except Exception as exc:
+                        print(f"[Hybrid Retrieval] Falling back to vector-only retrieval: {exc}")
+                        try:
+                            vector_docs = await _ainvoke_retriever(vector_retriever, prompt)
+                            row_items = _documents_to_row_items(vector_docs)
+                        except Exception as vector_exc:
+                            print(f"[Hybrid Retrieval] Vector fallback failed: {vector_exc}")
+                            try:
+                                row_items = await _retrieve_bm25_row_items(
+                                    bm25_documents,
+                                    prompt,
+                                    limit=bm25_k,
+                                )
+                            except Exception as bm25_exc:
+                                print(f"[Hybrid Retrieval] BM25 fallback failed: {bm25_exc}")
+                                row_items = _documents_to_row_items(bm25_documents[:bm25_k])
         except Exception as retrieval_exc:
             print(f"[Hybrid Retrieval] Prompt path failed; falling back to chunk order: {retrieval_exc}")
             rows = _fetch_embedding_rows(
