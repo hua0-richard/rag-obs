@@ -23,6 +23,9 @@ Thumbs.db
 logs/
 *.log
 
+__pycache__/
+*.py[cod]
+
 backend/.hf-cache/
 
 docker-compose.override.yml

@@ -114,19 +114,21 @@ flowchart LR
 
 ## Key Components
 
-The architecture integrates a React frontend on Netlify with a FastAPI backend on Azure Container Apps, PostgreSQL + pgvector (Neon) for vector search, and OpenRouter for LLM inference (DeepSeek V3) and embeddings.
+The app uses a React frontend on Netlify, a FastAPI backend on Azure Container Apps, PostgreSQL + pgvector (Neon) for retrieval, and OpenRouter for production LLM inference (DeepSeek V3) and embeddings.
 
 ## Technology Stack
 
-React 19 + Vite + Tailwind CSS on the frontend. FastAPI + Python 3.12 on the backend. PostgreSQL with pgvector via Neon for embeddings. OpenRouter (DeepSeek V3) for cloud LLM inference. OpenRouter for cloud embedding inference. Ollama for local LLM and embedding inference. GitHub Actions for CI/CD.
+React 19 + Vite + Tailwind CSS on the frontend. FastAPI + Python 3.12 on the backend. PostgreSQL with pgvector via Neon for retrieval. OpenRouter (DeepSeek V3) for production LLM inference and embeddings. Ollama for local development. GitHub Actions for CI/CD.
 
 ## Notable Engineering Approaches
 
 **Client-Side Session ID**: Session UUIDs are generated in the browser via `crypto.randomUUID()` and written to `localStorage` immediately on page load — no server round-trip required. The session row is created lazily in the database on the first upload.
 
-**Embedding Routing**: Embedding backend is swappable via `EMBEDDING_BACKEND` env var. In development, Ollama serves embeddings locally. In production, OpenRouter's API is used — keeping the API container lightweight with no local model weights.
+**Embedding Routing**: Embedding backend is swappable via `EMBEDDING_BACKEND`. In development, Ollama serves embeddings locally. In production, OpenRouter is used to keep the API container lightweight and avoid shipping local model weights into Azure Container Apps.
 
-**Multi-Profile Embeddings**: Notes are classified at upload time into `default`, `code`, or `verbose` profiles based on content structure (code blocks, math, length). Each profile routes to a different embedding model and pgvector table optimized for that content type.
+**Multi-Profile Embeddings**: Notes are classified at upload time into `default`, `code`, or `verbose` profiles based on content structure (code blocks, math, length). These profiles control retrieval/storage behavior and pgvector table selection for the active embedding backend.
+
+**Removed Manual Model Switching**: The old UI controls for manually switching embedding models were removed. In production, the extra model-loading and runtime overhead was not worth the added compute and memory pressure on Azure Container Apps, so the app now uses a single production embedding model with internal profile-based routing instead of user-facing model selection.
 
 **Heading-Aware Chunking**: Markdown is split with heading context preserved, so retrieved chunks carry section provenance for precise citations.
 
@@ -143,7 +145,7 @@ Pull the LLM model after first startup:
 pnpm run ollama:pull  # pulls qwen2.5:14b-instruct
 ```
 
-Pull the embedding model:
+Pull the local embedding model:
 
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text
@@ -179,9 +181,9 @@ alembic upgrade head
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EMBEDDING_BACKEND` | `ollama` | `ollama` \| `openrouter` \| `sentence_transformers` |
-| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model |
-| `OPENROUTER_EMBED_MODEL` | `openai/text-embedding-3-small` | OpenRouter embedding model |
+| `EMBEDDING_BACKEND` | `ollama` in dev / `openrouter` in prod | `ollama` \| `openrouter` \| `sentence_transformers` |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Local Ollama embedding model |
+| `OPENROUTER_EMBED_MODEL` | `openai/text-embedding-3-small` | Production OpenRouter embedding model |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-chat-v3-0324` | OpenRouter LLM model |
 | `OPENROUTER_API_KEY` | — | Required in production (LLM + embeddings) |
 | `DATABASE_URL` | local postgres | PostgreSQL connection string |

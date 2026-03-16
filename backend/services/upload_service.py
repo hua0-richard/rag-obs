@@ -12,7 +12,6 @@ from services.embedding_service import (
     effective_profile,
     embed_chunks,
     get_embedding_table,
-    normalize_embedding_profile,
     parse_embedding_profile,
     DEFAULT_EMBEDDING_PROFILE,
     CODE_EMBEDDING_PROFILE,
@@ -29,7 +28,6 @@ def _json_dumps(payload: dict) -> str:
 async def stream_document_upload(
     files: List[UploadFile],
     session_id: UUID | None,
-    embedding_model: str | None = None,
 ) -> StreamingResponse:
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
@@ -82,15 +80,9 @@ async def stream_document_upload(
 
             raw_profile = getattr(session_row, "embedding_profile", None)
             stored_profile = parse_embedding_profile(raw_profile)
-            requested_profile = parse_embedding_profile(embedding_model)
             embedding_profile = stored_profile or DEFAULT_EMBEDDING_PROFILE
 
-            if requested_profile is not None:
-                embedding_profile = requested_profile
-                session_row.embedding_profile = embedding_profile
-                db.commit()
-                db.refresh(session_row)
-            elif stored_profile is None:
+            if stored_profile is None:
                 existing_profile: EmbeddingProfile | None = None
                 for profile in (CODE_EMBEDDING_PROFILE, VERBOSE_EMBEDDING_PROFILE, DEFAULT_EMBEDDING_PROFILE):
                     table_name = get_embedding_table(profile)

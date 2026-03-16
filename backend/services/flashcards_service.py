@@ -44,7 +44,6 @@ from services.embedding_service import (
     embed_query_sync,
     get_embedding_table,
     normalize_embedding_profile,
-    parse_embedding_profile,
 )
 from services.obsidian_service import split_text_with_context
 from utils.obsidian import format_context_content_for_llm, is_code_block_content
@@ -689,7 +688,6 @@ async def generate_flashcards(
     session_id: UUID | None,
     file_ids: list[int] | None,
     replace: bool,
-    embedding_model: str | None,
     flashcard_amount: str | None,
     db: Session,
 ):
@@ -709,18 +707,11 @@ async def generate_flashcards(
         if session_row is None:
             raise HTTPException(status_code=404, detail="session_id not found")
 
-    requested_profile = parse_embedding_profile(embedding_model)
     embedding_profile = (
         normalize_embedding_profile(session_row.embedding_profile)
         if session_row is not None
         else DEFAULT_EMBEDDING_PROFILE
     )
-    if requested_profile is not None:
-        embedding_profile = requested_profile
-        if session_row is not None and session_row.embedding_profile != requested_profile:
-            session_row.embedding_profile = requested_profile
-            db.commit()
-            db.refresh(session_row)
     embedding_table = get_embedding_table(effective_profile(embedding_profile))
     await _ensure_embeddings_for_profile(
         db=db,

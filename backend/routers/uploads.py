@@ -12,8 +12,5 @@ async def document_upload(
     session_id: UUID | None = Query(
         None, description="Existing session_id (UUID); if omitted a new one is created"
     ),
-    embedding_model: str | None = Query(
-        None, description="Embedding model selection (default, code, verbose, or model name)"
-    ),
 ):
-    return await stream_document_upload(files, session_id, embedding_model)
+    return await stream_document_upload(files, session_id)

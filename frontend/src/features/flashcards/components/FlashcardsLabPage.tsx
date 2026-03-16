@@ -22,26 +22,7 @@ type Document = {
 };
 
 type Tab = "create" | "decks";
-type EmbeddingModelOption = "default" | "jina-embeddings-v2-base-code" | "bge-large-en-v1.5";
 type FlashcardAmountOption = "small" | "medium" | "large";
-
-const EMBEDDING_MODEL_OPTIONS: { value: EmbeddingModelOption; label: string; description: string }[] = [
-    {
-        value: "default",
-        label: "all-MiniLM-L6-v2",
-        description: "Balanced default.",
-    },
-    {
-        value: "jina-embeddings-v2-base-code",
-        label: "jina-embeddings-v2-base-code",
-        description: "Code + math focus.",
-    },
-    {
-        value: "bge-large-en-v1.5",
-        label: "bge-large-en-v1.5",
-        description: "Long-form notes.",
-    },
-];
 
 const FLASHCARD_AMOUNT_OPTIONS: { value: FlashcardAmountOption; label: string; description: string }[] = [
     {
@@ -61,24 +42,6 @@ const FLASHCARD_AMOUNT_OPTIONS: { value: FlashcardAmountOption; label: string; d
     },
 ];
 
-
-const isEmbeddingModelOption = (value: string | null): value is EmbeddingModelOption =>
-    EMBEDDING_MODEL_OPTIONS.some((option) => option.value === value);
-
-const resolveEmbeddingModel = (profile: unknown, modelName: unknown): EmbeddingModelOption => {
-    if (typeof modelName === "string" && isEmbeddingModelOption(modelName)) {
-        return modelName;
-    }
-    if (typeof profile === "string") {
-        if (profile === "code") {
-            return "jina-embeddings-v2-base-code";
-        }
-        if (profile === "verbose") {
-            return "bge-large-en-v1.5";
-        }
-    }
-    return "default";
-};
 
 const formatRelativeTime = (isoTimestamp: string) => {
     const timestamp = new Date(isoTimestamp).getTime();
@@ -166,8 +129,6 @@ export function FlashcardsLabPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [_uploadStatus, setUploadStatus] = useState<string | null>(null);
     const [_uploadIsError, setUploadIsError] = useState(false);
-    const [embeddingModel, setEmbeddingModel] = useState<EmbeddingModelOption>("default");
-    const [_embeddingModelName, setEmbeddingModelName] = useState<string>("all-MiniLM-L6-v2"); // eslint-disable-line @typescript-eslint/no-unused-vars
     const [flashcardAmount, setFlashcardAmount] = useState<FlashcardAmountOption>("medium");
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
@@ -184,9 +145,6 @@ export function FlashcardsLabPage() {
 
     const selectedCount = selected.length;
     const totalDocs = documents.length;
-    const selectedModelOption =
-        EMBEDDING_MODEL_OPTIONS.find((option) => option.value === embeddingModel) ??
-        EMBEDDING_MODEL_OPTIONS[0];
     const selectedAmountOption =
         FLASHCARD_AMOUNT_OPTIONS.find((option) => option.value === flashcardAmount) ??
         FLASHCARD_AMOUNT_OPTIONS[1];
@@ -223,25 +181,6 @@ export function FlashcardsLabPage() {
         }
     }, []);
 
-    const fetchSessionProfile = useCallback(async (sessionId: string) => {
-        try {
-            const response = await fetch(
-                `${import.meta.env.SERVER_URL}/session-profile?session_id=${encodeURIComponent(sessionId)}`
-            );
-            if (!response.ok) {
-                return;
-            }
-            const data = await response.json();
-            const nextModel = resolveEmbeddingModel(data?.embedding_profile, data?.embedding_model);
-            const modelName = typeof data?.embedding_model === "string" ? data.embedding_model : "all-MiniLM-L6-v2";
-            setEmbeddingModel(nextModel);
-            setEmbeddingModelName(modelName);
-            localStorage.setItem(`flashcards_embedding_model:${sessionId}`, nextModel);
-        } catch {
-            // Ignore profile errors and rely on local defaults.
-        }
-    }, []);
-
     useEffect(() => {
         const sessionId = localStorage.getItem("session_id");
         if (!sessionId) {
@@ -250,37 +189,14 @@ export function FlashcardsLabPage() {
             setDocumentsLoading(false);
             return;
         }
-        const storedModel = localStorage.getItem(`flashcards_embedding_model:${sessionId}`);
-        if (isEmbeddingModelOption(storedModel)) {
-            setEmbeddingModel(storedModel);
-            if (storedModel === "default") {
-                setEmbeddingModelName("all-MiniLM-L6-v2");
-            } else {
-                setEmbeddingModelName(storedModel);
-            }
-        }
         fetchDocuments(sessionId);
-        fetchSessionProfile(sessionId);
-    }, [fetchDocuments, fetchSessionProfile]);
+    }, [fetchDocuments]);
 
     useEffect(() => {
         if (activeTab === "decks") {
             setDecks(loadDecks());
         }
     }, [activeTab]);
-
-    useEffect(() => {
-        const sessionId = localStorage.getItem("session_id");
-        if (!sessionId) {
-            return;
-        }
-        localStorage.setItem(`flashcards_embedding_model:${sessionId}`, embeddingModel);
-        if (embeddingModel === "default") {
-            setEmbeddingModelName("all-MiniLM-L6-v2");
-        } else {
-            setEmbeddingModelName(embeddingModel);
-        }
-    }, [embeddingModel]);
 
     const closeToast = () => {
         setIsClosing(true);
@@ -399,9 +315,6 @@ export function FlashcardsLabPage() {
                 session_id: sessionId,
                 replace: "true",
             });
-            if (embeddingModel !== "default") {
-                params.set("embedding_model", embeddingModel);
-            }
             if (flashcardAmount !== "medium") {
                 params.set("flashcard_amount", flashcardAmount);
             }
@@ -505,9 +418,6 @@ export function FlashcardsLabPage() {
         try {
             const uploadUrl = new URL(`${import.meta.env.SERVER_URL}/upload-files`);
             uploadUrl.searchParams.set("session_id", sessionId);
-            if (embeddingModel !== "default") {
-                uploadUrl.searchParams.set("embedding_model", embeddingModel);
-            }
             const response = await fetch(
                 uploadUrl.toString(),
                 {
@@ -826,50 +736,11 @@ export function FlashcardsLabPage() {
                                 </div>
 
                                 <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end lg:gap-4">
-                                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                                        <div className="flex w-full min-w-0 items-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[360px]">
-                                            <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
-                                                Model
-                                            </span>
-                                            <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
-                                            <Select
-                                                value={embeddingModel}
-                                                onValueChange={(value) => setEmbeddingModel(value as EmbeddingModelOption)}
-                                                disabled={isUploading || isGenerating}
-                                            >
-                                                <SelectTrigger
-                                                    id="embedding-model"
-                                                    aria-label="Embedding model"
-                                                    className="h-8 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-[11px] font-mono text-white/50 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
-                                                    title={selectedModelOption.label}
-                                                >
-                                                    <span className="truncate">{selectedModelOption.label}</span>
-                                                </SelectTrigger>
-                                                <SelectContent className="w-[min(90vw,280px)] rounded-xl border border-white/[0.07] bg-[#111113] p-1 shadow-2xl backdrop-blur-xl">
-                                                    {EMBEDDING_MODEL_OPTIONS.map((option) => (
-                                                        <SelectItem
-                                                            key={option.value}
-                                                            value={option.value}
-                                                            textValue={option.label}
-                                                            className="items-start py-2.5 pr-8"
-                                                        >
-                                                            <div className="flex min-w-0 flex-col gap-1">
-                                                                <span className="line-clamp-1 text-[11px] font-mono text-white/80">{option.label}</span>
-                                                                <span className="line-clamp-2 text-[10px] leading-snug text-white/35">
-                                                                    {option.description}
-                                                                </span>
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        </div>
-                                        <div className="flex w-full min-w-0 items-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[260px]">
-                                            <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
-                                                Amount
-                                            </span>
-                                            <div className="min-w-0 flex-1 sm:w-[160px] sm:flex-none">
+                                    <div className="flex w-full min-w-0 items-center gap-2.5 px-1 py-1.5 sm:w-auto lg:max-w-[260px]">
+                                        <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em] shrink-0">
+                                            Amount
+                                        </span>
+                                        <div className="min-w-0 flex-1 sm:w-[160px] sm:flex-none">
                                             <Select
                                                 value={flashcardAmount}
                                                 onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
@@ -901,7 +772,6 @@ export function FlashcardsLabPage() {
                                                     ))}
                                                 </SelectContent>
                                             </Select>
-                                        </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">

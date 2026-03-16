@@ -278,13 +278,3 @@ async def embed_query(prompt: str, profile: EmbeddingProfile = DEFAULT_EMBEDDING
 
 def embed_query_sync(prompt: str, profile: EmbeddingProfile = DEFAULT_EMBEDDING_PROFILE):
     return _embed_sync([prompt], profile)[0]
-
-
-def active_embed_model(profile: EmbeddingProfile) -> str:
-    """Return the model name that will be used for the given profile under the active backend."""
-    backend = EMBEDDING_BACKEND.lower()
-    if backend == "ollama":
-        return f"ollama/{OLLAMA_EMBED_MODEL}"
-    if backend == "openrouter":
-        return f"openrouter/{OPENROUTER_EMBED_MODEL}"
-    return ST_EMBEDDING_MODEL_NAMES.get(profile, "unknown")
