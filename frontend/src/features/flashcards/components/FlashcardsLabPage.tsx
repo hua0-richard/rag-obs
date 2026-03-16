@@ -736,7 +736,7 @@ export function FlashcardsLabPage() {
                             {/* Top Bar */}
                             <div className="flex flex-col gap-2.5 border-b border-white/5 px-6 py-3">
                                 <div
-                                    className="text-center text-xs font-mono text-white/40 line-clamp-1"
+                                    className="text-left text-xs font-mono text-white/40 line-clamp-1"
                                     title={`${selectedCount} / ${totalDocs} selected`}
                                 >
                                     <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
