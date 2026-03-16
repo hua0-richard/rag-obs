@@ -727,49 +727,52 @@ async def generate_flashcards(
 
     row_items: list[tuple[str, int, str]] = []
     if prompt:
-        bm25_limit = min(
-            FLASHCARD_BM25_CANDIDATE_MAX,
-            max(
-                effective_k * FLASHCARD_BM25_CANDIDATE_MULTIPLIER,
-                effective_k,
-            ),
-        )
-        bm25_rows = _fetch_embedding_rows(
-            db,
-            session_id,
-            file_ids,
-            table_name=embedding_table,
-            order_by="chunk_index",
-            limit=bm25_limit,
-        )
-        bm25_documents = _rows_to_documents(bm25_rows)
-        if bm25_documents:
-            bm25_k = effective_k if effective_k is not None else len(bm25_documents)
-            vector_retriever = PgVectorRetriever(
-                db=db,
-                session_id=session_id,
-                file_ids=file_ids,
-                k=effective_k,
-                embedding_profile=embedding_profile,
-                embedding_table=embedding_table,
+        try:
+            bm25_limit = min(
+                FLASHCARD_BM25_CANDIDATE_MAX,
+                max(
+                    effective_k * FLASHCARD_BM25_CANDIDATE_MULTIPLIER,
+                    effective_k,
+                ),
             )
-            try:
-                bm25_retriever = BM25Retriever.from_documents(bm25_documents)
-                bm25_retriever.k = bm25_k
-                ensemble = EnsembleRetriever(
-                    retrievers=[bm25_retriever, vector_retriever],
-                    weights=[HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT],
+            bm25_rows = _fetch_embedding_rows(
+                db,
+                session_id,
+                file_ids,
+                table_name=embedding_table,
+                order_by="chunk_index",
+                limit=bm25_limit,
+            )
+            bm25_documents = _rows_to_documents(bm25_rows)
+            if bm25_documents:
+                bm25_k = effective_k if effective_k is not None else len(bm25_documents)
+                vector_retriever = PgVectorRetriever(
+                    db=db,
+                    session_id=session_id,
+                    file_ids=file_ids,
+                    k=effective_k,
+                    embedding_profile=embedding_profile,
+                    embedding_table=embedding_table,
                 )
-                hybrid_docs = await _ainvoke_retriever(ensemble, prompt)
-                row_items = _documents_to_row_items(hybrid_docs)
-            except Exception as exc:
-                print(f"[Hybrid Retrieval] Falling back to vector-only retrieval: {exc}")
                 try:
-                    vector_docs = await _ainvoke_retriever(vector_retriever, prompt)
-                    row_items = _documents_to_row_items(vector_docs)
-                except Exception as vector_exc:
-                    print(f"[Hybrid Retrieval] Vector fallback failed: {vector_exc}")
-                    row_items = _documents_to_row_items(bm25_documents[:bm25_k])
+                    bm25_retriever = BM25Retriever.from_documents(bm25_documents)
+                    bm25_retriever.k = bm25_k
+                    ensemble = EnsembleRetriever(
+                        retrievers=[bm25_retriever, vector_retriever],
+                        weights=[HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT],
+                    )
+                    hybrid_docs = await _ainvoke_retriever(ensemble, prompt)
+                    row_items = _documents_to_row_items(hybrid_docs)
+                except Exception as exc:
+                    print(f"[Hybrid Retrieval] Falling back to vector-only retrieval: {exc}")
+                    try:
+                        vector_docs = await _ainvoke_retriever(vector_retriever, prompt)
+                        row_items = _documents_to_row_items(vector_docs)
+                    except Exception as vector_exc:
+                        print(f"[Hybrid Retrieval] Vector fallback failed: {vector_exc}")
+                        row_items = _documents_to_row_items(bm25_documents[:bm25_k])
+        except Exception as retrieval_exc:
+            print(f"[Hybrid Retrieval] Prompt path failed; falling back to chunk order: {retrieval_exc}")
     else:
         rows = _fetch_embedding_rows(
             db,

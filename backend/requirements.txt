@@ -5,6 +5,7 @@ python-multipart
 alembic
 langchain-core
 langchain-community
+rank-bm25
 # langchain-openai
 langchain-text-splitters
 sentence-transformers==2.6.1
