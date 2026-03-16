@@ -3,7 +3,6 @@ import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud, Load
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/components/ui/Select";
-import { Textarea } from "@/shared/components/ui/Textarea";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
@@ -771,37 +770,33 @@ export function FlashcardsLabPage() {
                                     <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
                                 </div>
 
-                                <div className="flex w-full min-w-0 flex-col gap-3.5">
-                                    <div className="flex min-w-0 flex-col gap-2 px-1">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <label
-                                                htmlFor="study-focus"
-                                                className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/25"
-                                            >
-                                                Focus
-                                            </label>
-                                            <span className="text-[10px] font-mono text-white/20">
-                                                {studyFocus.length}/160
-                                            </span>
+                                <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="flex w-full min-w-0 flex-col gap-2 px-1 py-1.5 sm:flex-row sm:items-center sm:gap-2.5 lg:max-w-[360px]">
+                                        <label
+                                            htmlFor="study-focus"
+                                            className="shrink-0 text-[9px] font-mono uppercase tracking-[0.2em] text-white/25"
+                                        >
+                                            Focus
+                                        </label>
+                                        <div className="min-w-0 flex-1">
+                                            <input
+                                                id="study-focus"
+                                                value={studyFocus}
+                                                onChange={(event) => setStudyFocus(event.target.value)}
+                                                placeholder="Optional: recursion, formulas, React hooks"
+                                                disabled={isUploading || isGenerating || documentsLoading}
+                                                maxLength={160}
+                                                className="h-8 w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 outline-none transition-all duration-200 hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:border-[hsl(var(--accent)/0.3)] focus:bg-white/[0.05] focus:text-white/75 focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-white/28"
+                                            />
                                         </div>
-                                        <Textarea
-                                            id="study-focus"
-                                            value={studyFocus}
-                                            onChange={(event) => setStudyFocus(event.target.value)}
-                                            placeholder="Optional: recursion, formulas, React hooks"
-                                            disabled={isUploading || isGenerating || documentsLoading}
-                                            maxLength={160}
-                                            rows={3}
-                                            className="min-h-[84px] resize-none rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-sm leading-relaxed text-white/70 hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] focus:ring-0 focus:border-[hsl(var(--accent)/0.3)] placeholder:text-white/28 sm:min-h-[76px] lg:min-h-[68px]"
-                                        />
                                     </div>
 
-                                    <div className="flex w-full min-w-0 flex-col gap-3 px-1 lg:flex-row lg:items-end lg:justify-between">
-                                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-                                            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/25 shrink-0">
+                                    <div className="flex w-full min-w-0 flex-col gap-3 px-1 lg:w-auto lg:flex-row lg:items-center lg:justify-end lg:pl-6">
+                                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5 lg:max-w-[260px]">
+                                            <span className="shrink-0 text-[9px] font-mono uppercase tracking-[0.2em] text-white/25">
                                                 Amount
                                             </span>
-                                            <div className="min-w-0 w-full sm:w-[180px]">
+                                            <div className="min-w-0 w-full sm:w-[160px] sm:flex-none">
                                                 <Select
                                                     value={flashcardAmount}
                                                     onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
@@ -810,7 +805,7 @@ export function FlashcardsLabPage() {
                                                     <SelectTrigger
                                                         id="flashcard-amount"
                                                         aria-label="Flashcard amount"
-                                                        className="h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 text-sm text-white/65 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/85 focus:ring-0 focus:outline-none"
+                                                        className="h-8 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
                                                         title={selectedAmountOption.label}
                                                     >
                                                         <span className="truncate">{selectedAmountOption.label}</span>
@@ -866,7 +861,7 @@ export function FlashcardsLabPage() {
                                                 disabled={isUploading || documentsLoading}
                                                 variant="ghost"
                                                 size="sm"
-                                                className="group w-full justify-center rounded-full border border-white/5 border-t-white/10 bg-[#18181b] px-4 text-[11px] text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out hover:border-[hsl(var(--accent)_/_0.3)] hover:bg-[#202023] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100 sm:w-auto sm:min-w-[132px]"
+                                                className="group w-full justify-center rounded-full border border-white/5 border-t-white/10 bg-[#18181b] px-4 text-[11px] text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out hover:border-[hsl(var(--accent)_/_0.3)] hover:bg-[#202023] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100 sm:w-auto sm:min-w-[120px]"
                                             >
                                                 <UploadCloud className="size-3.5 text-white/75 transition-colors group-hover:text-white/90" />
                                                 <span>{isUploading ? "Uploading..." : "Upload More"}</span>
