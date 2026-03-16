@@ -10,6 +10,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      REGISTRY: ragobsacr.azurecr.io
+      IMAGE_NAME: ragobs-api
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout
@@ -23,7 +27,7 @@ jobs:
       - name: Log in to ACR
         uses: azure/docker-login@v1
         with:
-          login-server: ragobsacr.azurecr.io
+          login-server: ${{ env.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
@@ -36,7 +40,9 @@ jobs:
           context: ./backend
           platforms: linux/amd64
           push: true
-          tags: ragobsacr.azurecr.io/ragobs-api:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max,ignore-error=true
 
@@ -46,7 +52,7 @@ jobs:
           acrName: ragobsacr
           containerAppName: ragobs-api
           resourceGroup: gpu-store-rg
-          imageToDeploy: ragobsacr.azurecr.io/ragobs-api:latest
+          imageToDeploy: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           acrUsername: ${{ secrets.REGISTRY_USERNAME }}
           acrPassword: ${{ secrets.REGISTRY_PASSWORD }}
 
