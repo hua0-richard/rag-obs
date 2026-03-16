@@ -372,7 +372,7 @@ class PgVectorRetriever(BaseRetriever):
         class Config:
             arbitrary_types_allowed = True
 
-    def _get_relevant_documents(self, query: str) -> list[Document]:
+    def _get_relevant_documents(self, query: str, *, run_manager=None) -> list[Document]:
         qvec = embed_query_sync(query, profile=self.embedding_profile)
         rows = _fetch_embedding_rows(
             self.db,
@@ -384,7 +384,7 @@ class PgVectorRetriever(BaseRetriever):
         )
         return _rows_to_documents(rows)
 
-    async def _aget_relevant_documents(self, query: str) -> list[Document]:
+    async def _aget_relevant_documents(self, query: str, *, run_manager=None) -> list[Document]:
         qvec = await embed_query(query, profile=self.embedding_profile)
         rows = _fetch_embedding_rows(
             self.db,
@@ -745,8 +745,6 @@ async def generate_flashcards(
         bm25_documents = _rows_to_documents(bm25_rows)
         if bm25_documents:
             bm25_k = effective_k if effective_k is not None else len(bm25_documents)
-            bm25_retriever = BM25Retriever.from_documents(bm25_documents)
-            bm25_retriever.k = bm25_k
             vector_retriever = PgVectorRetriever(
                 db=db,
                 session_id=session_id,
@@ -755,12 +753,23 @@ async def generate_flashcards(
                 embedding_profile=embedding_profile,
                 embedding_table=embedding_table,
             )
-            ensemble = EnsembleRetriever(
-                retrievers=[bm25_retriever, vector_retriever],
-                weights=[HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT],
-            )
-            hybrid_docs = await _ainvoke_retriever(ensemble, prompt)
-            row_items = _documents_to_row_items(hybrid_docs)
+            try:
+                bm25_retriever = BM25Retriever.from_documents(bm25_documents)
+                bm25_retriever.k = bm25_k
+                ensemble = EnsembleRetriever(
+                    retrievers=[bm25_retriever, vector_retriever],
+                    weights=[HYBRID_KEYWORD_WEIGHT, HYBRID_VECTOR_WEIGHT],
+                )
+                hybrid_docs = await _ainvoke_retriever(ensemble, prompt)
+                row_items = _documents_to_row_items(hybrid_docs)
+            except Exception as exc:
+                print(f"[Hybrid Retrieval] Falling back to vector-only retrieval: {exc}")
+                try:
+                    vector_docs = await _ainvoke_retriever(vector_retriever, prompt)
+                    row_items = _documents_to_row_items(vector_docs)
+                except Exception as vector_exc:
+                    print(f"[Hybrid Retrieval] Vector fallback failed: {vector_exc}")
+                    row_items = _documents_to_row_items(bm25_documents[:bm25_k])
     else:
         rows = _fetch_embedding_rows(
             db,

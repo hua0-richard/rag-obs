@@ -743,22 +743,19 @@ export function FlashcardsLabPage() {
                                     >
                                         <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
                                     </div>
-                                    <label className="flex min-w-0 flex-col gap-1.5 lg:max-w-[480px]">
+                                    <label className="flex min-w-0 flex-col gap-1 lg:max-w-[320px]">
                                         <span className="text-[9px] font-mono text-white/25 uppercase tracking-[0.2em]">
-                                            Study Focus
+                                            Focus
                                         </span>
                                         <Input
                                             id="study-focus"
                                             value={studyFocus}
                                             onChange={(event) => setStudyFocus(event.target.value)}
-                                            placeholder="Optional: recursion base case, key formulas, React hooks..."
+                                            placeholder="Optional: recursion, formulas, React hooks"
                                             disabled={isUploading || isGenerating || documentsLoading}
                                             maxLength={160}
-                                            className="h-9 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 text-sm text-white/75 placeholder:text-white/35 focus:border-[hsl(var(--accent)/0.35)]"
+                                            className="h-8 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 text-[12px] text-white/65 placeholder:text-white/28 shadow-none transition-colors duration-200 hover:border-white/[0.1] hover:bg-white/[0.03] focus:border-white/[0.12] focus-visible:border-white/[0.12] focus:ring-0 focus-visible:ring-0 focus-visible:shadow-none"
                                         />
-                                        <span className="text-[11px] text-white/30">
-                                            Optional. When filled, we use it as a hybrid retrieval query across the selected notes.
-                                        </span>
                                     </label>
                                 </div>
 
