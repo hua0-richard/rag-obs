@@ -696,7 +696,7 @@ export function FlashcardsLabPage() {
             <div className="absolute inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.0)_70%)]" />
 
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 bg-transparent">
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 bg-[#09090b]/60 backdrop-blur-xl border-b border-white/[0.06]">
                 <div className="text-white/40 font-medium text-sm tracking-widest uppercase font-mono">
                     <span className="text-[hsl(var(--accent))]">Flashcards</span> <span className="text-white/20 mx-2">/</span> Lab
                 </div>
