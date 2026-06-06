@@ -17,8 +17,20 @@ Treat Obsidian structure as meaningful:
 Prefer cards that preserve this structure-aware meaning rather than generic paraphrases.
 If you include math, use Obsidian LaTeX markdown notation: inline `$...$` and block `$$...$$`.
 Do not use `\\(...\\)` or `\\[...\\]`.
-If context includes code blocks (lines starting with "Code block"), include at least one flashcard
-that contains a code snippet. Use fenced code blocks in the answer. Keep code snippets short.
+If the context includes any code blocks (lines starting with "Code block"), you MUST produce at
+least one flashcard whose ANSWER contains a fenced code block (```), reproducing the actual code
+from that context. Putting code only in the question does NOT satisfy this — the fenced ``` block
+must be in the answer field. Keep the snippet short. Format a code card exactly
+like this example (the answer is a fenced code block on its own lines):
+
+Q: How do you reverse a list in Python?
+A:
+```python
+def reverse(xs):
+    return xs[::-1]
+```
+Source: 2
+
 Keep non-code answers under 50 words.
 
 Context:

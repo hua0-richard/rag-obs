@@ -589,15 +589,16 @@ def _normalize_card(item: object) -> dict | None:
 
 
 def _parse_qa_blocks(text: str) -> list[dict]:
-    cleaned = text.replace("```json", "").replace("```", "")
+    cleaned = text.replace("```json", "")  # keep inner code fences; only drop a ```json wrapper marker
     cards: list[dict] = []
     current_q: str | None = None
     current_a: list[str] = []
     current_source: int | None = None
     in_answer = False
+    in_code_fence = False
 
     def flush_current():
-        nonlocal current_q, current_a, current_source, in_answer
+        nonlocal current_q, current_a, current_source, in_answer, in_code_fence
         if current_q and current_a:
             cards.append(
                 {
@@ -610,9 +611,23 @@ def _parse_qa_blocks(text: str) -> list[dict]:
         current_a = []
         current_source = None
         in_answer = False
+        in_code_fence = False
 
     for raw_line in cleaned.splitlines():
-        line = raw_line.strip()
+        stripped = raw_line.strip()
+
+        # Inside (or entering/leaving) a fenced code block, preserve the line
+        # verbatim — keep indentation, don't strip, and don't misparse code as a
+        # Q/A/Source label. Only trailing whitespace (markdown "  " breaks) is cut.
+        is_fence = stripped.startswith("```")
+        if in_code_fence or is_fence:
+            if in_answer and current_q:
+                current_a.append(raw_line.rstrip())
+            if is_fence:
+                in_code_fence = not in_code_fence
+            continue
+
+        line = stripped
         if not line:
             continue
         line = re.sub(r"^\s*[-*•]\s*", "", line)
@@ -643,10 +658,14 @@ def _parse_qa_blocks(text: str) -> list[dict]:
             current_q = _normalize_obsidian_latex(q_match.group(1).strip())
             continue
 
-        a_match = re.match(r"^(?:A|Answer)\s*[:\-]\s*(.+)$", line, re.IGNORECASE)
+        a_match = re.match(r"^(?:A|Answer)\s*[:\-]\s*(.*)$", line, re.IGNORECASE)
         if a_match and current_q:
             in_answer = True
-            current_a.append(_normalize_obsidian_latex(a_match.group(1).strip()))
+            # ".*" so a bare "A:" (answer body, e.g. a code block, on following
+            # lines) still opens answer mode instead of dropping the card.
+            inline_answer = a_match.group(1).strip()
+            if inline_answer:
+                current_a.append(_normalize_obsidian_latex(inline_answer))
             continue
 
         source_match = re.match(

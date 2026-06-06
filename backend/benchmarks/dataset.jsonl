@@ -6,9 +6,14 @@
 #   relevant_files  - filenames in corpus/ that SHOULD be retrieved (retrieval scoring)
 #   expect_code_card- optional; assert >=1 fenced-code flashcard is produced
 #   flashcard_amount- optional: "small" | "medium" | "large"
-{"id": "cosine-similarity", "prompt": "how does cosine similarity work for embeddings", "k": 8, "relevant_files": ["sample-note.md"], "expect_code_card": true}
-{"id": "pgvector-operator", "prompt": "what operator does pgvector use to order candidates", "k": 8, "relevant_files": ["sample-note.md"]}
+# k and flashcard_amount are varied deliberately to spread the latency distribution.
 {"id": "gd-update-rule", "prompt": "what is the gradient descent parameter update rule", "k": 8, "relevant_files": ["gradient-descent.md"]}
-{"id": "gd-implementation", "prompt": "how do you implement gradient descent from scratch in python", "k": 8, "relevant_files": ["gradient-descent.md"], "expect_code_card": true}
-{"id": "gd-learning-rate", "prompt": "why does the learning rate matter and what happens if it is too large", "k": 8, "relevant_files": ["gradient-descent.md"]}
+{"id": "gd-implementation", "prompt": "how do you implement gradient descent from scratch in python", "k": 8, "relevant_files": ["gradient-descent.md"], "expect_code_card": true, "flashcard_amount": "large"}
+{"id": "bst-insert", "prompt": "how do you insert a node into a binary search tree in python", "k": 8, "relevant_files": ["binary-search-trees.md"], "expect_code_card": true}
+{"id": "bst-balance-tradeoff", "prompt": "why can a binary search tree degenerate and how is it kept balanced", "k": 12, "relevant_files": ["binary-search-trees.md"]}
+{"id": "bayes-formula", "prompt": "what is the formula for bayes theorem and what is the prior", "k": 8, "relevant_files": ["bayes-theorem.md"]}
+{"id": "bayes-base-rate", "prompt": "why does a positive medical test still mean low probability of disease", "k": 8, "relevant_files": ["bayes-theorem.md"]}
+{"id": "cap-consistency-availability", "prompt": "what tradeoff does the CAP theorem force during a network partition", "k": 8, "relevant_files": ["cap-theorem.md"]}
+{"id": "http-401-vs-403", "prompt": "what is the difference between http 401 and 403 status codes", "k": 6, "relevant_files": ["http-status-codes.md"], "flashcard_amount": "small"}
+{"id": "caching-cache-aside", "prompt": "show the cache-aside read pattern in python", "k": 8, "relevant_files": ["caching-strategies.md"], "expect_code_card": true}
 {"id": "out-of-corpus", "prompt": "what is the capital of France", "k": 8, "relevant_files": []}
