@@ -212,6 +212,7 @@ Gate CI only on the free deterministic metrics (`dev` profile on every PR); run 
 | `EMBEDDING_BACKEND` | `ollama` in dev / `openrouter` in prod | `ollama` \| `openrouter` \| `sentence_transformers` |
 | `FLASHCARD_LLM_BACKEND` | follows `ENV` | Override LLM backend independently of `ENV`: `openrouter` \| `ollama` (used by benchmarks) |
 | `FLASHCARD_LLM_TEMPERATURE` | `0.2` | Generation sampling temperature; benchmark profiles pin it to `0` |
+| `FLASHCARD_MAX_RETRIEVAL_DISTANCE` | `0` (disabled) | Cosine-distance floor: drop retrieved chunks farther than this from the query, so focused queries stay on-topic and irrelevant queries return no cards. Tune with `benchmarks/sweep_distance.py` before enabling |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Local Ollama embedding model |
 | `OPENROUTER_EMBED_MODEL` | `openai/text-embedding-3-small` | Production OpenRouter embedding model |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-chat-v3-0324` | OpenRouter LLM model |

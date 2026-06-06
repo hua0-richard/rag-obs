@@ -59,6 +59,14 @@ FLASHCARD_MIN_CODE_CARDS = 1
 FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT = 3
 HYBRID_VECTOR_WEIGHT = 0.6
 HYBRID_KEYWORD_WEIGHT = 0.4
+# Post-retrieval relevance floor: drop retrieved chunks whose cosine distance
+# (pgvector `<=>`, 0=identical … 2=opposite) to the query exceeds this, so a
+# focused query stops dragging in off-topic chunks and a query matching nothing
+# returns no cards at all. 0 / unset = disabled (no behaviour change). Tune
+# against the benchmark before raising in prod.
+FLASHCARD_MAX_RETRIEVAL_DISTANCE = float(
+    os.getenv("FLASHCARD_MAX_RETRIEVAL_DISTANCE", "0") or 0
+)
 FLASHCARD_LLM_TIMEOUT_SECONDS = int(os.getenv("FLASHCARD_LLM_TIMEOUT_SECONDS", "90"))
 FLASHCARD_LLM_MODEL = os.getenv("FLASHCARD_LLM_MODEL", "llama3.1")
 FLASHCARD_LLM_KEEP_ALIVE = os.getenv("FLASHCARD_LLM_KEEP_ALIVE", "30m")
@@ -129,6 +137,34 @@ def _fetch_embedding_rows(
         base_query += "LIMIT :k"
         params["k"] = limit
     return db.execute(sql_text(base_query), params).fetchall()
+
+
+def _relevance_distances(
+    db: Session,
+    session_id: UUID | None,
+    file_ids: list[int] | None,
+    *,
+    table_name: str,
+    qvec: object,
+    keys: list[tuple[str, int]],
+) -> dict[tuple[str, int], float]:
+    """Cosine distance from the query to each (filename, chunk_index) in ``keys``.
+
+    One pass over the chunks of the already-retrieved filenames; missing keys are
+    simply absent from the result (callers treat that as "drop it").
+    """
+    if not keys:
+        return {}
+    clauses, params = _build_embedding_filters(session_id, file_ids)
+    clauses.append("filename = ANY(:fns)")
+    params["fns"] = sorted({fn for fn, _ in keys})
+    params["qvec"] = qvec.tolist()
+    query = (
+        "SELECT filename, chunk_index, (embedding <=> (:qvec)::vector) AS distance "
+        f"FROM {table_name} WHERE " + " AND ".join(clauses)
+    )
+    rows = db.execute(sql_text(query), params).fetchall()
+    return {(row.filename, row.chunk_index): float(row.distance) for row in rows}
 
 
 def _rows_to_documents(rows) -> list[Document]:
@@ -906,6 +942,35 @@ async def generate_flashcards(
         deduped_items = deduped_items[:effective_k]
         seen_keys = {(filename, chunk_index) for filename, chunk_index, _ in deduped_items}
     row_items = deduped_items
+
+    # Relevance floor: drop chunks whose cosine distance to the query exceeds the
+    # threshold. Keeps focused queries on-topic, and lets an off-topic query
+    # ("capital of France") fall through to an empty context → no cards. Applied
+    # before code recovery so code-intent queries can still get a code chunk back.
+    if prompt and FLASHCARD_MAX_RETRIEVAL_DISTANCE > 0 and row_items:
+        qvec = await embed_query(prompt, profile=embedding_profile)
+        distances = _relevance_distances(
+            db,
+            session_id,
+            file_ids,
+            table_name=embedding_table,
+            qvec=qvec,
+            keys=[(fn, ci) for fn, ci, _ in row_items],
+        )
+        kept = [
+            item
+            for item in row_items
+            if distances.get((item[0], item[1]), float("inf"))
+            <= FLASHCARD_MAX_RETRIEVAL_DISTANCE
+        ]
+        dropped = len(row_items) - len(kept)
+        if dropped:
+            print(
+                f"[Relevance Floor] dropped {dropped}/{len(row_items)} chunks "
+                f"beyond distance {FLASHCARD_MAX_RETRIEVAL_DISTANCE}"
+            )
+        row_items = kept
+        seen_keys = {(fn, ci) for fn, ci, _ in row_items}
 
     code_items = [item for item in row_items if is_code_block_content(item[2])]
     # Code-intent queries ("...in python", "implement...") should always yield a

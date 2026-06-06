@@ -135,10 +135,27 @@ def main() -> None:
             print("\n[faithfulness] running RAGAS judge (paid)...")
             judge = faithfulness_scorer._judge_llm()
             faiths = []
+            detail = []
             for rec in records:
                 res = faithfulness_scorer.score(rec, llm=judge)
-                if res is not None:
-                    faiths.append(res["faithfulness_mean"])
+                if res is None:
+                    continue
+                faiths.append(res["faithfulness_mean"])
+                cid = rec["case"].get("id", rec["case"]["prompt"][:30])
+                detail.append(
+                    {
+                        "id": cid,
+                        "faithfulness_mean": res["faithfulness_mean"],
+                        "per_card": res["per_card"],
+                    }
+                )
+            if detail:
+                # Lowest-grounded cases first — these are what to look at.
+                detail.sort(key=lambda d: d["faithfulness_mean"])
+                (run_dir / "faithfulness.json").write_text(json.dumps(detail, indent=2))
+                print("  per-case (low to high):")
+                for d in detail:
+                    print(f"    {d['faithfulness_mean']:.2f}  {d['id']}")
             if faiths:
                 summary["faithfulness_mean"] = _mean(faiths)
                 summary["faithfulness_n_scored"] = len(faiths)

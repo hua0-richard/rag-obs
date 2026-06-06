@@ -26,6 +26,14 @@ def _is_parse_fallback(cards: list[dict] | None) -> bool:
     )
 
 
+def _expects_no_cards(case: dict) -> bool:
+    """Negative case: the right behaviour is to refuse (produce no cards)."""
+    relevant = case.get("relevant_files")
+    return bool(case.get("expect_no_cards")) or (
+        isinstance(relevant, list) and len(relevant) == 0
+    )
+
+
 def score(record: dict) -> dict:
     case = record["case"]
     cards = record.get("flashcards")
@@ -33,6 +41,14 @@ def score(record: dict) -> dict:
     valid_tags = {s.get("tag") for s in sources}
 
     checks: dict[str, bool] = {}
+
+    # Out-of-corpus query: passing means refusing (no cards), not hallucinating
+    # off-topic ones. This requires the retrieval relevance floor to be enabled
+    # (FLASHCARD_MAX_RETRIEVAL_DISTANCE); with it off, the model invents cards and
+    # this correctly fails.
+    if _expects_no_cards(case):
+        checks["refused"] = not cards and record.get("error") is None
+        return {"checks": checks, "passed": all(checks.values())}
 
     # Generation produced parseable cards (didn't error, didn't hit the fallback).
     checks["produced_cards"] = bool(cards) and record.get("error") is None

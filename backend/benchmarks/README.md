@@ -17,7 +17,8 @@ BM25 + pgvector retrieval without writing decks to the DB.
 | `runner.py` | Runs each case → `results/<ts>/raw.jsonl` |
 | `scorers/retrieval.py` | Recall@k, MRR, precision (deterministic, no LLM) |
 | `scorers/format.py` | Prompt-contract checks (deterministic, no LLM) |
-| `report.py` | Aggregates → scorecard + `summary.json`, CI gate |
+| `report.py` | Aggregates → scorecard + `summary.json`, CI gate; `--faithfulness` adds the RAGAS tier + `faithfulness.json` |
+| `sweep_distance.py` | Tune `FLASHCARD_MAX_RETRIEVAL_DISTANCE` (relevance floor) from query↔chunk distances — retrieval only, no LLM |
 | `run_with_neon_branch.sh` | Branch prod → run → drop branch (for the `prod` profile) |
 
 ## Quick start (dev)
