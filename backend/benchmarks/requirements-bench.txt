@@ -7,3 +7,6 @@
 # EvaluationDataset schema is recent), so pin it to avoid silent breakage.
 ragas==0.2.14
 langchain-openai==0.2.14
+# Langfuse Cloud export (opt-in `--langfuse`). The v4 SDK is an OTEL-based
+# rewrite — v2/v3 APIs differ, so pin the major.
+langfuse>=4.7,<5

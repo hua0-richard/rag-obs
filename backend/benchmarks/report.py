@@ -16,6 +16,7 @@ import json
 import statistics
 from pathlib import Path
 
+from benchmarks import langfuse_export
 from benchmarks.scorers import format as format_scorer
 from benchmarks.scorers import retrieval as retrieval_scorer
 
@@ -48,6 +49,11 @@ def main() -> None:
         action="store_true",
         help="run the paid RAGAS faithfulness judge (prod runs only); non-gating",
     )
+    parser.add_argument(
+        "--langfuse",
+        action="store_true",
+        help="attach scores to the run's Langfuse traces (needs `runner.py --langfuse` first)",
+    )
     args = parser.parse_args()
 
     run_dir = args.run or _latest_run()
@@ -56,6 +62,11 @@ def main() -> None:
         for line in (run_dir / "raw.jsonl").read_text().splitlines()
         if line.strip()
     ]
+
+    lf = langfuse_export.get_client() if args.langfuse else None
+    if lf is not None and not any(r.get("langfuse_trace_id") for r in records):
+        print("[langfuse] run has no trace ids — re-run `runner.py --langfuse` first; skipping score export.")
+        lf = None
 
     meta = {}
     meta_path = run_dir / "meta.json"
@@ -89,6 +100,14 @@ def main() -> None:
             }
         )
 
+        if lf is not None and rec.get("langfuse_trace_id"):
+            scores = {"format_pass": 1.0 if fmt["passed"] else 0.0}
+            if ret is not None:
+                scores["retrieval_recall"] = ret["recall"]
+                scores["retrieval_mrr"] = ret["mrr"]
+                scores["retrieval_hit"] = 1.0 if ret["hit"] else 0.0
+            langfuse_export.push_scores(lf, rec["langfuse_trace_id"], scores)
+
     # Per-case table.
     cols = ["id", "hit", "recall", "mrr", "format", "lat_s", "err"]
     widths = {c: max(len(c), *(len(str(r[c])) for r in rows)) for c in cols}
@@ -112,8 +131,9 @@ def main() -> None:
         ),
     }
     # Opt-in, paid, non-deterministic LLM-judge tier. Prod profile only — dev/
-    # dev-prodllm retrieval isn't prod-faithful (see benchmarks/README.md), so
-    # judging their grounding would be misleading. Never added to THRESHOLDS.
+    # dev-prodllm retrieval isn't prod-faithful (see the Benchmarking section in
+    # the root README), so judging their grounding would be misleading. Never
+    # added to THRESHOLDS.
     if args.faithfulness:
         if meta.get("profile") != "prod":
             print(
@@ -139,6 +159,11 @@ def main() -> None:
                 res = faithfulness_scorer.score(rec, llm=judge)
                 if res is not None:
                     faiths.append(res["faithfulness_mean"])
+                    if lf is not None and rec.get("langfuse_trace_id"):
+                        langfuse_export.push_scores(
+                            lf, rec["langfuse_trace_id"],
+                            {"faithfulness": res["faithfulness_mean"]},
+                        )
             if faiths:
                 summary["faithfulness_mean"] = _mean(faiths)
                 summary["faithfulness_n_scored"] = len(faiths)
@@ -148,6 +173,10 @@ def main() -> None:
         print(f"  {key:18} {value:.3f}" if isinstance(value, float) else f"  {key:18} {value}")
 
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
+
+    if lf is not None:
+        lf.flush()  # send queued scores before the (possibly non-zero) exit below
+        print("Langfuse scores flushed.")
 
     # CI gate.
     failures = [

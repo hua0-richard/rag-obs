@@ -20,6 +20,7 @@
 #   OPENROUTER_API_KEY- for the prod profile's LLM + embeddings
 #
 # Run from backend/:   ./benchmarks/run_with_neon_branch.sh [profile]
+# Or from the repo root: pnpm bench:prod [profile]
 set -euo pipefail
 
 PROFILE="${1:-prod}"
