@@ -155,6 +155,7 @@ def main() -> None:
             print("\n[faithfulness] running RAGAS judge (paid)...")
             judge = faithfulness_scorer._judge_llm()
             faiths = []
+            detail = []
             for rec in records:
                 res = faithfulness_scorer.score(rec, llm=judge)
                 if res is not None:
