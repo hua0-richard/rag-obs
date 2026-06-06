@@ -109,5 +109,4 @@ def score(record: dict, llm=None) -> dict | None:
     return {
         "faithfulness_mean": (sum(valid) / len(valid)) if valid else 0.0,
         "per_card": per_card,
-        "judge_model": os.getenv("RAGAS_JUDGE_MODEL", DEFAULT_JUDGE_MODEL),
     }
