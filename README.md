@@ -178,9 +178,27 @@ Response quality is measured with an offline harness under `backend/benchmarks/`
 - **Retrieval** (deterministic, no LLM): Recall@k, MRR, precision of the retrieved chunks vs. labeled relevant files.
 - **Generation** (deterministic, no LLM): prompt-contract checks — cards parse, `source_tag` is valid, non-code answers stay under the word limit, code cards appear when expected, LaTeX uses `$...$`.
 
-An LLM-judge **faithfulness** tier is left as an opt-in extension (it's the only paid, non-deterministic part).
+Raw results are written before scoring, so the (paid) LLM output can be re-scored without re-running generation.
 
-Runs are driven by env **profiles** that pin `FLASHCARD_LLM_TEMPERATURE=0` and select backends explicitly, so behavior never depends on `ENV`:
+### Layout
+
+| Path | Purpose |
+|------|---------|
+| `config.py` | Env profiles (`dev`, `dev-prodllm`, `prod`) + the fixed eval session id |
+| `corpus/` | Fixed `.md` notes seeded into the eval session (replace with your own) |
+| `dataset.jsonl` | Golden cases: prompt + retrieval labels + assertions |
+| `seed.py` | Idempotently loads `corpus/` into the eval session |
+| `runner.py` | Runs each case → `results/<ts>/raw.jsonl` |
+| `scorers/retrieval.py` | Recall@k, MRR, precision (deterministic, no LLM) |
+| `scorers/format.py` | Prompt-contract checks (deterministic, no LLM) |
+| `scorers/faithfulness.py` | RAGAS LLM-judge (opt-in, paid; see below) |
+| `report.py` | Aggregates → scorecard + `summary.json`, CI gate |
+| `langfuse_export.py` | Optional Langfuse Cloud tracing + eval UI (opt-in) |
+| `run_with_neon_branch.sh` | Branch prod → run → drop branch (for the `prod` profile) |
+
+### Profiles
+
+Runs are driven by env **profiles** that pin `FLASHCARD_LLM_TEMPERATURE=0` and select backends explicitly, so behavior never depends on `ENV`. `DATABASE_URL` and `OPENROUTER_API_KEY` come from the real environment, never from a profile:
 
 | Profile | Embeddings | LLM | DB | Measures |
 |---------|-----------|-----|-----|----------|
@@ -188,22 +206,86 @@ Runs are driven by env **profiles** that pin `FLASHCARD_LLM_TEMPERATURE=0` and s
 | `dev-prodllm` | Ollama | OpenRouter | local pgvector | generation quality on dev retrieval |
 | `prod` | OpenRouter | OpenRouter | **Neon branch** | full prod stack |
 
+**`dev-prodllm` caveat:** dev embeds with `nomic-embed-text`; prod embeds with `text-embedding-3-small`. So `dev-prodllm` retrieves *dev* chunks and only the **generation** half matches prod. Read its numbers as "is the LLM writing good, faithful cards from the context it's given" — not as a prod-fidelity score.
+
+### Quick start (dev)
+
 ```bash
-# dev (from backend/, with `docker compose up db ollama` running)
+# from backend/, with `docker compose up db ollama` running
 export DATABASE_URL='postgresql+psycopg2://raguser:ragpass@localhost:5432/ragobs'
 python -m benchmarks.seed --profile dev
 python -m benchmarks.runner --profile dev
 python -m benchmarks.report          # scorecard + summary.json, exits non-zero if a gate fails
 ```
 
-The `prod` profile benchmarks against a throwaway **Neon branch** (copy-on-write of prod, dropped after the run) so prod data is never touched:
+### Prod runs (Neon branch)
+
+The `prod` profile benchmarks against a throwaway **Neon branch** (copy-on-write of prod, instant and ~zero storage, dropped after the run) so prod data is never touched. `run_with_neon_branch.sh` handles the whole lifecycle (create → run → delete, with cleanup on failure):
 
 ```bash
 export NEON_API_KEY=... NEON_PROJECT_ID=... OPENROUTER_API_KEY=...
-./benchmarks/run_with_neon_branch.sh prod   # create branch -> seed/run/report -> delete branch
+pnpm bench:prod                             # from repo root; create branch -> seed/run/report -> delete branch
+# equivalently, from backend/:
+./benchmarks/run_with_neon_branch.sh prod
 ```
 
-Gate CI only on the free deterministic metrics (`dev` profile on every PR); run the paid `prod` tier on a schedule or manual dispatch. See [`backend/benchmarks/README.md`](backend/benchmarks/README.md) for the dataset format and how to add the faithfulness scorer.
+`pnpm bench:prod [profile]` forwards an optional profile (defaults to `prod`). It also supports a "bring your own URL" mode: export a Neon-branch `DATABASE_URL` and it skips `neonctl` entirely.
+
+### CI gating
+
+Gate CI only on the **free, deterministic** metrics (`hit_rate`, `format_pass_rate` in `report.py`'s `THRESHOLDS`). Run the `dev` profile on every PR. Run `prod` (paid, non-deterministic) on a schedule or manual dispatch — don't gate PRs on hosted-model output.
+
+### Faithfulness (opt-in LLM judge, RAGAS)
+
+`scorers/faithfulness.py` adds the one quality tier the deterministic scorers can't cover: **is each card's answer grounded in its retrieved context?** It uses RAGAS, which decomposes each answer into atomic claims and checks each against the contexts (score = supported / total, 0–1). Each flashcard is judged as its own sample, then averaged per case.
+
+Because it calls a hosted LLM, it **costs money and has run-to-run variance**, so:
+
+- it only runs for the **`prod`** profile (dev retrieval isn't prod-faithful),
+- it's **never CI-gated** — `report.py` writes `faithfulness_mean` to `summary.json` but never adds it to `THRESHOLDS`,
+- it's guarded behind `--faithfulness`, so normal runs stay free.
+
+The judge runs through OpenRouter, reusing `OPENROUTER_API_KEY`. Choose the model with `RAGAS_JUDGE_MODEL` (default `openai/gpt-4o`).
+
+```bash
+pip install -r benchmarks/requirements-bench.txt   # optional deps, not in the prod image
+
+# inside run_with_neon_branch.sh prod, or with a Neon-branch DATABASE_URL set:
+python -m benchmarks.runner --profile prod
+python -m benchmarks.report --faithfulness          # adds faithfulness_mean, non-gating
+```
+
+It depends on the run being produced with `include_context=True` (the runner sets this) so the chunk text is present in `raw.jsonl` for the judge to read; older runs without it are silently skipped.
+
+### Langfuse export (opt-in tracing + eval UI)
+
+The CLI scorecard is the source of truth; Langfuse adds a **UI** on top for per-case drill-down (prompt → retrieved context → generated cards → scores) and score/cost trends over runs. It's wired to **Langfuse Cloud** — no extra containers — and is fully opt-in: `langfuse` is a benchmark-only dep (not in the prod image) and nothing runs without the `--langfuse` flag.
+
+Set up a free project at https://cloud.langfuse.com, then:
+
+```bash
+pip install -r benchmarks/requirements-bench.txt
+export LANGFUSE_PUBLIC_KEY=pk-lf-...
+export LANGFUSE_SECRET_KEY=sk-lf-...
+# Host defaults to the EU region (https://cloud.langfuse.com). For a US-region
+# project set the matching host, or auth fails with a 401:
+# export LANGFUSE_HOST=https://us.cloud.langfuse.com
+
+python -m benchmarks.runner --profile dev --langfuse   # emits one trace per case
+python -m benchmarks.report --langfuse                 # attaches scores to those traces
+```
+
+The split mirrors the `--faithfulness` tier: the **runner** emits traces (a `retrieval` span + a `flashcards` generation, tagged with profile + git sha) and writes each trace id into `raw.jsonl`; the **report** attaches the computed scores (`retrieval_recall`/`mrr`/`hit`, `format_pass`, and `faithfulness` when `--faithfulness` is also on) to those traces by id. So you can re-score a run in Langfuse without re-running generation. `report.py --langfuse` needs a run that was produced with `runner.py --langfuse`; otherwise it warns and skips.
+
+Notes:
+
+- **Privacy:** prompts, retrieved context, and outputs are sent to Langfuse's SaaS. The corpus is your own `.md` notes — fine for the bundled corpus, worth a thought before pointing it at private vaults. Self-host if that matters.
+- **Not CI-gated:** like faithfulness, this is for inspection, never a build gate.
+- Child observation durations aren't meaningful (they're built from the finished result, not timed); the root `case:` span carries the real end-to-end latency.
+
+### Still not built (intentionally)
+
+Context precision/recall (RAGAS judges retrieval relevance) and `answer_relevancy` — the deterministic `retrieval.py` already covers retrieval against labeled files, so these LLM-judge retrieval metrics aren't worth the extra cost yet.
 
 ## Environment Variables
 
