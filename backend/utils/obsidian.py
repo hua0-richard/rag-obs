@@ -370,7 +370,10 @@ def normalize_obsidian_body_for_chunks(body: str) -> str:
 
 
 def is_code_block_content(text: str) -> bool:
-    return text.lstrip().startswith("Code block")
+    # Code chunks are labelled "Code block (...):" but are heading-prefixed by the
+    # chunker (e.g. "## Read strategies\n\nCode block (python):\n..."), so the
+    # label can appear on any line, not just the first.
+    return any(line.lstrip().startswith("Code block") for line in text.splitlines())
 
 
 def format_context_content_for_llm(content: str) -> str:

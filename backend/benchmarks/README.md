@@ -73,9 +73,38 @@ in `report.py`'s `THRESHOLDS`). Run the `dev` profile on every PR. Run `prod`
 (paid, non-deterministic) on a schedule or manual dispatch — don't gate PRs on
 hosted-model output.
 
-## Not built yet (intentionally)
+## Faithfulness (opt-in LLM judge, RAGAS)
 
-An LLM-judge **faithfulness** scorer (does each card's answer follow from its
-retrieved context?). It's the only tier that costs money and has variance, so
-it's left as a separate opt-in step — add `scorers/faithfulness.py` and wire it
-into `report.py` as a non-gating metric, or plug in RAGAS.
+`scorers/faithfulness.py` adds the one quality tier the deterministic scorers
+can't cover: **is each card's answer grounded in its retrieved context?** It uses
+RAGAS, which decomposes each answer into atomic claims and checks each against the
+contexts (score = supported / total, 0–1). Each flashcard is judged as its own
+sample, then averaged per case.
+
+Because it calls a hosted LLM, it **costs money and has run-to-run variance**, so:
+
+- it only runs for the **`prod`** profile (dev retrieval isn't prod-faithful),
+- it's **never CI-gated** — `report.py` writes `faithfulness_mean` to
+  `summary.json` but never adds it to `THRESHOLDS`,
+- it's guarded behind `--faithfulness`, so normal runs stay free.
+
+The judge runs through OpenRouter, reusing `OPENROUTER_API_KEY`. Choose the model
+with `RAGAS_JUDGE_MODEL` (default `openai/gpt-4o`).
+
+```bash
+pip install -r benchmarks/requirements-bench.txt   # optional deps, not in the prod image
+
+# inside run_with_neon_branch.sh prod, or with a Neon-branch DATABASE_URL set:
+python -m benchmarks.runner --profile prod
+python -m benchmarks.report --faithfulness          # adds faithfulness_mean, non-gating
+```
+
+It depends on the run being produced with `include_context=True` (the runner sets
+this) so the chunk text is present in `raw.jsonl` for the judge to read; older
+runs without it are silently skipped.
+
+### Still not built (intentionally)
+
+Context precision/recall (RAGAS judges retrieval relevance) and `answer_relevancy`
+— the deterministic `retrieval.py` already covers retrieval against labeled files,
+so these LLM-judge retrieval metrics aren't worth the extra cost yet.

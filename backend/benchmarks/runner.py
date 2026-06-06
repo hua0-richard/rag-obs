@@ -55,6 +55,7 @@ async def run_case(case: dict) -> dict:
             flashcard_amount=case.get("flashcard_amount"),
             db=db,
             persist=False,
+            include_context=True,  # surface chunk text for LLM-judge scorers (RAGAS)
         )
     except Exception as exc:  # noqa: BLE001 - record any failure as a result
         error = f"{type(exc).__name__}: {exc}"

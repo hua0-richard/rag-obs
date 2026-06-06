@@ -1,0 +1,9 @@
+# Optional benchmark-only deps for the paid LLM-judge tier (RAGAS faithfulness).
+# NOT installed into the production API image — keep these out of backend/requirements.txt.
+#
+#   pip install -r benchmarks/requirements-bench.txt
+#
+# RAGAS changes its public API across minor versions (SingleTurnSample /
+# EvaluationDataset schema is recent), so pin it to avoid silent breakage.
+ragas==0.2.14
+langchain-openai==0.2.14

@@ -741,6 +741,21 @@ def _apply_flashcard_amount(n_flashcards: int, amount: str | None) -> int:
     return n_flashcards
 
 
+# Queries that explicitly ask for code/implementation. Only these force a code
+# chunk into context (see code-recovery below) so we never inject off-topic code
+# into conceptual queries.
+_CODE_INTENT_RE = re.compile(
+    r"\b(code|coding|python|java|javascript|typescript|c\+\+|golang|rust|sql|"
+    r"implement|implementation|snippet|function|method|script|pseudocode|syntax|"
+    r"algorithm)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_code_intent_query(prompt: str | None) -> bool:
+    return bool(prompt and _CODE_INTENT_RE.search(prompt))
+
+
 async def generate_flashcards(
     prompt: str | None,
     k: int | None,
@@ -750,6 +765,7 @@ async def generate_flashcards(
     flashcard_amount: str | None,
     db: Session,
     persist: bool = True,
+    include_context: bool = False,
 ):
     """
     Retrieve chunks via hybrid BM25 + pgvector and ask llm to generate flashcards.
@@ -757,6 +773,11 @@ async def generate_flashcards(
     When ``persist`` is False the generated deck/flashcards are not written to the
     database (used by the benchmark harness so runs don't pollute the DB). The
     full result — flashcards, sources, raw output, model_used — is still returned.
+
+    When ``include_context`` is True each ``sources`` entry also carries the raw
+    chunk ``content``. Off by default so the production API payload stays lean;
+    the benchmark harness turns it on so LLM-judge scorers (e.g. RAGAS
+    faithfulness) can see the context the cards were generated from.
     """
 
     if not prompt and session_id is None:
@@ -887,28 +908,33 @@ async def generate_flashcards(
     row_items = deduped_items
 
     code_items = [item for item in row_items if is_code_block_content(item[2])]
-    if session_id is not None and len(code_items) < FLASHCARD_MIN_CODE_CARDS:
-        code_query = (
-            "SELECT filename, chunk_index, content "
-            f"FROM {embedding_table} "
-            "WHERE session_id = :sid AND content LIKE 'Code block%' "
-            "ORDER BY chunk_index "
-            "LIMIT :k"
-        )
-        if file_ids:
-            code_query = (
-                "SELECT filename, chunk_index, content "
-                f"FROM {embedding_table} "
-                "WHERE session_id = :sid AND files_id = ANY(:file_ids) AND content LIKE 'Code block%' "
-                "ORDER BY chunk_index "
-                "LIMIT :k"
-            )
-        code_params = {
+    # Code-intent queries ("...in python", "implement...") should always yield a
+    # code card. If hybrid retrieval didn't surface a code chunk, pull one in
+    # directly — preferring files already in the retrieved context so we stay on
+    # topic. Conceptual queries skip this entirely (min 0) so we never inject
+    # off-topic code into, say, a Bayes' theorem deck.
+    min_code_cards = FLASHCARD_MIN_CODE_CARDS if _is_code_intent_query(prompt) else 0
+    if session_id is not None and len(code_items) < min_code_cards:
+        retrieved_files = [fn for fn, _, _ in row_items]
+        # Match the "Code block" label at the start of ANY line: chunks are
+        # heading-prefixed, so a plain LIKE 'Code block%' (start-anchored) misses.
+        where = "session_id = :sid AND content ~ '(^|\\n)[[:space:]]*Code block'"
+        code_params: dict = {
             "sid": session_id,
             "k": FLASHCARD_MAX_CODE_BLOCKS_IN_CONTEXT,
         }
         if file_ids:
+            where += " AND files_id = ANY(:file_ids)"
             code_params["file_ids"] = file_ids
+        order = "ORDER BY chunk_index"
+        if retrieved_files:
+            # Prefer on-topic code (from files already retrieved) before anything else.
+            code_params["pref_files"] = retrieved_files
+            order = "ORDER BY (filename = ANY(:pref_files)) DESC, chunk_index"
+        code_query = (
+            "SELECT filename, chunk_index, content "
+            f"FROM {embedding_table} WHERE {where} {order} LIMIT :k"
+        )
         extra_rows = db.execute(sql_text(code_query), code_params).fetchall()
         for row in extra_rows:
             key = (row.filename, row.chunk_index)
@@ -938,13 +964,14 @@ async def generate_flashcards(
         bounded_row_items.append((filename, chunk_index, content))
         if is_code_block_content(content):
             bounded_code_items.append((filename, chunk_index, content))
-        sources.append(
-            {
-                "tag": tag,
-                "filename": filename,
-                "chunk_index": chunk_index,
-            }
-        )
+        source_entry = {
+            "tag": tag,
+            "filename": filename,
+            "chunk_index": chunk_index,
+        }
+        if include_context:
+            source_entry["content"] = content
+        sources.append(source_entry)
     context = "\n\n".join(context_lines)
     context_len = len(context.strip())
     if context_len == 0:

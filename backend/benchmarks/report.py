@@ -43,6 +43,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", type=Path, default=None)
     parser.add_argument("--no-gate", action="store_true", help="don't exit non-zero")
+    parser.add_argument(
+        "--faithfulness",
+        action="store_true",
+        help="run the paid RAGAS faithfulness judge (prod runs only); non-gating",
+    )
     args = parser.parse_args()
 
     run_dir = args.run or _latest_run()
@@ -51,6 +56,11 @@ def main() -> None:
         for line in (run_dir / "raw.jsonl").read_text().splitlines()
         if line.strip()
     ]
+
+    meta = {}
+    meta_path = run_dir / "meta.json"
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text())
 
     rows = []
     recalls, mrrs, hits, format_pass, latencies = [], [], [], [], []
@@ -101,6 +111,38 @@ def main() -> None:
             if latencies else 0.0
         ),
     }
+    # Opt-in, paid, non-deterministic LLM-judge tier. Prod profile only — dev/
+    # dev-prodllm retrieval isn't prod-faithful (see benchmarks/README.md), so
+    # judging their grounding would be misleading. Never added to THRESHOLDS.
+    if args.faithfulness:
+        if meta.get("profile") != "prod":
+            print(
+                f"\n[faithfulness] skipped: run profile is "
+                f"{meta.get('profile', 'unknown')!r}, not 'prod'."
+            )
+        elif not any(
+            isinstance(s.get("content"), str)
+            for rec in records
+            for s in (rec.get("sources") or [])
+        ):
+            print(
+                "\n[faithfulness] skipped: no context text in raw.jsonl. Re-run the "
+                "runner (it sets include_context=True) and report again."
+            )
+        else:
+            from benchmarks.scorers import faithfulness as faithfulness_scorer
+
+            print("\n[faithfulness] running RAGAS judge (paid)...")
+            judge = faithfulness_scorer._judge_llm()
+            faiths = []
+            for rec in records:
+                res = faithfulness_scorer.score(rec, llm=judge)
+                if res is not None:
+                    faiths.append(res["faithfulness_mean"])
+            if faiths:
+                summary["faithfulness_mean"] = _mean(faiths)
+                summary["faithfulness_n_scored"] = len(faiths)
+
     print("\nSummary:")
     for key, value in summary.items():
         print(f"  {key:18} {value:.3f}" if isinstance(value, float) else f"  {key:18} {value}")

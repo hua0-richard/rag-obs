@@ -32,6 +32,10 @@ def reverse(xs):
 Source: 2
 
 Keep non-code answers under 50 words.
+Ground every answer strictly in its cited Source chunk: state only facts, terms,
+numbers, and relationships that appear in that context. Do not add outside
+knowledge, do not generalize beyond the text, and do not combine unrelated chunks
+into one answer. If the context does not support a full card, write fewer cards.
 
 Context:
 {context}
