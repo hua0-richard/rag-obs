@@ -62,6 +62,15 @@ def score(record: dict, llm=None) -> dict | None:
     from ragas.dataset_schema import EvaluationDataset, SingleTurnSample
     from ragas.metrics import Faithfulness
 
+    case = record.get("case") or {}
+    relevant = case.get("relevant_files")
+    if case.get("expect_no_cards") or (
+        isinstance(relevant, list) and len(relevant) == 0
+    ):
+        # Out-of-corpus case: there's no correct grounded answer, so faithfulness
+        # is meaningless here — refusal is scored by format.py instead.
+        return None
+
     cards = record.get("flashcards")
     contexts = [
         s["content"]

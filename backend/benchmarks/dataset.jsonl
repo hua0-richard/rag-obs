@@ -16,4 +16,4 @@
 {"id": "cap-consistency-availability", "prompt": "what tradeoff does the CAP theorem force during a network partition", "k": 8, "relevant_files": ["cap-theorem.md"]}
 {"id": "http-401-vs-403", "prompt": "what is the difference between http 401 and 403 status codes", "k": 6, "relevant_files": ["http-status-codes.md"], "flashcard_amount": "small"}
 {"id": "caching-cache-aside", "prompt": "show the cache-aside read pattern in python", "k": 8, "relevant_files": ["caching-strategies.md"], "expect_code_card": true}
-{"id": "out-of-corpus", "prompt": "what is the capital of France", "k": 8, "relevant_files": []}
+{"id": "out-of-corpus", "prompt": "what is the capital of France", "k": 8, "relevant_files": [], "expect_no_cards": true}

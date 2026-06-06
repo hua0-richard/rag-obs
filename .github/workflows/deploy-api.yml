@@ -56,9 +56,10 @@ jobs:
           acrUsername: ${{ secrets.REGISTRY_USERNAME }}
           acrPassword: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Disable scale to zero
+      - name: Configure app (replicas + retrieval relevance floor)
         run: |
           az containerapp update \
             --name ragobs-api \
             --resource-group gpu-store-rg \
-            --min-replicas 1
+            --min-replicas 1 \
+            --set-env-vars FLASHCARD_MAX_RETRIEVAL_DISTANCE=0.65
