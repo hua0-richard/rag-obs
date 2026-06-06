@@ -33,3 +33,6 @@ docker-compose.override.yml
 *.pem
 *.key
 *.crt
+
+# benchmark run outputs
+backend/benchmarks/results/

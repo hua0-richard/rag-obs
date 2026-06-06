@@ -171,11 +171,47 @@ export DATABASE_URL='postgresql+psycopg2://raguser:ragpass@localhost:5432/ragobs
 alembic upgrade head
 ```
 
+## Benchmarking
+
+Response quality is measured with an offline harness under `backend/benchmarks/` that runs the **real** retrieval + generation pipeline (`generate_flashcards` with `persist=False`, so runs never write to the DB) over a fixed corpus and a set of labeled cases. It scores two stages:
+
+- **Retrieval** (deterministic, no LLM): Recall@k, MRR, precision of the retrieved chunks vs. labeled relevant files.
+- **Generation** (deterministic, no LLM): prompt-contract checks — cards parse, `source_tag` is valid, non-code answers stay under the word limit, code cards appear when expected, LaTeX uses `$...$`.
+
+An LLM-judge **faithfulness** tier is left as an opt-in extension (it's the only paid, non-deterministic part).
+
+Runs are driven by env **profiles** that pin `FLASHCARD_LLM_TEMPERATURE=0` and select backends explicitly, so behavior never depends on `ENV`:
+
+| Profile | Embeddings | LLM | DB | Measures |
+|---------|-----------|-----|-----|----------|
+| `dev` | Ollama | Ollama | local pgvector | end-to-end dev — free, deterministic, CI-gateable |
+| `dev-prodllm` | Ollama | OpenRouter | local pgvector | generation quality on dev retrieval |
+| `prod` | OpenRouter | OpenRouter | **Neon branch** | full prod stack |
+
+```bash
+# dev (from backend/, with `docker compose up db ollama` running)
+export DATABASE_URL='postgresql+psycopg2://raguser:ragpass@localhost:5432/ragobs'
+python -m benchmarks.seed --profile dev
+python -m benchmarks.runner --profile dev
+python -m benchmarks.report          # scorecard + summary.json, exits non-zero if a gate fails
+```
+
+The `prod` profile benchmarks against a throwaway **Neon branch** (copy-on-write of prod, dropped after the run) so prod data is never touched:
+
+```bash
+export NEON_API_KEY=... NEON_PROJECT_ID=... OPENROUTER_API_KEY=...
+./benchmarks/run_with_neon_branch.sh prod   # create branch -> seed/run/report -> delete branch
+```
+
+Gate CI only on the free deterministic metrics (`dev` profile on every PR); run the paid `prod` tier on a schedule or manual dispatch. See [`backend/benchmarks/README.md`](backend/benchmarks/README.md) for the dataset format and how to add the faithfulness scorer.
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `EMBEDDING_BACKEND` | `ollama` in dev / `openrouter` in prod | `ollama` \| `openrouter` \| `sentence_transformers` |
+| `FLASHCARD_LLM_BACKEND` | follows `ENV` | Override LLM backend independently of `ENV`: `openrouter` \| `ollama` (used by benchmarks) |
+| `FLASHCARD_LLM_TEMPERATURE` | `0.2` | Generation sampling temperature; benchmark profiles pin it to `0` |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Local Ollama embedding model |
 | `OPENROUTER_EMBED_MODEL` | `openai/text-embedding-3-small` | Production OpenRouter embedding model |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-chat-v3-0324` | OpenRouter LLM model |

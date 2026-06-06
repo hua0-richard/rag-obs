@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from uuid import UUID
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
-import ollama
 from starlette.concurrency import run_in_threadpool
 from fastapi import HTTPException
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -65,8 +64,18 @@ FLASHCARD_LLM_MODEL = os.getenv("FLASHCARD_LLM_MODEL", "llama3.1")
 FLASHCARD_LLM_KEEP_ALIVE = os.getenv("FLASHCARD_LLM_KEEP_ALIVE", "30m")
 FLASHCARD_MAX_TOKENS_PER_CARD = int(os.getenv("FLASHCARD_MAX_TOKENS_PER_CARD", "110"))
 FLASHCARD_LLM_MAX_TOKENS = int(os.getenv("FLASHCARD_LLM_MAX_TOKENS", "1800"))
+# Sampling temperature for generation. Pin to 0 in benchmarks for reproducibility.
+FLASHCARD_LLM_TEMPERATURE = float(os.getenv("FLASHCARD_LLM_TEMPERATURE", "0.2"))
 ENV = os.getenv("ENV", "DEV").upper()
-USE_OPENROUTER = ENV in {"PROD", "PRODUCTION"}
+# LLM backend is decoupled from ENV so benchmarks can route generation to the
+# prod LLM (OpenRouter) while keeping dev embeddings/DB. Falls back to ENV.
+_FLASHCARD_LLM_BACKEND = os.getenv("FLASHCARD_LLM_BACKEND", "").strip().lower()
+if _FLASHCARD_LLM_BACKEND in {"openrouter", "prod"}:
+    USE_OPENROUTER = True
+elif _FLASHCARD_LLM_BACKEND in {"ollama", "local", "dev"}:
+    USE_OPENROUTER = False
+else:
+    USE_OPENROUTER = ENV in {"PROD", "PRODUCTION"}
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat-v3-0324")
@@ -213,7 +222,7 @@ def _openrouter_chat(
         "model": OPENROUTER_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": target_tokens,
-        "temperature": 0.2,
+        "temperature": FLASHCARD_LLM_TEMPERATURE,
     }
     data = json.dumps(payload).encode("utf-8")
     request = urlrequest.Request(url, data=data, headers=headers, method="POST")
@@ -721,9 +730,14 @@ async def generate_flashcards(
     replace: bool,
     flashcard_amount: str | None,
     db: Session,
+    persist: bool = True,
 ):
     """
     Retrieve chunks via hybrid BM25 + pgvector and ask llm to generate flashcards.
+
+    When ``persist`` is False the generated deck/flashcards are not written to the
+    database (used by the benchmark harness so runs don't pollute the DB). The
+    full result — flashcards, sources, raw output, model_used — is still returned.
     """
 
     if not prompt and session_id is None:
@@ -945,6 +959,8 @@ async def generate_flashcards(
                 timeout=FLASHCARD_LLM_TIMEOUT_SECONDS,
             )
         else:
+            import ollama  # imported lazily: only the ollama backend needs it
+
             resp = await wait_for(
                 run_in_threadpool(
                     ollama.chat,
@@ -952,7 +968,7 @@ async def generate_flashcards(
                     messages=[{"role": "user", "content": llm_prompt}],
                     options={
                         "num_predict": target_tokens,
-                        "temperature": 0.2,
+                        "temperature": FLASHCARD_LLM_TEMPERATURE,
                     },
                     keep_alive=FLASHCARD_LLM_KEEP_ALIVE,
                 ),
@@ -1015,7 +1031,7 @@ async def generate_flashcards(
                 card["source_tag"] = tag
             if tag in by_tag:
                 card["source"] = by_tag[tag]
-        if session_id is not None:
+        if session_id is not None and persist:
             row_payloads: list[dict[str, str]] = []
             for card in parsed:
                 question = card.get("question")

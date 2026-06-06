@@ -1,0 +1,14 @@
+# Golden cases, one JSON object per line. Lines starting with # are ignored.
+# Fields:
+#   id              - stable identifier for the case (used in reports)
+#   prompt          - the query passed to the pipeline
+#   k               - optional retrieval k (defaults applied if omitted)
+#   relevant_files  - filenames in corpus/ that SHOULD be retrieved (retrieval scoring)
+#   expect_code_card- optional; assert >=1 fenced-code flashcard is produced
+#   flashcard_amount- optional: "small" | "medium" | "large"
+{"id": "cosine-similarity", "prompt": "how does cosine similarity work for embeddings", "k": 8, "relevant_files": ["sample-note.md"], "expect_code_card": true}
+{"id": "pgvector-operator", "prompt": "what operator does pgvector use to order candidates", "k": 8, "relevant_files": ["sample-note.md"]}
+{"id": "gd-update-rule", "prompt": "what is the gradient descent parameter update rule", "k": 8, "relevant_files": ["gradient-descent.md"]}
+{"id": "gd-implementation", "prompt": "how do you implement gradient descent from scratch in python", "k": 8, "relevant_files": ["gradient-descent.md"], "expect_code_card": true}
+{"id": "gd-learning-rate", "prompt": "why does the learning rate matter and what happens if it is too large", "k": 8, "relevant_files": ["gradient-descent.md"]}
+{"id": "out-of-corpus", "prompt": "what is the capital of France", "k": 8, "relevant_files": []}
