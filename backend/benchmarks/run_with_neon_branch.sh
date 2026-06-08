@@ -32,9 +32,26 @@ create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True).connect().execute(
 }
 
 run_benchmark() {
-  python -m benchmarks.seed   --profile "${PROFILE}"
-  python -m benchmarks.runner --profile "${PROFILE}"
-  python -m benchmarks.report
+  # Seed once: the branch (and its embeddings, computed on the first run) is
+  # shared by every model below, so retrieval is identical across the sweep.
+  python -m benchmarks.seed --profile "${PROFILE}"
+
+  # Set MODELS="a b c" to sweep several generation models on this one branch.
+  # Unset = a single run on the profile's default model (original behaviour).
+  if [[ -n "${MODELS:-}" ]]; then
+    read -r -a _models <<< "${MODELS}"
+    for model in "${_models[@]}"; do
+      echo "=============================================================="
+      echo "  ${model}  (profile=${PROFILE})"
+      echo "=============================================================="
+      python -m benchmarks.runner --profile "${PROFILE}" --model "${model}"
+      # --no-gate so one weak model can't abort the rest of the sweep.
+      python -m benchmarks.report --no-gate --faithfulness
+    done
+  else
+    python -m benchmarks.runner --profile "${PROFILE}"
+    python -m benchmarks.report
+  fi
 }
 
 # Mode (a): caller supplied DATABASE_URL — use it directly, no Neon involvement.

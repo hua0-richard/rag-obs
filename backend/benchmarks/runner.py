@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from benchmarks import langfuse_export
-from benchmarks.config import EVAL_SESSION_ID, apply_profile
+from benchmarks.config import EVAL_SESSION_ID, apply_model, apply_profile, effective_model
 
 DATASET = Path(__file__).parent / "dataset.jsonl"
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -92,7 +92,7 @@ async def run_case(case: dict, *, lf=None, profile: str | None = None, sha: str 
     return record
 
 
-async def main_async(profile: str, *, lf=None) -> Path:
+async def main_async(profile: str, *, lf=None, model: str | None = None) -> Path:
     cases = load_cases()
     sha = langfuse_export.git_sha() if lf is not None else None
     run_dir = RESULTS_DIR / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -110,7 +110,12 @@ async def main_async(profile: str, *, lf=None) -> Path:
 
     (run_dir / "meta.json").write_text(
         json.dumps(
-            {"profile": profile, "n_cases": len(cases), **({"git_sha": sha} if sha else {})},
+            {
+                "profile": profile,
+                "n_cases": len(cases),
+                **({"model": model} if model else {}),
+                **({"git_sha": sha} if sha else {}),
+            },
             indent=2,
         )
     )
@@ -125,14 +130,26 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="dev")
     parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "override the generation model for this profile's backend "
+            "(OpenRouter slug for dev-prodllm/prod, e.g. qwen/qwen3-32b; "
+            "Ollama tag for dev). Recorded in meta.json so scorecards are comparable."
+        ),
+    )
+    parser.add_argument(
         "--langfuse",
         action="store_true",
         help="export one trace per case to Langfuse Cloud (opt-in); needs LANGFUSE_* env",
     )
     args = parser.parse_args()
     apply_profile(args.profile)
+    if args.model:
+        apply_model(args.model, args.profile)
+    model = effective_model(args.profile)
     lf = langfuse_export.get_client() if args.langfuse else None
-    asyncio.run(main_async(args.profile, lf=lf))
+    asyncio.run(main_async(args.profile, lf=lf, model=model))
 
 
 if __name__ == "__main__":

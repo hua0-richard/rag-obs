@@ -58,3 +58,41 @@ def apply_profile(name: str) -> dict[str, str]:
             "a Neon branch URL (prod). run_with_neon_branch.sh exports it for you."
         )
     return applied
+
+
+# Env var the generation model is read from, per backend. The LLM backends use
+# different vars (OpenRouter takes a hosted slug like "qwen/qwen3-32b", Ollama a
+# local tag like "llama3.1"), so a single --model flag has to target whichever
+# var the profile's backend actually reads.
+_MODEL_ENV_BY_BACKEND = {
+    "openrouter": "OPENROUTER_MODEL",
+    "ollama": "FLASHCARD_LLM_MODEL",
+}
+
+
+def apply_model(model: str, profile: str) -> str:
+    """Point the active profile's backend at ``model``. Call after apply_profile.
+
+    Returns the env var that was set. Raises if the profile's backend isn't one
+    we know how to override.
+    """
+    backend = PROFILES[profile]["FLASHCARD_LLM_BACKEND"]
+    env_var = _MODEL_ENV_BY_BACKEND.get(backend)
+    if env_var is None:
+        raise SystemExit(
+            f"Can't set a model for backend {backend!r} (profile {profile!r})."
+        )
+    os.environ[env_var] = model
+    return env_var
+
+
+def effective_model(profile: str) -> str | None:
+    """The generation model the active profile will use, as set in the env.
+
+    Returns None when the model is left to the service's own default (the
+    backend's env var is unset) — the per-case ``model_used`` in the run still
+    records what was actually called.
+    """
+    backend = PROFILES[profile]["FLASHCARD_LLM_BACKEND"]
+    env_var = _MODEL_ENV_BY_BACKEND.get(backend)
+    return os.getenv(env_var) if env_var else None

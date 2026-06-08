@@ -19,6 +19,7 @@ BM25 + pgvector retrieval without writing decks to the DB.
 | `scorers/format.py` | Prompt-contract checks (deterministic, no LLM) |
 | `report.py` | Aggregates → scorecard + `summary.json`, CI gate; `--faithfulness` adds the RAGAS tier + `faithfulness.json` |
 | `sweep_distance.py` | Tune `FLASHCARD_MAX_RETRIEVAL_DISTANCE` (relevance floor) from query↔chunk distances — retrieval only, no LLM |
+| `sweep_models.sh` | Benchmark several generation models back-to-back on identical retrieval (`runner.py --model`) |
 | `run_with_neon_branch.sh` | Branch prod → run → drop branch (for the `prod` profile) |
 
 ## Quick start (dev)
@@ -51,6 +52,43 @@ So `dev-prodllm` retrieves *dev* chunks and only the **generation** half matches
 prod. Read its numbers as "is the LLM writing good, faithful cards from the
 context it's given" — not as a prod-fidelity score.
 
+## Trying different models
+
+The generation model is selectable per run with `runner.py --model`, which sets
+the right backend var for the profile (the OpenRouter slug for `dev-prodllm` /
+`prod`, the Ollama tag for `dev`) and stamps it into `meta.json`, so each
+scorecard says which model produced it (`report.py` prints a `model=…` header
+and writes `model` into `summary.json`).
+
+```bash
+python -m benchmarks.runner --profile dev-prodllm --model qwen/qwen3-32b
+python -m benchmarks.report --no-gate
+```
+
+To benchmark several models back-to-back on identical retrieval, set `MODELS=`:
+
+```bash
+# Cheap path (dev-prodllm): seed once, then sweep against the local DB.
+python -m benchmarks.seed --profile dev-prodllm
+MODELS="qwen/qwen3-32b deepseek/deepseek-chat-v3.1" ./benchmarks/sweep_models.sh
+
+# Prod path (Neon branch + faithfulness): branches + seeds once, then sweeps.
+MODELS="qwen/qwen3-32b deepseek/deepseek-chat-v3.1" \
+  ./benchmarks/run_with_neon_branch.sh prod
+```
+
+`sweep_models.sh` runs against whatever `DATABASE_URL` points at and does **not**
+seed or branch — seed first. For prod use `run_with_neon_branch.sh` (below): it
+creates the branch, seeds it once, and runs every model against that one branch,
+so embeddings are computed once and retrieval is identical across the sweep.
+
+Two caveats for a fair comparison: temperature is already pinned to 0 by every
+profile (leave it), and **faithfulness only runs on the `prod` profile** (see
+below) — on `dev-prodllm` you compare on `format_pass_rate` plus the
+deterministic metrics. The RAGAS judge (`RAGAS_JUDGE_MODEL`) is independent of
+`--model`; keep it fixed across the sweep or the faithfulness numbers won't be
+comparable.
+
 ## Prod runs (Neon branch)
 
 The `prod` profile must point `DATABASE_URL` at a **branch** of prod, never prod
@@ -61,11 +99,16 @@ delete, with cleanup on failure):
 export NEON_API_KEY=...        # neonctl auth
 export NEON_PROJECT_ID=...     # prod Neon project
 export OPENROUTER_API_KEY=...
-./benchmarks/run_with_neon_branch.sh prod
+pip install -r benchmarks/requirements-bench.txt   # for the faithfulness judge
+
+./benchmarks/run_with_neon_branch.sh prod          # single run, default model
+MODELS="qwen/qwen3-32b deepseek/deepseek-chat-v3.1" \
+  ./benchmarks/run_with_neon_branch.sh prod        # sweep several models
 ```
 
-Branching is copy-on-write: instant, ~zero storage, dropped after the run, so
-prod data is never touched.
+Set `MODELS="a b c"` to sweep several generation models on one branch — it seeds
+once and runs each model with `--faithfulness`. Branching is copy-on-write:
+instant, ~zero storage, dropped after the run, so prod data is never touched.
 
 ## CI gating
 

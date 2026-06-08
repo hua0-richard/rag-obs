@@ -73,6 +73,11 @@ def main() -> None:
     if meta_path.exists():
         meta = json.loads(meta_path.read_text())
 
+    header = f"profile={meta.get('profile', '?')}"
+    if meta.get("model"):
+        header += f"  model={meta['model']}"
+    print(header + "\n")
+
     rows = []
     recalls, mrrs, hits, format_pass, latencies = [], [], [], [], []
     for rec in records:
@@ -118,6 +123,7 @@ def main() -> None:
         print("  ".join(str(r[c]).ljust(widths[c]) for c in cols))
 
     summary = {
+        **({"model": meta["model"]} if meta.get("model") else {}),
         "n_cases": len(records),
         "hit_rate": _mean(hits),
         "recall_at_k": _mean(recalls),
