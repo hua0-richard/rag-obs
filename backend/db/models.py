@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, LargeBinary, create_engine, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, LargeBinary, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -8,15 +8,12 @@ from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
 
-VECTOR_DIM = 384
-VECTOR_DIM_CODE = 768
-VECTOR_DIM_VERBOSE = 1024
+VECTOR_DIM = 768
 
 class Sessions(Base):
     __tablename__ = "sessions"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     token_usage = Column(Integer)
-    embedding_profile = Column(String(32), nullable=True)
 
 class Files(Base):
     __tablename__ = "notes"
@@ -43,31 +40,6 @@ class Embeddings(Base):
     content = Column(Text, nullable=False)
     embedding = Column(Vector(VECTOR_DIM), nullable=False)
 
-
-class EmbeddingsCode(Base):
-    __tablename__ = "embeddings_code"
-    id = Column(Integer, primary_key=True, index=True)
-    files_id = Column(Integer, ForeignKey("notes.id"), nullable=False)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
-
-    filename = Column(String(512), nullable=False)
-    content_type = Column(String(255), nullable=True)
-    chunk_index = Column(Integer, nullable=False)
-    content = Column(Text, nullable=False)
-    embedding = Column(Vector(VECTOR_DIM_CODE), nullable=False)
-
-
-class EmbeddingsVerbose(Base):
-    __tablename__ = "embeddings_verbose"
-    id = Column(Integer, primary_key=True, index=True)
-    files_id = Column(Integer, ForeignKey("notes.id"), nullable=False)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
-
-    filename = Column(String(512), nullable=False)
-    content_type = Column(String(255), nullable=True)
-    chunk_index = Column(Integer, nullable=False)
-    content = Column(Text, nullable=False)
-    embedding = Column(Vector(VECTOR_DIM_VERBOSE), nullable=False)
 
 class Flashcard(Base):
     __tablename__ = "flashcards"

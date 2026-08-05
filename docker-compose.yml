@@ -9,40 +9,39 @@ services:
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
-      OLLAMA_HOST: "http://ollama:11434"
+      # Ollama runs on the HOST, not in a container. Start it with `pnpm ollama`,
+      # which binds 0.0.0.0 so this container can reach it.
+      OLLAMA_HOST: "http://host.docker.internal:11434"
       DATABASE_URL: "postgresql+psycopg2://raguser:ragpass@db:5432/ragobs"
       ENV: "DEV"
-      HF_HOME: "/app/.hf-cache"
-      SENTENCE_TRANSFORMERS_HOME: "/app/.hf-cache"
-      TRANSFORMERS_CACHE: "/app/.hf-cache/transformers"
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
       FLASHCARD_LLM_MODEL: "qwen2.5:14b-instruct"
       FLASHCARD_LLM_TIMEOUT_SECONDS: "120"
       FLASHCARD_LLM_KEEP_ALIVE: "30m"
       FLASHCARD_MAX_TOKENS_PER_CARD: "110"
       FLASHCARD_LLM_MAX_TOKENS: "1800"
-      # Embedding backend: "ollama" (default for DEV) | "openrouter" | "sentence_transformers"
+      # Embedding backend: "ollama" (default for DEV) | "openrouter"
       EMBEDDING_BACKEND: "ollama"
-      # Ollama embedding model — run: docker exec ollama ollama pull nomic-embed-text
-      # Swap for a Qwen embedding model if preferred, e.g. qwen3:embedding
+      # Ollama embedding model — run: ollama pull nomic-embed-text
       OLLAMA_EMBED_MODEL: "nomic-embed-text"
       # OpenRouter (set these when deploying to prod with EMBEDDING_BACKEND=openrouter)
       # OPENROUTER_API_KEY: ""
       # OPENROUTER_EMBED_MODEL: "openai/text-embedding-3-small"
-
+    # Required on Linux; a no-op on Docker Desktop, which already provides the alias.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
     depends_on:
-      - db
-      - ollama
-    
+      db:
+        condition: service_healthy
+
   frontend:
+    # Context is the repo root so the pnpm lockfile/workspace manifest are visible.
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: frontend
     ports:
       - "5173:5173"
@@ -50,8 +49,10 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       SERVER_URL: "http://localhost:8000"
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - ./frontend:/repo/frontend
+      # Keep the image's installed deps; don't let the bind mount hide them.
+      - /repo/frontend/node_modules
+      - /repo/node_modules
     restart: unless-stopped
 
   db:
@@ -65,27 +66,12 @@ services:
       POSTGRES_PASSWORD: ragpass
     volumes:
       - pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    volumes:
-      - ollama:/root/.ollama
-    restart: unless-stopped
-  
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin
-    ports:
-      - "5050:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    depends_on:
-      - db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raguser -d ragobs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
 volumes:
   pgdata:
-  ollama:

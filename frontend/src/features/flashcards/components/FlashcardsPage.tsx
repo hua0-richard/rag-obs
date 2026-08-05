@@ -5,31 +5,8 @@ import { Button } from '@/shared/components/ui/Button';
 import { Flashcard } from './Flashcard';
 import { useNavigate } from 'react-router-dom';
 import { buildDeckTitle, loadDecks, markDeckStudied } from '@/features/flashcards/utils/flashcardDecks';
-
-type ApiFlashcard = {
-    id: number;
-    filename: string;
-    question: string;
-    answer: string;
-};
-
-type ApiFile = {
-    id: number;
-    filename: string | null;
-    content_type: string | null;
-    size_bytes: number | null;
-};
-
-type ApiDeck = {
-    id: number;
-    session_id: number;
-    title: string;
-    source_label?: string | null;
-    source?: { id?: number | null; filename?: string | null }[];
-    created_at?: string | null;
-    card_count?: number | null;
-    note_count?: number | null;
-};
+import { apiUrl } from '@/shared/utils/api';
+import type { ApiDeck, ApiFile, ApiFlashcard } from '@/features/flashcards/types';
 
 const cardVariants = {
     enter: (d: number) => ({
@@ -102,12 +79,9 @@ export function FlashcardsPage() {
             setIsLoading(true);
             setError(null);
             try {
-                const flashcardsUrl = new URL(`${import.meta.env.SERVER_URL}/flashcards`);
-                flashcardsUrl.searchParams.set("session_id", sessionId);
-                if (selectedDeckId !== null) {
-                    flashcardsUrl.searchParams.set("deck_id", String(selectedDeckId));
-                }
-                const response = await fetch(flashcardsUrl.toString());
+                const response = await fetch(
+                    apiUrl("/flashcards", { session_id: sessionId, deck_id: selectedDeckId })
+                );
                 if (!response.ok) {
                     const detail = await response.text();
                     throw new Error(detail || "Failed to load flashcards");
@@ -136,7 +110,7 @@ export function FlashcardsPage() {
         const fetchFiles = async () => {
             try {
                 const response = await fetch(
-                    `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
+                    apiUrl("/files", { session_id: sessionId })
                 );
                 if (!response.ok) {
                     const detail = await response.text();
@@ -155,7 +129,7 @@ export function FlashcardsPage() {
             setDeckSources([]);
             try {
                 const response = await fetch(
-                    `${import.meta.env.SERVER_URL}/flashcard-decks?session_id=${encodeURIComponent(sessionId)}`
+                    apiUrl("/flashcard-decks", { session_id: sessionId })
                 );
                 if (!response.ok) return;
                 const data = await response.json();

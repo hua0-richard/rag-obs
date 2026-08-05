@@ -5,19 +5,9 @@ from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy import text as sql_text
-from db.models import Embeddings, EmbeddingsCode, EmbeddingsVerbose, Files, Sessions
+from db.models import Embeddings, Files, Sessions
 from db.session import SessionLocal
-from services.embedding_service import (
-    choose_embedding_profile,
-    effective_profile,
-    embed_chunks,
-    get_embedding_table,
-    parse_embedding_profile,
-    DEFAULT_EMBEDDING_PROFILE,
-    CODE_EMBEDDING_PROFILE,
-    VERBOSE_EMBEDDING_PROFILE,
-    EmbeddingProfile,
-)
+from services.embedding_service import EMBEDDING_TABLE, embed_chunks
 from services.obsidian_service import build_obsidian_context, split_text_with_context
 
 
@@ -78,47 +68,6 @@ async def stream_document_upload(
                 except UnicodeDecodeError:
                     decode_errors[filename] = "file is not valid utf-8 text"
 
-            raw_profile = getattr(session_row, "embedding_profile", None)
-            stored_profile = parse_embedding_profile(raw_profile)
-            embedding_profile = stored_profile or DEFAULT_EMBEDDING_PROFILE
-
-            if stored_profile is None:
-                existing_profile: EmbeddingProfile | None = None
-                for profile in (CODE_EMBEDDING_PROFILE, VERBOSE_EMBEDDING_PROFILE, DEFAULT_EMBEDDING_PROFILE):
-                    table_name = get_embedding_table(profile)
-                    row = db.execute(
-                        sql_text(
-                            f"SELECT 1 FROM {table_name} WHERE session_id = :sid LIMIT 1"
-                        ),
-                        {"sid": active_session_id},
-                    ).fetchone()
-                    if row:
-                        existing_profile = profile
-                        break
-                if existing_profile is None:
-                    candidate_texts = [item.get("text", "") for item in decoded_files]
-                    embedding_profile = choose_embedding_profile(candidate_texts)
-                else:
-                    embedding_profile = existing_profile
-                session_row.embedding_profile = embedding_profile
-                db.commit()
-                db.refresh(session_row)
-
-            # Remap the profile to what the active backend can actually produce.
-            # e.g. Ollama (nomic-embed-text) always outputs 768 dims → "code" profile.
-            storage_profile = effective_profile(embedding_profile)
-            embedding_row_model_map = {
-                DEFAULT_EMBEDDING_PROFILE: Embeddings,
-                CODE_EMBEDDING_PROFILE: EmbeddingsCode,
-                VERBOSE_EMBEDDING_PROFILE: EmbeddingsVerbose,
-            }
-            embedding_row_model = embedding_row_model_map[storage_profile]
-            embedding_tables = (
-                get_embedding_table(DEFAULT_EMBEDDING_PROFILE),
-                get_embedding_table(CODE_EMBEDDING_PROFILE),
-                get_embedding_table(VERBOSE_EMBEDDING_PROFILE),
-            )
-
             obsidian_context = build_obsidian_context(decoded_files)
 
             for filename, raw_bytes, content_type in prepared_files:
@@ -147,14 +96,13 @@ async def stream_document_upload(
                     # Keep only one note row per (session_id, filename) and remove stale duplicates.
                     if duplicate_rows:
                         duplicate_ids = [row.id for row in duplicate_rows]
-                        for table_name in embedding_tables:
-                            db.execute(
-                                sql_text(
-                                    f"DELETE FROM {table_name} "
-                                    "WHERE session_id = :sid AND files_id = ANY(:file_ids)"
-                                ),
-                                {"sid": active_session_id, "file_ids": duplicate_ids},
-                            )
+                        db.execute(
+                            sql_text(
+                                f"DELETE FROM {EMBEDDING_TABLE} "
+                                "WHERE session_id = :sid AND files_id = ANY(:file_ids)"
+                            ),
+                            {"sid": active_session_id, "file_ids": duplicate_ids},
+                        )
                         db.query(Files).filter(Files.id.in_(duplicate_ids)).delete(synchronize_session=False)
 
                     if file_row is None:
@@ -170,14 +118,13 @@ async def stream_document_upload(
                         file_row.raw_content = raw_bytes
 
                         # Overwrite means old embeddings are invalid once content changes.
-                        for table_name in embedding_tables:
-                            db.execute(
-                                sql_text(
-                                    f"DELETE FROM {table_name} "
-                                    "WHERE session_id = :sid AND files_id = :fid"
-                                ),
-                                {"sid": active_session_id, "fid": file_row.id},
-                            )
+                        db.execute(
+                            sql_text(
+                                f"DELETE FROM {EMBEDDING_TABLE} "
+                                "WHERE session_id = :sid AND files_id = :fid"
+                            ),
+                            {"sid": active_session_id, "fid": file_row.id},
+                        )
                     db.commit()
                     db.refresh(file_row)
                 except Exception as e:
@@ -222,10 +169,10 @@ async def stream_document_upload(
                     continue
                 try:
                     # non-blocking
-                    vectors = await embed_chunks(chunks, profile=storage_profile)
+                    vectors = await embed_chunks(chunks)
 
                     db.add_all([
-                        embedding_row_model(
+                        Embeddings(
                             files_id=file_row.id,
                             session_id=active_session_id,
                             filename=filename,

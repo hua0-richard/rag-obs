@@ -4,6 +4,7 @@ import { UploadCloud, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, upsertDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
+import { apiUrl } from "@/shared/utils/api";
 
 const LogoStreaks = () => {
     return (
@@ -152,10 +153,7 @@ export function HeroSection() {
         const files = event.target.files;
         if (files && files.length > 0) {
             const sessionId = localStorage.getItem("session_id");
-            const uploadUrlBase = `${import.meta.env.SERVER_URL}/upload-files`;
-            const uploadUrl = sessionId
-                ? `${uploadUrlBase}?session_id=${encodeURIComponent(sessionId)}`
-                : uploadUrlBase;
+            const uploadUrl = apiUrl("/upload-files", { session_id: sessionId });
             const fileList = Array.from(files);
             const fileNames = fileList.map((file) => file.name);
             const embeddedFilenames: string[] = [];
@@ -315,7 +313,7 @@ export function HeroSection() {
                         }
                         const llmParams = new URLSearchParams({ session_id: activeSessionId });
                         embeddedFileIds.forEach((id) => llmParams.append("file_ids", String(id)));
-                        const llmUrl = `${import.meta.env.SERVER_URL}/llm?${llmParams.toString()}`;
+                        const llmUrl = apiUrl(`/llm?${llmParams.toString()}`);
                         const llmResponse = await fetch(llmUrl);
                         if (!llmResponse.ok) {
                             const detail = await llmResponse.text();
