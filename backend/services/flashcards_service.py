@@ -25,8 +25,6 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 from db.models import (
     Embeddings,
-    EmbeddingsCode,
-    EmbeddingsVerbose,
     Files,
     Flashcard,
     FlashcardDecks,
@@ -34,16 +32,10 @@ from db.models import (
 )
 from prompt import FLASHCARD_PROMPT
 from services.embedding_service import (
-    EmbeddingProfile,
-    CODE_EMBEDDING_PROFILE,
-    DEFAULT_EMBEDDING_PROFILE,
-    VERBOSE_EMBEDDING_PROFILE,
-    effective_profile,
+    EMBEDDING_TABLE,
     embed_chunks,
     embed_query,
     embed_query_sync,
-    get_embedding_table,
-    normalize_embedding_profile,
 )
 from services.obsidian_service import split_text_with_context
 from utils.obsidian import format_context_content_for_llm, is_code_block_content
@@ -119,12 +111,11 @@ def _fetch_embedding_rows(
     session_id: UUID | None,
     file_ids: list[int] | None,
     *,
-    table_name: str,
     order_by: str | None = None,
     limit: int | None = None,
     qvec: object | None = None,
 ):
-    base_query = f"SELECT filename, chunk_index, content FROM {table_name} "
+    base_query = f"SELECT filename, chunk_index, content FROM {EMBEDDING_TABLE} "
     clauses, params = _build_embedding_filters(session_id, file_ids)
     if clauses:
         base_query += "WHERE " + " AND ".join(clauses) + " "
@@ -144,7 +135,6 @@ def _relevance_distances(
     session_id: UUID | None,
     file_ids: list[int] | None,
     *,
-    table_name: str,
     qvec: object,
     keys: list[tuple[str, int]],
 ) -> dict[tuple[str, int], float]:
@@ -161,7 +151,7 @@ def _relevance_distances(
     params["qvec"] = qvec.tolist()
     query = (
         "SELECT filename, chunk_index, (embedding <=> (:qvec)::vector) AS distance "
-        f"FROM {table_name} WHERE " + " AND ".join(clauses)
+        f"FROM {EMBEDDING_TABLE} WHERE " + " AND ".join(clauses)
     )
     rows = db.execute(sql_text(query), params).fetchall()
     return {(row.filename, row.chunk_index): float(row.distance) for row in rows}
@@ -439,8 +429,6 @@ class PgVectorRetriever(BaseRetriever):
     session_id: UUID | None
     file_ids: list[int] | None
     k: int | None
-    embedding_profile: EmbeddingProfile
-    embedding_table: str
 
     if ConfigDict is not None:
         model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -449,24 +437,22 @@ class PgVectorRetriever(BaseRetriever):
             arbitrary_types_allowed = True
 
     def _get_relevant_documents(self, query: str, *, run_manager=None) -> list[Document]:
-        qvec = embed_query_sync(query, profile=self.embedding_profile)
+        qvec = embed_query_sync(query)
         rows = _fetch_embedding_rows(
             self.db,
             self.session_id,
             self.file_ids,
-            table_name=self.embedding_table,
             qvec=qvec,
             limit=self.k,
         )
         return _rows_to_documents(rows)
 
     async def _aget_relevant_documents(self, query: str, *, run_manager=None) -> list[Document]:
-        qvec = await embed_query(query, profile=self.embedding_profile)
+        qvec = await embed_query(query)
         rows = _fetch_embedding_rows(
             self.db,
             self.session_id,
             self.file_ids,
-            table_name=self.embedding_table,
             qvec=qvec,
             limit=self.k,
         )
@@ -481,24 +467,15 @@ async def _ainvoke_retriever(retriever, query: str):
     return retriever.get_relevant_documents(query)
 
 
-async def _ensure_embeddings_for_profile(
+async def _ensure_embeddings(
     db: Session,
     *,
     session_id: UUID | None,
     file_ids: list[int] | None,
-    embedding_profile: EmbeddingProfile,
 ):
+    """Backfill embeddings for any note rows that don't have them yet."""
     if session_id is None:
         return
-
-    storage_profile = effective_profile(embedding_profile)
-    embedding_table = get_embedding_table(storage_profile)
-    embedding_row_model_map = {
-        DEFAULT_EMBEDDING_PROFILE: Embeddings,
-        CODE_EMBEDDING_PROFILE: EmbeddingsCode,
-        VERBOSE_EMBEDDING_PROFILE: EmbeddingsVerbose,
-    }
-    embedding_row_model = embedding_row_model_map[storage_profile]
 
     notes_query = db.query(Files).filter(Files.session_id == session_id)
     if file_ids:
@@ -509,7 +486,7 @@ async def _ensure_embeddings_for_profile(
 
     params: dict[str, object] = {"sid": session_id}
     existing_query = (
-        f"SELECT DISTINCT files_id FROM {embedding_table} "
+        f"SELECT DISTINCT files_id FROM {EMBEDDING_TABLE} "
         "WHERE session_id = :sid"
     )
     if file_ids:
@@ -545,10 +522,10 @@ async def _ensure_embeddings_for_profile(
             if not chunks:
                 continue
 
-            vectors = await embed_chunks(chunks, profile=embedding_profile)
+            vectors = await embed_chunks(chunks)
             db.add_all(
                 [
-                    embedding_row_model(
+                    Embeddings(
                         files_id=note_row.id,
                         session_id=session_id,
                         filename=filename,
@@ -828,18 +805,7 @@ async def generate_flashcards(
         if session_row is None:
             raise HTTPException(status_code=404, detail="session_id not found")
 
-    embedding_profile = (
-        normalize_embedding_profile(session_row.embedding_profile)
-        if session_row is not None
-        else DEFAULT_EMBEDDING_PROFILE
-    )
-    embedding_table = get_embedding_table(effective_profile(embedding_profile))
-    await _ensure_embeddings_for_profile(
-        db=db,
-        session_id=session_id,
-        file_ids=file_ids,
-        embedding_profile=embedding_profile,
-    )
+    await _ensure_embeddings(db=db, session_id=session_id, file_ids=file_ids)
 
     effective_k = k
     if effective_k is None:
@@ -860,7 +826,6 @@ async def generate_flashcards(
                 db,
                 session_id,
                 file_ids,
-                table_name=embedding_table,
                 order_by="chunk_index",
                 limit=bm25_limit,
             )
@@ -872,8 +837,6 @@ async def generate_flashcards(
                     session_id=session_id,
                     file_ids=file_ids,
                     k=effective_k,
-                    embedding_profile=embedding_profile,
-                    embedding_table=embedding_table,
                 )
                 bm25_retriever = _build_bm25_retriever(bm25_documents, limit=bm25_k)
                 if bm25_retriever is None:
@@ -914,7 +877,6 @@ async def generate_flashcards(
                 db,
                 session_id,
                 file_ids,
-                table_name=embedding_table,
                 order_by="chunk_index",
                 limit=effective_k,
             )
@@ -924,7 +886,6 @@ async def generate_flashcards(
             db,
             session_id,
             file_ids,
-            table_name=embedding_table,
             order_by="chunk_index",
             limit=effective_k,
         )
@@ -948,12 +909,11 @@ async def generate_flashcards(
     # ("capital of France") fall through to an empty context → no cards. Applied
     # before code recovery so code-intent queries can still get a code chunk back.
     if prompt and FLASHCARD_MAX_RETRIEVAL_DISTANCE > 0 and row_items:
-        qvec = await embed_query(prompt, profile=embedding_profile)
+        qvec = await embed_query(prompt)
         distances = _relevance_distances(
             db,
             session_id,
             file_ids,
-            table_name=embedding_table,
             qvec=qvec,
             keys=[(fn, ci) for fn, ci, _ in row_items],
         )
@@ -998,7 +958,7 @@ async def generate_flashcards(
             order = "ORDER BY (filename = ANY(:pref_files)) DESC, chunk_index"
         code_query = (
             "SELECT filename, chunk_index, content "
-            f"FROM {embedding_table} WHERE {where} {order} LIMIT :k"
+            f"FROM {EMBEDDING_TABLE} WHERE {where} {order} LIMIT :k"
         )
         extra_rows = db.execute(sql_text(code_query), code_params).fetchall()
         for row in extra_rows:

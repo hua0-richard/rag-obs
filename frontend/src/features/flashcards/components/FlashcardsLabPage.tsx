@@ -6,13 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/compo
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
-
-type ApiFile = {
-    id: number;
-    filename: string | null;
-    content_type: string | null;
-    size_bytes: number | null;
-};
+import { apiUrl } from "@/shared/utils/api";
+import type { ApiFile } from "@/features/flashcards/types";
 
 type Document = {
     id: string;
@@ -143,8 +138,6 @@ export function FlashcardsLabPage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [generateError, setGenerateError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [_uploadStatus, setUploadStatus] = useState<string | null>(null);
-    const [_uploadIsError, setUploadIsError] = useState(false);
     const [studyFocus, setStudyFocus] = useState("");
     const [flashcardAmount, setFlashcardAmount] = useState<FlashcardAmountOption>("medium");
     const [loadingMessage, setLoadingMessage] = useState("");
@@ -171,7 +164,7 @@ export function FlashcardsLabPage() {
         setDocumentsError(null);
         try {
             const response = await fetch(
-                `${import.meta.env.SERVER_URL}/files?session_id=${encodeURIComponent(sessionId)}`
+                apiUrl("/files", { session_id: sessionId })
             );
             if (!response.ok) {
                 const detail = await response.text();
@@ -345,7 +338,7 @@ export function FlashcardsLabPage() {
             }
             selectedIds.forEach((id) => params.append("file_ids", String(id)));
 
-            const response = await fetch(`${import.meta.env.SERVER_URL}/llm?${params.toString()}`);
+            const response = await fetch(apiUrl(`/llm?${params.toString()}`));
             if (!response.ok) {
                 const detail = await readErrorMessage(response, "Flashcard generation failed.");
                 throw new Error(detail);
@@ -419,8 +412,6 @@ export function FlashcardsLabPage() {
         }
         const sessionId = localStorage.getItem("session_id");
         if (!sessionId) {
-            setUploadIsError(true);
-            setUploadStatus("No session id found. Start a session to upload files.");
             event.target.value = "";
             return;
         }
@@ -430,8 +421,6 @@ export function FlashcardsLabPage() {
         fileList.forEach((file) => formData.append("files", file));
 
         setIsUploading(true);
-        setUploadIsError(false);
-        setUploadStatus(`Uploading ${fileList.length} file${fileList.length === 1 ? "" : "s"}...`);
         setShowToast(true);
         setIsClosing(false);
         setCompletedFiles(0);
@@ -441,10 +430,8 @@ export function FlashcardsLabPage() {
         );
 
         try {
-            const uploadUrl = new URL(`${import.meta.env.SERVER_URL}/upload-files`);
-            uploadUrl.searchParams.set("session_id", sessionId);
             const response = await fetch(
-                uploadUrl.toString(),
+                apiUrl("/upload-files", { session_id: sessionId }),
                 {
                     method: "POST",
                     body: formData,
@@ -453,8 +440,6 @@ export function FlashcardsLabPage() {
 
             if (!response.ok || !response.body) {
                 const detail = response.ok ? "Upload failed. Please try again." : await response.text();
-                setUploadIsError(true);
-                setUploadStatus(detail || "Upload failed. Please try again.");
                 setLoadingMessage(detail || "Upload failed. Please try again.");
                 return;
             }
@@ -524,7 +509,6 @@ export function FlashcardsLabPage() {
                     }
                     if (payload?.status === "error") {
                         errorCount += 1;
-                        setUploadIsError(true);
                         lastError = payload?.detail || "Upload failed. Please try again.";
                         if (payload?.filename) {
                             completed += 1;
@@ -545,16 +529,11 @@ export function FlashcardsLabPage() {
             }
 
             if (errorCount > 0) {
-                setUploadIsError(true);
-                setUploadStatus(lastError || `Upload finished with ${errorCount} error${errorCount === 1 ? "" : "s"}.`);
                 setLoadingMessage(
                     `Processed ${completed}/${fileList.length} files with ${errorCount} error${errorCount === 1 ? "" : "s"}.`
                 );
             } else {
                 const totalProcessed = embeddedCount + skippedCount;
-                setUploadStatus(
-                    `Uploaded ${totalProcessed} file${totalProcessed === 1 ? "" : "s"}.`
-                );
                 if (totalProcessed === 0) {
                     setLoadingMessage("No documents were embedded.");
                 } else if (totalProcessed < fileList.length) {
@@ -567,8 +546,6 @@ export function FlashcardsLabPage() {
             await fetchDocuments(sessionId);
         } catch (error) {
             const message = error instanceof Error ? error.message : "Upload failed. Please try again.";
-            setUploadIsError(true);
-            setUploadStatus(message);
             setLoadingMessage(message);
         } finally {
             setIsUploading(false);

@@ -52,7 +52,7 @@ flowchart LR
     subgraph Backend["☁ Azure Container Apps — Backend"]
         direction TB
         API["FastAPI API<br/>(Python 3.12)"]
-        Embed["Embedding Router<br/>(profile-based)"]
+        Embed["Embedding Router"]
         Retrieve["Hybrid Retriever<br/>(BM25 + pgvector)"]
         RAG["Flashcard Generator"]
     end
@@ -65,12 +65,12 @@ flowchart LR
     subgraph AI["AI Inference"]
         direction TB
         OR["OpenRouter<br/>(DeepSeek V3 + Embeddings)"]
-        Ollama["Ollama<br/>(Local Dev)"]
+        Ollama["Ollama<br/>(Local Dev — host)"]
     end
 
     User -->|"Upload notes + optional study focus"| Web
     Web -->|"REST / JSON"| API
-    API -->|"Chunk + classify"| Embed
+    API -->|"Chunk + embed"| Embed
     API -->|"Selected files + focus query"| Retrieve
     API -->|"Sessions + files"| DB
     Embed -->|"Prod embeddings"| OR
@@ -116,44 +116,46 @@ React 19 + Vite + Tailwind CSS on the frontend. FastAPI + Python 3.12 on the bac
 
 **Client-Side Session ID**: Session UUIDs are generated in the browser via `crypto.randomUUID()` and written to `localStorage` immediately on page load — no server round-trip required. The session row is created lazily in the database on the first upload.
 
-**Embedding Routing**: Embedding backend is swappable via `EMBEDDING_BACKEND`. In development, Ollama serves embeddings locally. In production, OpenRouter is used to keep the API container lightweight and avoid shipping local model weights into Azure Container Apps.
-
-**Multi-Profile Embeddings**: Notes are classified at upload time into `default`, `code`, or `verbose` profiles based on content structure (code blocks, math, length). These profiles control retrieval/storage behavior and pgvector table selection for the active embedding backend.
+**Embedding Routing**: Embedding backend is swappable via `EMBEDDING_BACKEND`. In development, a host Ollama instance serves embeddings locally. In production, OpenRouter is used to keep the API container lightweight and avoid shipping local model weights into Azure Container Apps. Both backends produce 768-dim vectors into a single `embeddings` table, so dev and prod data are interchangeable.
 
 **Optional Hybrid Retrieval**: The flashcards UI accepts an optional study-focus query. When present, the backend combines BM25 keyword retrieval with pgvector semantic retrieval to pull more relevant chunks from the selected notes before generation.
 
-**Removed Manual Model Switching**: The old UI controls for manually switching embedding models were removed. In production, the extra model-loading and runtime overhead was not worth the added compute and memory pressure on Azure Container Apps, so the app now uses a single production embedding model with internal profile-based routing instead of user-facing model selection.
+**Single Embedding Space**: Earlier versions routed notes into `default`/`code`/`verbose` profiles backed by three pgvector tables of different widths. In practice neither backend selected a genuinely different model — Ollama emits 768 dims for everything, and OpenRouter called one model at three widths — so the profiles were collapsed into a single 768-dim table. User-facing embedding-model switching was removed for the same reason: the model-loading overhead was not worth the memory pressure on Azure Container Apps.
 
 **Heading-Aware Chunking**: Markdown is split with heading context preserved, so retrieved chunks carry section provenance for precise citations.
 
 ## Development Setup
 
-```bash
-pnpm run infra        # CPU (default)
-pnpm run infra:gpu    # GPU passthrough for Ollama
-```
+### Prerequisites
 
-Pull the LLM model after first startup:
+Ollama runs on the **host**, not in a container. Start it bound to all interfaces
+so the API container can reach it:
 
 ```bash
-pnpm run ollama:pull  # pulls qwen2.5:14b-instruct
+pnpm ollama          # OLLAMA_HOST=0.0.0.0:11434 ollama serve
 ```
 
-Pull the local embedding model:
+Binding to `0.0.0.0` is required — Ollama's default `127.0.0.1` bind refuses
+connections from the Docker bridge.
+
+Then pull the models (once):
 
 ```bash
-docker compose exec ollama ollama pull nomic-embed-text
+pnpm ollama:pull     # qwen2.5:14b-instruct + nomic-embed-text
 ```
 
-### Optional: Host Ollama
+GPU acceleration needs no configuration: a host-native Ollama uses Metal on
+macOS and CUDA on Linux automatically.
 
-If you already run Ollama on your machine:
+### Run
 
 ```bash
-pnpm run infra:host-ollama
+pnpm infra           # builds and starts api + frontend + db
 ```
 
-Points the API to `http://host.docker.internal:11434`.
+`preinfra` fails fast with instructions if Ollama isn't reachable on `:11434`.
+
+Services: API on `:8000`, frontend on `:5173`, Postgres on `:5432`.
 
 ## Database Migrations
 
@@ -161,7 +163,7 @@ The API does not auto-run migrations on startup. Run manually with Alembic:
 
 ```bash
 # Inside running containers
-docker compose exec api alembic upgrade head
+pnpm migrate   # docker compose exec api alembic upgrade head
 
 # One-off
 docker compose run --rm api alembic upgrade head
@@ -291,11 +293,12 @@ Context precision/recall (RAGAS judges retrieval relevance) and `answer_relevanc
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EMBEDDING_BACKEND` | `ollama` in dev / `openrouter` in prod | `ollama` \| `openrouter` \| `sentence_transformers` |
+| `EMBEDDING_BACKEND` | `ollama` in dev / `openrouter` in prod | `ollama` \| `openrouter` |
 | `FLASHCARD_LLM_BACKEND` | follows `ENV` | Override LLM backend independently of `ENV`: `openrouter` \| `ollama` (used by benchmarks) |
 | `FLASHCARD_LLM_TEMPERATURE` | `0.2` | Generation sampling temperature; benchmark profiles pin it to `0` |
 | `FLASHCARD_MAX_RETRIEVAL_DISTANCE` | `0` (disabled) | Cosine-distance floor: drop retrieved chunks farther than this from the query, so focused queries stay on-topic and irrelevant queries return no cards. Tune with `benchmarks/sweep_distance.py` before enabling |
-| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Local Ollama embedding model |
+| `OLLAMA_HOST` | `http://localhost:11434` | Host Ollama endpoint; compose sets `http://host.docker.internal:11434` |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Host Ollama embedding model (must output 768 dims) |
 | `OPENROUTER_EMBED_MODEL` | `openai/text-embedding-3-small` | Production OpenRouter embedding model |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-chat-v3-0324` | OpenRouter LLM model |
 | `OPENROUTER_API_KEY` | — | Required in production (LLM + embeddings) |

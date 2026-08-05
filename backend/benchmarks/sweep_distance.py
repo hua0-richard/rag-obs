@@ -43,20 +43,13 @@ def main() -> None:
 
     from db.models import Sessions
     from db.session import SessionLocal
-    from services.embedding_service import embed_query_sync
-    from services.flashcards_service import (
-        DEFAULT_EMBEDDING_PROFILE,
-        effective_profile,
-        get_embedding_table,
-        normalize_embedding_profile,
-    )
+    from services.embedding_service import EMBEDDING_TABLE, embed_query_sync
 
     db = SessionLocal()
     session = db.get(Sessions, EVAL_SESSION_ID)
     if session is None:
         raise SystemExit("Eval session not found — run `benchmarks.seed` first.")
-    profile = normalize_embedding_profile(session.embedding_profile)
-    table = get_embedding_table(effective_profile(profile or DEFAULT_EMBEDDING_PROFILE))
+    table = EMBEDDING_TABLE
 
     cases = [
         json.loads(line)
@@ -71,7 +64,7 @@ def main() -> None:
         if not prompt:
             continue
         relevant = set(case.get("relevant_files") or [])
-        qvec = embed_query_sync(prompt, profile=profile)
+        qvec = embed_query_sync(prompt)
         rows = db.execute(
             sql_text(
                 "SELECT filename, (embedding <=> (:qvec)::vector) AS distance "

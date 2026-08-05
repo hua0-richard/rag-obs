@@ -1,22 +1,14 @@
 fastapi
 uvicorn[standard]
-langchain==0.1.20
 python-multipart
 alembic
+langchain==0.1.20
 langchain-core
 langchain-community
-rank-bm25
-# langchain-openai
 langchain-text-splitters
-sentence-transformers==2.6.1
-transformers==4.38.2
-faiss-cpu 
+rank-bm25
 numpy
 ollama
 sqlalchemy>=2.0
 psycopg2-binary
 pgvector
-PyJWT
-redis 
-rq
-tiktoken
