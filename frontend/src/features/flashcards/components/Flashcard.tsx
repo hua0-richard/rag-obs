@@ -145,13 +145,9 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                 <div className="absolute inset-0 w-full h-full backface-hidden">
                     <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:p-10 bg-[#18181b]
                                     border border-white/10 rounded-2xl overflow-hidden
-                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)]
-                                    group-hover:border-[hsl(var(--accent)_/_0.22)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_26px_60px_-26px_rgba(0,0,0,0.75),0_0_30px_-8px_hsl(var(--accent)_/_0.35)]
-                                    transition-all duration-300">
-
-                        <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-[hsl(var(--accent)/0.8)] to-transparent" />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.06),transparent_45%)] pointer-events-none" />
-                        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent opacity-70" />
+                                    shadow-[0_12px_32px_-16px_rgba(0,0,0,0.65)]
+                                    group-hover:border-white/15
+                                    transition-colors duration-200">
 
                         <div className="w-full max-h-[55%] overflow-y-auto px-1 flex items-center justify-center">
                             <MarkdownContent
@@ -160,7 +156,7 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                             />
                         </div>
 
-                        <div className="absolute bottom-4 sm:bottom-6 text-white/10 text-[10px] font-mono uppercase tracking-[0.2em] group-hover:text-[hsl(var(--accent))/60] transition-colors">
+                        <div className="absolute bottom-4 sm:bottom-6 text-white/20 text-[10px] font-mono uppercase tracking-[0.16em] group-hover:text-white/35 transition-colors">
                             Tap to reveal
                         </div>
                     </div>
@@ -172,12 +168,8 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                     style={{ transform: "rotateX(180deg)" }}
                 >
                     <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:p-10 bg-[#18181b]
-                                    border border-[hsl(var(--accent)_/_0.22)] rounded-2xl overflow-hidden
-                                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_-24px_rgba(0,0,0,0.7),0_2px_10px_-6px_rgba(0,0,0,0.5)]">
-
-                        <div className="absolute inset-0 bg-[hsl(var(--accent))/5] pointer-events-none" />
-                        <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-[hsl(var(--accent)/0.8)] to-transparent" />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_45%)] pointer-events-none" />
+                                    border border-[hsl(var(--accent)_/_0.2)] rounded-2xl overflow-hidden
+                                    shadow-[0_12px_32px_-16px_rgba(0,0,0,0.65)]">
 
                         <div className="w-full max-h-[55%] overflow-y-auto px-1 flex items-center justify-center relative z-10">
                             <MarkdownContent
@@ -186,7 +178,7 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                             />
                         </div>
 
-                        <div className="absolute bottom-4 sm:bottom-6 text-[hsl(var(--accent))/60] text-[10px] font-mono uppercase tracking-[0.2em]">
+                        <div className="absolute bottom-4 sm:bottom-6 text-white/30 text-[10px] font-mono uppercase tracking-[0.16em]">
                             Answer
                         </div>
                     </div>

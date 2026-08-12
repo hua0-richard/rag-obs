@@ -11,24 +11,16 @@ import type { ApiDeck, ApiFile, ApiFlashcard } from '@/features/flashcards/types
 const cardVariants = {
     enter: (d: number) => ({
         opacity: 0,
-        x: d * 48,
-        filter: "blur(4px)",
+        x: d * 40,
     }),
     center: {
         opacity: 1,
         x: 0,
-        filter: "blur(0px)",
     },
     exit: (d: number) => ({
         opacity: 0,
-        x: d * -48,
-        filter: "blur(4px)",
+        x: d * -40,
     }),
-};
-
-const sourcePillVariants = {
-    hidden: { opacity: 0, y: 6, scale: 0.95 },
-    visible: { opacity: 1, y: 0, scale: 1 },
 };
 
 export function FlashcardsPage() {
@@ -224,9 +216,6 @@ export function FlashcardsPage() {
     return (
         <div className="min-h-screen w-screen bg-[#09090b] flex flex-col relative overflow-hidden selection:bg-white/10 selection:text-white">
 
-            {/* Ambient vignette */}
-            <div className="absolute inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.0)_70%)]" />
-
             {/* Nav */}
             <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 py-5 sm:py-6">
                 <div className="flex items-center gap-2 min-w-0 font-mono text-sm font-medium tracking-widest uppercase">
@@ -240,7 +229,7 @@ export function FlashcardsPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => navigate('/upload')}
-                    className="flex-shrink-0 text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-300"
+                    className="flex-shrink-0 text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-200"
                 >
                     <X className="size-5" />
                 </Button>
@@ -252,42 +241,32 @@ export function FlashcardsPage() {
                 <AnimatePresence>
                     {uniqueDeckSources.length > 0 && (
                         <motion.div
-                            initial={{ opacity: 0, y: -6 }}
+                            initial={{ opacity: 0, y: -4 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.3 }}
                             className="relative w-full max-w-3xl mb-4 sm:mb-6"
                         >
-                            {/* Fade edges for horizontal scroll */}
-                            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-[#09090b] to-transparent z-10 pointer-events-none rounded-l" />
-                            <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[#09090b] to-transparent z-10 pointer-events-none rounded-r" />
+                            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-[#09090b] to-transparent z-10 pointer-events-none" />
+                            <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[#09090b] to-transparent z-10 pointer-events-none" />
 
-                            <motion.div
+                            <div
                                 ref={sourcesRef}
                                 className="flex items-center gap-2 overflow-x-auto px-2 pb-1 scrollbar-none"
-                                initial="hidden"
-                                animate="visible"
-                                variants={{ visible: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } }}
                             >
-                                <motion.span
-                                    variants={sourcePillVariants}
-                                    transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-                                    className="flex-none text-[10px] uppercase tracking-[0.2em] font-mono text-white/25 pr-1"
-                                >
+                                <span className="flex-none text-[10px] uppercase tracking-[0.16em] font-mono text-white/25 pr-1">
                                     Sources
-                                </motion.span>
+                                </span>
                                 {uniqueDeckSources.map((source, index) => (
-                                    <motion.span
+                                    <span
                                         key={source.id ?? source.filename ?? `source-${index}`}
-                                        variants={sourcePillVariants}
-                                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-                                        className="flex-none rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-mono text-white/50 whitespace-nowrap"
+                                        className="flex-none rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] font-mono text-white/45 whitespace-nowrap"
                                         title={source.filename ?? undefined}
                                     >
                                         {formatFilename(source.filename ?? null)}
-                                    </motion.span>
+                                    </span>
                                 ))}
-                            </motion.div>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -301,14 +280,11 @@ export function FlashcardsPage() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                transition={{ duration: 0.3 }}
+                                transition={{ duration: 0.25 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4">
-                                    <div className="relative h-8 w-8">
-                                        <div className="absolute inset-0 rounded-full border-2 border-white/5" />
-                                        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[hsl(var(--accent)/0.8)] animate-spin" />
-                                    </div>
+                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-3">
+                                    <div className="h-6 w-6 rounded-full border-2 border-white/10 border-t-[hsl(var(--accent)/0.7)] animate-spin" />
                                     <span className="text-[10px] font-mono uppercase tracking-widest text-white/25">Loading</span>
                                 </div>
                             </motion.div>
@@ -320,7 +296,7 @@ export function FlashcardsPage() {
                                 initial="enter"
                                 animate="center"
                                 exit="exit"
-                                transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                                transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
                                 <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
@@ -342,7 +318,7 @@ export function FlashcardsPage() {
                                 initial="enter"
                                 animate="center"
                                 exit="exit"
-                                transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                                transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
                                 <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
@@ -379,7 +355,7 @@ export function FlashcardsPage() {
                                 initial="enter"
                                 animate="center"
                                 exit="exit"
-                                transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                                transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
                                 className="w-full flex justify-center"
                             >
                                 <Flashcard
@@ -392,35 +368,32 @@ export function FlashcardsPage() {
                 </div>
 
                 {/* Controls */}
-                <div className="flex items-center gap-6 sm:gap-12 z-20">
+                <div className="flex items-center gap-6 sm:gap-10 z-20">
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={handlePrev}
                         disabled={!hasCards || currentIndex === 0}
-                        className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#18181b]
-                                   border border-white/5 border-t-white/10
-                                   shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)]
-                                   hover:scale-105 hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)]
-                                   hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)]
-                                   active:scale-95 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]
-                                   disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100
-                                   transition-all duration-200 ease-out group"
+                        className="h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-[#18181b]
+                                   border border-white/10
+                                   hover:bg-[#1f1f23] hover:border-white/20
+                                   active:scale-95
+                                   disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#18181b]
+                                   transition-all duration-150 group"
                     >
-                        <ChevronLeft className="size-5 sm:size-6 text-white/40 group-hover:text-white transition-colors" />
+                        <ChevronLeft className="size-5 text-white/45 group-hover:text-white transition-colors" />
                     </Button>
 
-                    {/* Animated counter */}
-                    <div className="w-16 flex items-center justify-center text-xs font-mono tracking-widest uppercase text-white/20">
+                    <div className="w-14 flex items-center justify-center text-xs font-mono tracking-widest uppercase text-white/25">
                         {hasCards ? (
                             <span className="flex items-center gap-1">
                                 <AnimatePresence mode="wait" initial={false}>
                                     <motion.span
                                         key={currentIndex}
-                                        initial={{ opacity: 0, y: direction > 0 ? 8 : -8 }}
+                                        initial={{ opacity: 0, y: direction > 0 ? 6 : -6 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: direction > 0 ? -8 : 8 }}
-                                        transition={{ duration: 0.18, ease: "easeOut" }}
+                                        exit={{ opacity: 0, y: direction > 0 ? -6 : 6 }}
+                                        transition={{ duration: 0.15, ease: "easeOut" }}
                                         className="text-[hsl(var(--accent))] inline-block w-5 text-center"
                                     >
                                         {currentIndex + 1}
@@ -439,28 +412,20 @@ export function FlashcardsPage() {
                         size="icon"
                         onClick={handleNext}
                         disabled={!hasCards || currentIndex === cards.length - 1}
-                        className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#18181b]
-                                   border border-white/5 border-t-white/10
-                                   shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)]
-                                   hover:scale-105 hover:bg-[#202023] hover:border-[hsl(var(--accent)_/_0.3)]
-                                   hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)]
-                                   active:scale-95 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]
-                                   disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100
-                                   transition-all duration-200 ease-out group"
+                        className="h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-[#18181b]
+                                   border border-white/10
+                                   hover:bg-[#1f1f23] hover:border-white/20
+                                   active:scale-95
+                                   disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#18181b]
+                                   transition-all duration-150 group"
                     >
-                        <ChevronRight className="size-5 sm:size-6 text-white/40 group-hover:text-white transition-colors" />
+                        <ChevronRight className="size-5 text-white/45 group-hover:text-white transition-colors" />
                     </Button>
                 </div>
 
-                {/* Keyboard hint — desktop only */}
-                <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1.2, duration: 0.6 }}
-                    className="hidden sm:block mt-6 text-[10px] font-mono text-white/15 tracking-widest uppercase"
-                >
+                <p className="hidden sm:block mt-6 text-[10px] font-mono text-white/20 tracking-widest uppercase">
                     ← → to navigate · click card to flip
-                </motion.p>
+                </p>
             </main>
         </div>
     );
