@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/shared/components/ui/Button';
+import { BrandMark } from '@/shared/components/BrandMark';
 import { Flashcard } from './Flashcard';
 import { useNavigate } from 'react-router-dom';
 import { buildDeckTitle, loadDecks, markDeckStudied } from '@/features/flashcards/utils/flashcardDecks';
@@ -11,7 +12,7 @@ import type { ApiDeck, ApiFile, ApiFlashcard } from '@/features/flashcards/types
 const cardVariants = {
     enter: (d: number) => ({
         opacity: 0,
-        x: d * 40,
+        x: d * 24,
     }),
     center: {
         opacity: 1,
@@ -19,7 +20,7 @@ const cardVariants = {
     },
     exit: (d: number) => ({
         opacity: 0,
-        x: d * -40,
+        x: d * -24,
     }),
 };
 
@@ -211,19 +212,18 @@ export function FlashcardsPage() {
                 ? buildDeckTitle(files.map((file) => file.filename ?? ""))
                 : null;
     const deckLabel = deckSourceLabel || fallbackSourceLabel || "Flashcards";
-    const deckSubtitle = deckSourceLabel || fallbackSourceLabel ? "Flashcards" : "Study";
 
     return (
         <div className="min-h-screen w-screen bg-[var(--bg-chrome)] flex flex-col relative overflow-hidden">
 
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-12 px-4 sm:px-5 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
-                <div className="flex items-center gap-1.5 min-w-0 text-[13px]">
-                    <span className="text-[var(--accent-hex)] truncate max-w-[40vw] sm:max-w-[55vw] text-heading" title={deckLabel}>
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-5 sm:px-6 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
+                <div className="flex items-center gap-3 min-w-0">
+                    <BrandMark />
+                    <span className="text-[var(--fg-quaternary)] flex-shrink-0">/</span>
+                    <span className="text-[14px] text-[var(--fg-secondary)] truncate max-w-[36vw] sm:max-w-[48vw]" title={deckLabel}>
                         {deckLabel}
                     </span>
-                    <span className="text-[var(--fg-quaternary)] flex-shrink-0">/</span>
-                    <span className="text-[var(--fg-tertiary)] flex-shrink-0">{deckSubtitle}</span>
                 </div>
                 <Button
                     variant="ghost"
@@ -235,7 +235,7 @@ export function FlashcardsPage() {
                 </Button>
             </nav>
 
-            <main className="flex-1 flex flex-col items-center justify-center w-full px-4 md:px-8 relative z-10 pt-16 pb-4">
+            <main className="flex-1 flex flex-col items-center justify-center w-full px-5 md:px-8 relative z-10 pt-20 pb-6">
 
                 {/* Sources */}
                 <AnimatePresence>
@@ -245,11 +245,11 @@ export function FlashcardsPage() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.2 }}
-                            className="relative w-full max-w-2xl mb-4"
+                            className="relative w-full max-w-2xl mb-5"
                         >
                             <div
                                 ref={sourcesRef}
-                                className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none"
+                                className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none"
                             >
                                 <span className="flex-none text-label pr-1">
                                     Sources
@@ -257,7 +257,7 @@ export function FlashcardsPage() {
                                 {uniqueDeckSources.map((source, index) => (
                                     <span
                                         key={source.id ?? source.filename ?? `source-${index}`}
-                                        className="flex-none rounded border border-[var(--stroke-tertiary)] bg-[var(--fill-quaternary)] px-2 py-0.5 text-[12px] leading-4 text-[var(--fg-secondary)] whitespace-nowrap"
+                                        className="flex-none rounded-md border border-[var(--stroke-tertiary)] bg-[var(--fill-quaternary)] px-2.5 py-1 text-[12px] leading-4 font-mono text-[var(--fg-secondary)] whitespace-nowrap"
                                         title={source.filename ?? undefined}
                                     >
                                         {formatFilename(source.filename ?? null)}
@@ -269,7 +269,7 @@ export function FlashcardsPage() {
                 </AnimatePresence>
 
                 {/* Card */}
-                <div className="w-full flex justify-center mb-6 relative">
+                <div className="w-full flex justify-center mb-8 relative">
                     <AnimatePresence mode="wait" custom={direction}>
                         {isLoading ? (
                             <motion.div
@@ -280,8 +280,8 @@ export function FlashcardsPage() {
                                 transition={{ duration: 0.2 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-2xl h-[clamp(240px,40vh,360px)] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-2">
-                                    <div className="h-4 w-4 rounded-full border border-[var(--stroke-secondary)] border-t-[var(--accent-hex)] animate-spin" />
+                                <div className="w-full max-w-2xl h-[clamp(280px,44vh,400px)] rounded-[10px] border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-3">
+                                    <div className="loader-ring loader-ring-lg" aria-hidden />
                                     <span className="text-label">Loading</span>
                                 </div>
                             </motion.div>
@@ -296,12 +296,12 @@ export function FlashcardsPage() {
                                 transition={{ duration: 0.2 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-2xl h-[clamp(240px,40vh,360px)] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-3 px-8 text-center">
-                                    <p className="text-[14px] text-[var(--fg-secondary)]">{error}</p>
+                                <div className="w-full max-w-2xl h-[clamp(280px,44vh,400px)] rounded-[10px] border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-3 px-8 text-center">
+                                    <p className="text-[15px] text-[var(--fg-secondary)]">{error}</p>
                                     <button
                                         type="button"
                                         onClick={() => navigate("/upload")}
-                                        className="text-[13px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
+                                        className="text-[14px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
                                     >
                                         Go to upload
                                     </button>
@@ -318,25 +318,25 @@ export function FlashcardsPage() {
                                 transition={{ duration: 0.2 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-2xl h-[clamp(240px,40vh,360px)] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-3 px-8 text-center">
+                                <div className="w-full max-w-2xl h-[clamp(280px,44vh,400px)] rounded-[10px] border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-3 px-8 text-center">
                                     {loadDecks().length === 0 ? (
                                         <>
-                                            <p className="text-[14px] text-[var(--fg-secondary)]">No flashcards yet.</p>
+                                            <p className="text-[15px] text-[var(--fg-secondary)]">No flashcards yet.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => navigate("/upload")}
-                                                className="text-[13px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
+                                                className="text-[14px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
                                             >
                                                 Upload your notes to get started
                                             </button>
                                         </>
                                     ) : (
                                         <>
-                                            <p className="text-[14px] text-[var(--fg-secondary)]">No flashcards found for this deck.</p>
+                                            <p className="text-[15px] text-[var(--fg-secondary)]">No flashcards found for this deck.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => navigate("/flashcards-lab")}
-                                                className="text-[13px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
+                                                className="text-[14px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
                                             >
                                                 Select a different deck
                                             </button>
@@ -366,7 +366,7 @@ export function FlashcardsPage() {
                 </div>
 
                 {/* Controls */}
-                <div className="flex items-center gap-4 z-20">
+                <div className="flex items-center gap-5 z-20">
                     <Button
                         variant="outline"
                         size="icon"
@@ -376,11 +376,11 @@ export function FlashcardsPage() {
                         <ChevronLeft className="size-4" />
                     </Button>
 
-                    <div className="w-12 flex items-center justify-center text-[12px] tabular-nums text-[var(--fg-tertiary)]">
+                    <div className="w-14 flex items-center justify-center text-[13px] tabular-nums font-mono text-[var(--fg-tertiary)]">
                         {hasCards ? (
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1.5">
                                 <span className="text-[var(--accent-hex)]">{currentIndex + 1}</span>
-                                <span>/</span>
+                                <span className="text-[var(--fg-quaternary)]">/</span>
                                 <span>{cards.length}</span>
                             </span>
                         ) : (
@@ -398,7 +398,7 @@ export function FlashcardsPage() {
                     </Button>
                 </div>
 
-                <p className="hidden sm:block mt-5 text-label">
+                <p className="hidden sm:block mt-6 text-label">
                     ← → navigate · click to flip
                 </p>
             </main>
