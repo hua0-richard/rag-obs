@@ -6,55 +6,6 @@ import { buildDeckTitle, loadDecks, upsertDeck } from "@/features/flashcards/uti
 import { formatModelLabel } from "@/shared/utils/modelLabel";
 import { apiUrl } from "@/shared/utils/api";
 
-const LogoStreaks = () => {
-    return (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] pointer-events-none z-0">
-            {/* Radial gradient backing for depth */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[hsl(var(--accent))/5] to-transparent opacity-30 blur-3xl rounded-full" />
-
-            {/* Rotating streaks */}
-            {[...Array(6)].map((_, i) => (
-                <motion.div
-                    key={i}
-                    className="absolute top-1/2 left-1/2 w-[400px] h-[1px] origin-left bg-gradient-to-r from-transparent via-[hsl(var(--accent))/40] to-transparent"
-                    initial={{ rotate: i * 60, opacity: 0, scale: 0.5 }}
-                    animate={{
-                        rotate: i * 60 + 360,
-                        opacity: [0, 0.5, 0],
-                        scale: [0.8, 1.2, 0.8]
-                    }}
-                    transition={{
-                        duration: 8 + i,
-                        repeat: Infinity,
-                        ease: "linear",
-                        delay: i * 0.5
-                    }}
-                />
-            ))}
-
-            {/* Outward particles/glow */}
-            {[...Array(8)].map((_, i) => (
-                <motion.div
-                    key={`p-${i}`}
-                    className="absolute top-1/2 left-1/2 w-1 h-1 rounded-full bg-[hsl(var(--accent))]"
-                    initial={{ x: 0, y: 0, opacity: 0 }}
-                    animate={{
-                        x: Math.cos(i * 45) * 300,
-                        y: Math.sin(i * 45) * 300,
-                        opacity: [0, 1, 0]
-                    }}
-                    transition={{
-                        duration: 4,
-                        repeat: Infinity,
-                        ease: "easeOut",
-                        delay: i * 0.2
-                    }}
-                />
-            ))}
-        </div>
-    );
-};
-
 export function HeroSection() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -378,116 +329,37 @@ export function HeroSection() {
 
     return (
         <section className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full px-4 text-center bg-[#09090b] overflow-hidden">
-            <style>
-                {`
-                .loading-border {
-                    border: 1px solid hsl(var(--accent) / 0.45);
-                    box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2);
-                    animation: borderPulse 2.2s ease-in-out infinite;
-                }
-                .completion-pulse {
-                    animation: completionPulse 0.9s ease-out;
-                }
-                .status-shell {
-                    background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) padding-box,
-                        linear-gradient(135deg, hsl(var(--accent) / 0.45), transparent 60%, hsl(var(--accent) / 0.2)) border-box;
-                    border: 1px solid transparent;
-                }
-                .status-glow {
-                    animation: glowPulse 3s ease-in-out infinite;
-                }
-                .status-sheen {
-                    background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.03) 55%, transparent 100%);
-                    animation: sheenSweep 2.8s ease-in-out infinite;
-                }
-                .status-card {
-                    background: radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 45%), #18181b;
-                    border: 1px solid rgba(255,255,255,0.08);
-                }
-                .accent-strip {
-                    background: linear-gradient(180deg, hsl(var(--accent) / 0.9), transparent 90%);
-                }
-                .progress-flow {
-                    background: linear-gradient(90deg, hsl(var(--accent) / 0.15), hsl(var(--accent) / 0.65), hsl(var(--accent) / 0.15));
-                    animation: progressSweep 1.6s ease-in-out infinite;
-                }
-                @keyframes borderPulse {
-                    0%   { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
-                    50%  { box-shadow: 0 0 14px 2px hsl(var(--accent) / 0.45); }
-                    100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
-                }
-                @keyframes completionPulse {
-                    0%   { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.6); }
-                    100% { box-shadow: 0 0 0 18px transparent; }
-                }
-                @keyframes glowPulse {
-                    0%   { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
-                    50%  { box-shadow: 0 0 36px hsl(var(--accent) / 0.25); }
-                    100% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
-                }
-                @keyframes sheenSweep {
-                    0%   { transform: translateX(-120%); opacity: 0; }
-                    30%  { opacity: 0.7; }
-                    60%  { opacity: 0.4; }
-                    100% { transform: translateX(120%); opacity: 0; }
-                }
-                @keyframes progressSweep {
-                    0%   { transform: translateX(-40%);  opacity: 0.4; }
-                    50%  { transform: translateX(40%);   opacity: 0.9; }
-                    100% { transform: translateX(140%);  opacity: 0.4; }
-                }
-                @keyframes toastIn {
-                    0%   { opacity: 0; transform: translateY(-10px) scale(0.98); }
-                    100% { opacity: 1; transform: translateY(0) scale(1); }
-                }
-                @keyframes toastOut {
-                    0%   { opacity: 1; transform: translateY(0) scale(1); }
-                    100% { opacity: 0; transform: translateY(-8px) scale(0.98); }
-                }
-                .toast-enter { animation: toastIn 320ms ease-out; }
-                .toast-exit  { animation: toastOut 320ms ease-in; }
-                @media (prefers-reduced-motion: reduce) {
-                    .loading-border, .completion-pulse, .status-glow,
-                    .status-sheen, .progress-flow, .toast-enter, .toast-exit {
-                        animation: none !important;
-                    }
-                }
-                `}
-            </style>
-
             {/* Logo */}
-            <div className="relative z-10 mb-10 group perspective-1000">
-                <LogoStreaks />
+            <div className="relative z-10 mb-10">
                 <motion.div
-                    initial={{ scale: 0.8, opacity: 0, rotateX: 20 }}
-                    animate={{ scale: 1, opacity: 1, rotateX: 0 }}
-                    transition={{ duration: 1.2, type: "spring", bounce: 0.3 }}
-                    className="relative z-10 p-8 rounded-[3rem]"
+                    initial={{ scale: 0.92, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
+                    className="relative"
                 >
-                    <div className="absolute inset-0 bg-[hsl(var(--accent))/10] blur-3xl rounded-full opacity-60 group-hover:opacity-80 transition-opacity duration-1000" />
+                    <div className="absolute inset-0 bg-[hsl(var(--accent))/8] blur-3xl rounded-full opacity-50" />
                     <motion.img
                         src="/obsidian-logo.png"
                         alt="Obsidian Logo"
-                        className="w-48 h-48 md:w-64 md:h-64 object-contain drop-shadow-2xl relative z-20"
-                        style={{ filter: "drop-shadow(0 0 40px rgba(139, 92, 246, 0.3))" }}
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1.4 }}
+                        className="w-44 h-44 md:w-56 md:h-56 object-contain relative z-10"
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
                     />
                 </motion.div>
             </div>
 
             {/* CTA */}
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.35 }}
-                className="relative z-20 flex flex-col items-center gap-5"
+                transition={{ duration: 0.55, delay: 0.2 }}
+                className="relative z-20 flex flex-col items-center gap-4"
             >
                 <button
                     type="button"
                     onClick={handleUploadClick}
                     disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
-                    className="luminous-btn h-13 px-10 text-sm font-medium flex items-center gap-2.5 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed"
+                    className="luminous-btn h-12 px-9 text-sm font-medium flex items-center gap-2.5 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed"
                 >
                     <UploadCloud className="size-4" />
                     {isSessionLoading ? "Initializing…" : "Upload notes"}
@@ -497,13 +369,13 @@ export function HeroSection() {
                     <button
                         type="button"
                         onClick={() => navigate("/flashcards-lab")}
-                        className="text-xs text-white/30 hover:text-white/60 transition-colors duration-200 font-mono tracking-wide"
+                        className="text-xs text-white/35 hover:text-white/65 transition-colors duration-200"
                     >
                         {existingDecks.length} saved deck{existingDecks.length !== 1 ? "s" : ""} — open lab →
                     </button>
                 )}
 
-                <p className="text-white/30 text-sm font-light tracking-wide max-w-[260px] leading-relaxed">
+                <p className="text-white/35 text-sm font-light max-w-[260px] leading-relaxed">
                     Upload Markdown notes and get a flashcard deck instantly.
                 </p>
             </motion.div>
@@ -521,7 +393,7 @@ export function HeroSection() {
             {/* Toast */}
             {showToast ? (
                 <div
-                    className="fixed right-6 top-6 z-50 w-[min(84vw,320px)]"
+                    className="fixed right-6 top-6 z-50 w-[min(84vw,300px)]"
                     role="status"
                     aria-live="polite"
                     onMouseEnter={() => setIsHoveringToast(true)}
@@ -530,47 +402,34 @@ export function HeroSection() {
                     onBlurCapture={() => setIsHoveringToast(false)}
                 >
                     <div
-                        className={`status-shell status-glow relative overflow-hidden rounded-[18px] ${
-                            isUploading || isGeneratingFlashcards ? "loading-border" : ""
-                        } ${pulseComplete ? "completion-pulse" : ""} ${
-                            isClosing ? "toast-exit" : "toast-enter"
-                        }`}
+                        className={`status-toast relative overflow-hidden px-4 py-3 text-left ${
+                            isClosing ? "status-toast-exit" : "status-toast-enter"
+                        } ${pulseComplete ? "ring-1 ring-[hsl(var(--accent)/0.35)]" : ""}`}
                     >
-                        <div className="absolute inset-0 status-sheen pointer-events-none" />
-                        <div className="status-card relative rounded-[16px] px-4 py-3 text-left text-sm text-white/80 backdrop-blur-xl">
-                            <div className="accent-strip absolute left-0 top-0 h-full w-1.5" />
-                            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.24em] text-white/45">
-                                <span>{isGeneratingFlashcards ? "Flashcards" : "Embedding"}</span>
-                                <button
-                                    type="button"
-                                    onClick={closeToast}
-                                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] tracking-[0.16em] text-white/50 transition hover:text-white"
-                                >
-                                    <span>Close</span>
-                                    <X className="size-3" />
-                                </button>
-                            </div>
-                            <div className="mt-2 text-[13px] font-medium text-white">
-                                {loadingMessage || (isGeneratingFlashcards ? "Generating flashcards..." : "Preparing embeddings...")}
-                            </div>
-                            {isUploading || isGeneratingFlashcards ? (
-                                <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
-                                    <div className="progress-flow h-full w-[60%] rounded-full" />
-                                </div>
-                            ) : null}
-                            <div className="mt-2.5 flex items-center justify-between text-[10px] text-white/45">
-                                <div className="flex items-center gap-2">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--accent)/0.6)] opacity-75" />
-                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(var(--accent)/0.9)]" />
-                                    </span>
-                                    <span>
-                                        {isGeneratingFlashcards ? "Generating flashcards" : "Storing vector embeddings"}
-                                    </span>
-                                </div>
-                                <span>{isGeneratingFlashcards ? "…" : `${completedFiles}/${totalFiles}`}</span>
-                            </div>
+                        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-white/40">
+                            <span>{isGeneratingFlashcards ? "Flashcards" : "Embedding"}</span>
+                            <button
+                                type="button"
+                                onClick={closeToast}
+                                className="rounded-md p-0.5 text-white/40 transition hover:text-white"
+                                aria-label="Close"
+                            >
+                                <X className="size-3.5" />
+                            </button>
                         </div>
+                        <div className="mt-1.5 text-[13px] font-medium text-white/90">
+                            {loadingMessage || (isGeneratingFlashcards ? "Generating flashcards..." : "Preparing embeddings...")}
+                        </div>
+                        {isUploading || isGeneratingFlashcards ? (
+                            <div className="mt-2.5 h-0.5 overflow-hidden rounded-full bg-white/10">
+                                <div className="status-progress h-full w-[55%] rounded-full" />
+                            </div>
+                        ) : null}
+                        {!isGeneratingFlashcards && totalFiles > 0 ? (
+                            <div className="mt-2 text-[11px] text-white/35">
+                                {completedFiles}/{totalFiles}
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             ) : null}

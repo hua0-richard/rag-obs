@@ -92,68 +92,91 @@ body {
 
 @layer utilities {
 
-  /* 3D Luminous Primary Action */
+  /* Primary action */
   .luminous-btn {
     @apply relative border-none text-white font-medium overflow-hidden rounded-full;
-    /* Directional lighting: Top-left brighter */
-    background: linear-gradient(135deg, hsl(265, 100%, 75%) 0%, hsl(265, 100%, 65%) 40%, hsl(280, 100%, 50%) 100%);
+    background: linear-gradient(135deg, hsl(265, 90%, 68%) 0%, hsl(275, 85%, 55%) 100%);
     box-shadow:
-      /* Specular edge highlight (top) */
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      /* Subtle bottom shadow for curvature */
-      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
-      /* Deep drop shadow */
-      0 4px 10px rgba(0, 0, 0, 0.5),
-      /* Colored ambient glow */
-      0 0 15px -2px hsl(270 100% 60% / 0.6);
-    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  /* Inner specular bloom */
-  .luminous-btn::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at 30% 0%, rgba(255, 255, 255, 0.25), transparent 60%);
-    opacity: 0.8;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 2px 8px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
   }
 
   .luminous-btn:hover {
-    transform: translateY(-2px);
-    background: linear-gradient(135deg, hsl(265, 100%, 80%) 0%, hsl(265, 100%, 70%) 40%, hsl(280, 100%, 55%) 100%);
+    transform: translateY(-1px);
+    background: linear-gradient(135deg, hsl(265, 90%, 72%) 0%, hsl(275, 85%, 58%) 100%);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.1),
-      0 8px 20px rgba(0, 0, 0, 0.6),
-      0 0 30px -4px hsl(270 100% 60% / 0.8);
-    filter: brightness(1.05);
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 4px 14px rgba(0, 0, 0, 0.4),
+      0 0 18px -6px hsl(270 100% 60% / 0.45);
   }
 
   .luminous-btn:active {
-    transform: translateY(1px);
-    background: linear-gradient(135deg, hsl(265, 100%, 60%) 0%, hsl(280, 100%, 50%) 100%);
+    transform: translateY(0);
     box-shadow:
-      inset 0 2px 4px rgba(0, 0, 0, 0.3),
-      0 1px 4px rgba(0, 0, 0, 0.4),
-      0 0 10px -4px hsl(270 100% 60% / 0.4);
+      inset 0 1px 3px rgba(0, 0, 0, 0.25),
+      0 1px 4px rgba(0, 0, 0, 0.3);
   }
 
   /* Matte Surface (Cards, Panels) */
   .matte-panel {
-    @apply bg-[var(--bg-surface)] border border-[var(--border-muted)] rounded-2xl shadow-xl shadow-black/40;
+    @apply bg-[var(--bg-surface)] border border-[var(--border-muted)] rounded-2xl shadow-lg shadow-black/25;
   }
 
   /* High Contrast Input */
   .matte-input {
-    @apply bg-[var(--bg-deep)] border border-[var(--border-muted)] rounded-xl text-white shadow-inner shadow-black/30 transition-all duration-200;
+    @apply bg-[var(--bg-deep)] border border-[var(--border-muted)] rounded-xl text-white transition-all duration-200;
   }
 
   .matte-input:focus-visible {
-    @apply border-[hsl(var(--accent))] ring-1 ring-[hsl(var(--accent))];
-    box-shadow: 0 0 20px -2px hsl(var(--accent) / 0.5);
+    @apply border-[hsl(var(--accent))] ring-1 ring-[hsl(var(--accent)/0.4)];
+  }
+
+  /* Status toast */
+  .status-toast {
+    @apply rounded-xl border border-white/10 bg-[#18181b] shadow-lg shadow-black/40;
+  }
+
+  .status-toast-enter {
+    animation: toastIn 280ms ease-out;
+  }
+
+  .status-toast-exit {
+    animation: toastOut 240ms ease-in;
+  }
+
+  .status-progress {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--accent) / 0.2),
+      hsl(var(--accent) / 0.7),
+      hsl(var(--accent) / 0.2)
+    );
+    animation: progressSweep 1.6s ease-in-out infinite;
+  }
+
+  @keyframes toastIn {
+    0% { opacity: 0; transform: translateY(-8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes toastOut {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-6px); }
+  }
+
+  @keyframes progressSweep {
+    0% { transform: translateX(-40%); opacity: 0.45; }
+    50% { transform: translateX(40%); opacity: 0.9; }
+    100% { transform: translateX(140%); opacity: 0.45; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-toast-enter,
+    .status-toast-exit,
+    .status-progress {
+      animation: none !important;
+    }
   }
 
   /* 3D Utilities */

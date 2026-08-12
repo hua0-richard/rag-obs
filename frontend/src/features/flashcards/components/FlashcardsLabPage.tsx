@@ -555,125 +555,8 @@ export function FlashcardsLabPage() {
 
     return (
         <div className="min-h-screen w-full overflow-x-hidden bg-[#09090b] text-white/90 selection:bg-[hsl(var(--accent)/0.3)] relative">
-            <style>
-                {`
-                .loading-border {
-                    border: 1px solid hsl(var(--accent) / 0.45);
-                    box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2);
-                    animation: borderPulse 2.2s ease-in-out infinite;
-                }
-
-                .completion-pulse {
-                    animation: completionPulse 0.9s ease-out;
-                }
-
-                .status-shell {
-                    background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) padding-box,
-                        linear-gradient(135deg, hsl(var(--accent) / 0.45), transparent 60%, hsl(var(--accent) / 0.2)) border-box;
-                    border: 1px solid transparent;
-                }
-
-                .status-glow {
-                    animation: glowPulse 3s ease-in-out infinite;
-                }
-
-                .status-sheen {
-                    background: linear-gradient(
-                        120deg,
-                        transparent 0%,
-                        rgba(255,255,255,0.12) 45%,
-                        rgba(255,255,255,0.03) 55%,
-                        transparent 100%
-                    );
-                    animation: sheenSweep 2.8s ease-in-out infinite;
-                }
-
-                .status-card {
-                    background: radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 45%),
-                        #18181b;
-                    border: 1px solid rgba(255,255,255,0.08);
-                }
-
-                .accent-strip {
-                    background: linear-gradient(180deg, hsl(var(--accent) / 0.9), transparent 90%);
-                }
-
-                .progress-flow {
-                    background: linear-gradient(
-                        90deg,
-                        hsl(var(--accent) / 0.15),
-                        hsl(var(--accent) / 0.65),
-                        hsl(var(--accent) / 0.15)
-                    );
-                    animation: progressSweep 1.6s ease-in-out infinite;
-                }
-
-                @keyframes borderPulse {
-                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
-                    50% { box-shadow: 0 0 14px 2px hsl(var(--accent) / 0.45); }
-                    100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.2); }
-                }
-
-                @keyframes completionPulse {
-                    0% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0.6); }
-                    100% { box-shadow: 0 0 0 18px transparent; }
-                }
-
-                @keyframes glowPulse {
-                    0% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
-                    50% { box-shadow: 0 0 36px hsl(var(--accent) / 0.25); }
-                    100% { box-shadow: 0 0 24px hsl(var(--accent) / 0.1); }
-                }
-
-                @keyframes sheenSweep {
-                    0% { transform: translateX(-120%); opacity: 0; }
-                    30% { opacity: 0.7; }
-                    60% { opacity: 0.4; }
-                    100% { transform: translateX(120%); opacity: 0; }
-                }
-
-                @keyframes progressSweep {
-                    0% { transform: translateX(-40%); opacity: 0.4; }
-                    50% { transform: translateX(40%); opacity: 0.9; }
-                    100% { transform: translateX(140%); opacity: 0.4; }
-                }
-
-                @keyframes toastIn {
-                    0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
-                    100% { opacity: 1; transform: translateY(0) scale(1); }
-                }
-
-                @keyframes toastOut {
-                    0% { opacity: 1; transform: translateY(0) scale(1); }
-                    100% { opacity: 0; transform: translateY(-8px) scale(0.98); }
-                }
-
-                .toast-enter {
-                    animation: toastIn 320ms ease-out;
-                }
-
-                .toast-exit {
-                    animation: toastOut 320ms ease-in;
-                }
-
-                @media (prefers-reduced-motion: reduce) {
-                    .loading-border,
-                    .completion-pulse,
-                    .status-glow,
-                    .status-sheen,
-                    .progress-flow,
-                    .toast-enter,
-                    .toast-exit {
-                        animation: none !important;
-                    }
-                }
-                `}
-            </style>
-            {/* Ambient Vignette */}
-            <div className="absolute inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.0)_70%)]" />
-
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 bg-[#09090b]/60 backdrop-blur-xl border-b border-white/[0.06]">
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-5 border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-md">
                 <div className="text-white/40 font-medium text-sm tracking-widest uppercase font-mono">
                     <span className="text-[hsl(var(--accent))]">Flashcards</span> <span className="text-white/20 mx-2">/</span> Lab
                 </div>
@@ -681,17 +564,17 @@ export function FlashcardsLabPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => navigate('/upload')}
-                    className="text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-300"
+                    className="text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-200"
                 >
                     <X className="size-5" />
                 </Button>
             </nav>
 
-            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col items-center px-4 pb-20 pt-32 sm:px-6">
+            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1400px] flex-col items-center px-4 pb-20 pt-28 sm:px-6">
 
                 {/* Tabs */}
                 <div className="flex justify-center mb-8">
-                    <div className="p-1 bg-[#18181b]/50 backdrop-blur-md border border-white/5 rounded-full inline-flex relative">
+                    <div className="p-1 bg-[#18181b] border border-white/5 rounded-full inline-flex relative">
                         {[
                             { id: "create", label: "Create Deck", icon: PlusCircle },
                             { id: "decks", label: "My Decks", icon: Layers },
@@ -699,14 +582,14 @@ export function FlashcardsLabPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as Tab)}
-                                className={`relative px-6 py-2 rounded-full text-sm font-medium transition-colors duration-200 z-10 flex items-center gap-2 ${activeTab === tab.id ? "text-white" : "text-white/40 hover:text-white/60"
+                                className={`relative px-5 py-2 rounded-full text-sm font-medium transition-colors duration-200 z-10 flex items-center gap-2 ${activeTab === tab.id ? "text-white" : "text-white/40 hover:text-white/60"
                                     }`}
                             >
                                 {activeTab === tab.id && (
                                     <motion.div
                                         layoutId="activeTab"
-                                        className="absolute inset-0 bg-white/10 rounded-full shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]"
-                                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                        className="absolute inset-0 bg-white/10 rounded-full"
+                                        transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                                     />
                                 )}
                                 <tab.icon className="size-4" />
@@ -720,11 +603,11 @@ export function FlashcardsLabPage() {
                     {activeTab === "create" ? (
                         <motion.section
                             key="create"
-                            initial={{ opacity: 0, y: 10 }}
+                            initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.3 }}
-                            className="group relative mx-auto flex w-full max-w-[1100px] flex-col rounded-2xl border border-white/5 bg-[#121215]/40 shadow-[0_20px_60px_-45px_rgba(0,0,0,0.8)] backdrop-blur-sm h-[min(72vh,720px)] min-h-[500px] sm:min-h-[540px] max-h-[760px] overflow-hidden"
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.25 }}
+                            className="group relative mx-auto flex w-full max-w-[1100px] flex-col rounded-2xl border border-white/8 bg-[#121215] h-[min(72vh,720px)] min-h-[500px] sm:min-h-[540px] max-h-[760px] overflow-hidden"
                         >
                             {/* Top Bar */}
                             <div className="flex flex-col gap-2.5 border-b border-white/5 px-6 py-3">
@@ -751,7 +634,7 @@ export function FlashcardsLabPage() {
                                                 placeholder="Optional: recursion, formulas, React hooks"
                                                 disabled={isUploading || isGenerating || documentsLoading}
                                                 maxLength={160}
-                                                className="h-8 w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 outline-none transition-all duration-200 hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:border-[hsl(var(--accent)/0.3)] focus:bg-white/[0.05] focus:text-white/75 focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-white/28"
+                                                className="h-8 w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-0 text-xs text-white/55 outline-none transition-colors duration-150 hover:border-white/15 hover:text-white/75 focus:border-[hsl(var(--accent)/0.35)] focus:text-white/75 focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-white/28"
                                             />
                                         </div>
                                     </div>
@@ -770,12 +653,12 @@ export function FlashcardsLabPage() {
                                                     <SelectTrigger
                                                         id="flashcard-amount"
                                                         aria-label="Flashcard amount"
-                                                        className="h-8 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-0 text-xs text-white/50 transition-all hover:border-[hsl(var(--accent)/0.3)] hover:bg-white/[0.05] hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
+                                                        className="h-8 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-0 text-xs text-white/55 transition-colors hover:border-white/15 hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
                                                         title={selectedAmountOption.label}
                                                     >
                                                         <span className="truncate">{selectedAmountOption.label}</span>
                                                     </SelectTrigger>
-                                                    <SelectContent className="w-[min(90vw,220px)] rounded-xl border border-white/[0.07] bg-[#111113] p-1 shadow-2xl backdrop-blur-xl">
+                                                    <SelectContent className="w-[min(90vw,220px)] rounded-xl border border-white/[0.08] bg-[#111113] p-1 shadow-xl">
                                                         {FLASHCARD_AMOUNT_OPTIONS.map((option) => (
                                                             <SelectItem
                                                                 key={option.value}
@@ -826,9 +709,9 @@ export function FlashcardsLabPage() {
                                                 disabled={isUploading || documentsLoading}
                                                 variant="ghost"
                                                 size="sm"
-                                                className="group w-full justify-center rounded-full border border-white/5 border-t-white/10 bg-[#18181b] px-4 text-[11px] text-white/75 shadow-[0_4px_12px_rgba(0,0,0,0.5),0_0_10px_-2px_hsl(var(--accent)/0.1),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out hover:border-[hsl(var(--accent)_/_0.3)] hover:bg-[#202023] hover:text-white/90 hover:shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_-5px_hsl(var(--accent)/0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100 lg:w-auto lg:min-w-[120px]"
+                                                className="group w-full justify-center rounded-full border border-white/10 bg-[#18181b] px-4 text-[11px] text-white/70 transition-colors duration-150 hover:border-white/20 hover:bg-[#1f1f23] hover:text-white/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-30 lg:w-auto lg:min-w-[120px]"
                                             >
-                                                <UploadCloud className="size-3.5 text-white/75 transition-colors group-hover:text-white/90" />
+                                                <UploadCloud className="size-3.5 text-white/70 transition-colors group-hover:text-white/90" />
                                                 <span>{isUploading ? "Uploading..." : "Upload More"}</span>
                                             </Button>
                                         </div>
@@ -853,10 +736,7 @@ export function FlashcardsLabPage() {
                                                         <div className="h-2 bg-white/[0.03] rounded-full animate-pulse" style={{ width: `${18 + (i % 2) * 10}%` }} />
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-6 shrink-0">
-                                                    <div className="hidden sm:block h-2 w-16 bg-white/[0.03] rounded-full animate-pulse" />
-                                                    <div className="h-5 w-5 rounded-full bg-white/[0.04] animate-pulse" />
-                                                </div>
+                                                <div className="h-5 w-5 rounded-full bg-white/[0.04] animate-pulse" />
                                             </div>
                                         ))}
                                     </div>
@@ -878,11 +758,11 @@ export function FlashcardsLabPage() {
                                             <button
                                                 key={doc.id}
                                                 onClick={() => toggleSelection(doc.id)}
-                                                className={`w-full flex h-20 items-center justify-between gap-4 px-6 py-3 text-left transition-colors duration-200 overflow-hidden ${isSelected ? "bg-white/[0.03]" : "hover:bg-white/[0.01]"
+                                                className={`w-full flex h-20 items-center justify-between gap-4 px-6 py-3 text-left transition-colors duration-150 overflow-hidden ${isSelected ? "bg-white/[0.03]" : "hover:bg-white/[0.015]"
                                                     }`}
                                             >
                                                 <div className="flex min-w-0 items-center gap-4">
-                                                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors duration-200 ${isSelected
+                                                    <div className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors duration-150 ${isSelected
                                                         ? "bg-white/[0.06] border-white/10 text-white/70"
                                                         : "bg-transparent border-white/5 text-white/20"
                                                         }`}>
@@ -890,7 +770,7 @@ export function FlashcardsLabPage() {
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div
-                                                            className={`text-sm transition-colors duration-200 line-clamp-1 ${isSelected ? "text-white font-medium" : "text-white/60"}`}
+                                                            className={`text-sm transition-colors duration-150 line-clamp-1 ${isSelected ? "text-white font-medium" : "text-white/60"}`}
                                                             title={doc.title}
                                                         >
                                                             {doc.title}
@@ -902,7 +782,7 @@ export function FlashcardsLabPage() {
                                                 </div>
 
                                                 <div
-                                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${isSelected
+                                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ${isSelected
                                                         ? "bg-[hsl(var(--accent))] border-[hsl(var(--accent))] text-white"
                                                         : "bg-transparent border-white/10 text-transparent"
                                                         }`}
@@ -931,7 +811,7 @@ export function FlashcardsLabPage() {
                                 <button
                                     onClick={handleGenerate}
                                     disabled={selectedCount === 0 || isGenerating || isUploading || documentsLoading || documents.length === 0 || !!documentsError}
-                                    className={`luminous-btn flex h-10 w-full items-center justify-center gap-2 px-6 text-sm transition-all duration-300 whitespace-nowrap sm:w-auto sm:min-w-[170px] ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "cursor-not-allowed opacity-30 grayscale" : ""
+                                    className={`luminous-btn flex h-10 w-full items-center justify-center gap-2 px-6 text-sm transition-all duration-200 whitespace-nowrap sm:w-auto sm:min-w-[170px] ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "cursor-not-allowed opacity-30 grayscale" : ""
                                         }`}
                                 >
                                     {isGenerating ? (
@@ -955,14 +835,14 @@ export function FlashcardsLabPage() {
                     ) : (
                         <motion.div
                             key="decks"
-                            initial={{ opacity: 0, y: 10 }}
+                            initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.3 }}
-                            className="mx-auto grid w-full min-w-0 max-w-[1200px] grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-6"
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.25 }}
+                            className="mx-auto grid w-full min-w-0 max-w-[1200px] grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5"
                         >
                             {sortedDecks.length === 0 ? (
-                                <div className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border border-white/5 bg-[#121215]/40 p-10 text-center">
+                                <div className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border border-white/8 bg-[#121215] p-10 text-center">
                                     <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/[0.04] text-white/20 mb-1">
                                         <Layers className="size-5" />
                                     </div>
@@ -987,28 +867,26 @@ export function FlashcardsLabPage() {
                                     return (
                                         <div
                                             key={deck.id}
-                                            className="group relative flex h-[260px] min-h-[260px] max-h-[260px] flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-[#121215]/40 p-6 backdrop-blur-sm cursor-pointer
-                                                       transition-all duration-300
-                                                       hover:bg-[#16161a]/90 hover:border-[hsl(var(--accent)/0.2)]
-                                                       shadow-[0_16px_40px_-30px_rgba(0,0,0,0.8)]
-                                                       hover:shadow-[0_20px_50px_-30px_rgba(0,0,0,0.9),0_0_30px_-10px_hsl(var(--accent)/0.15)]"
+                                            className="group relative flex h-[240px] min-h-[240px] max-h-[240px] flex-col justify-between overflow-hidden rounded-2xl border border-white/8 bg-[#121215] p-5 cursor-pointer
+                                                       transition-colors duration-200
+                                                       hover:bg-[#16161a] hover:border-white/15"
                                             onClick={() => handleStudyDeck(deck)}
                                         >
                                             <div>
-                                                <div className="flex items-start justify-between mb-4">
-                                                    <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))] transition-colors duration-300 group-hover:bg-[hsl(var(--accent)/0.18)]">
-                                                        <Layers className="size-5" />
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] text-white/45 transition-colors duration-200 group-hover:text-white/70">
+                                                        <Layers className="size-4" />
                                                     </div>
-                                                    <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest bg-white/5 px-2 py-1 rounded-full line-clamp-1 max-w-[110px]" title={cardLabel}>
+                                                    <div className="text-[10px] font-mono text-white/35 uppercase tracking-wider bg-white/[0.04] px-2 py-1 rounded-md line-clamp-1 max-w-[110px]" title={cardLabel}>
                                                         {cardLabel}
                                                     </div>
                                                 </div>
 
-                                                <h3 className="text-base font-medium text-white/90 mb-1 line-clamp-2 group-hover:text-white transition-colors duration-300" title={deck.title}>
+                                                <h3 className="text-base font-medium text-white/90 mb-1 line-clamp-2 group-hover:text-white transition-colors duration-200" title={deck.title}>
                                                     {deck.title}
                                                 </h3>
 
-                                                <div className="flex items-center gap-2.5 text-[11px] text-white/35 mb-6 min-w-0 overflow-hidden">
+                                                <div className="flex items-center gap-2.5 text-[11px] text-white/35 mb-5 min-w-0 overflow-hidden">
                                                     <span className="flex min-w-0 items-center gap-1.5">
                                                         <Clock className="size-3 flex-none" />
                                                         <span className="line-clamp-1" title={timeLabel}>{timeLabel}</span>
@@ -1018,17 +896,17 @@ export function FlashcardsLabPage() {
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/[0.06]">
+                                            <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/[0.06]">
                                                 <div className="flex-1 mr-4">
                                                     <div className="w-full bg-white/[0.06] h-0.5 rounded-full overflow-hidden">
                                                         <div
-                                                            className="h-full bg-[hsl(var(--accent))] opacity-70 rounded-full transition-all duration-700"
+                                                            className="h-full bg-[hsl(var(--accent))] opacity-70 rounded-full transition-all duration-500"
                                                             style={{ width: `${masteryValue}%` }}
                                                         />
                                                     </div>
                                                     <div className="mt-1.5 text-[10px] font-mono text-white/20">{masteryLabel}</div>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 text-xs font-medium text-white/40 group-hover:text-white/80 translate-x-1 group-hover:translate-x-0 transition-all duration-300">
+                                                <div className="flex items-center gap-1.5 text-xs font-medium text-white/40 group-hover:text-white/75 transition-colors duration-200">
                                                     Study <ArrowRight className="size-3" />
                                                 </div>
                                             </div>
@@ -1042,7 +920,7 @@ export function FlashcardsLabPage() {
             </main>
             {showToast ? (
                 <div
-                    className="fixed z-50 w-[min(92vw,320px)] left-1/2 -translate-x-1/2 top-20 sm:left-auto sm:translate-x-0 sm:top-6 sm:right-6"
+                    className="fixed z-50 w-[min(92vw,300px)] left-1/2 -translate-x-1/2 top-20 sm:left-auto sm:translate-x-0 sm:top-6 sm:right-6"
                     role="status"
                     aria-live="polite"
                     onMouseEnter={() => setIsHoveringToast(true)}
@@ -1051,49 +929,34 @@ export function FlashcardsLabPage() {
                     onBlurCapture={() => setIsHoveringToast(false)}
                 >
                     <div
-                        className={`status-shell status-glow relative overflow-hidden rounded-[18px] ${
-                            isUploading || isGenerating ? "loading-border" : ""
-                        } ${pulseComplete ? "completion-pulse" : ""} ${
-                            isClosing ? "toast-exit" : "toast-enter"
-                        }`}
+                        className={`status-toast relative overflow-hidden px-4 py-3 text-left ${
+                            isClosing ? "status-toast-exit" : "status-toast-enter"
+                        } ${pulseComplete ? "ring-1 ring-[hsl(var(--accent)/0.35)]" : ""}`}
                     >
-                        <div className="absolute inset-0 status-sheen pointer-events-none" />
-                        <div className="status-card relative rounded-[16px] px-4 py-3 text-left text-sm text-white/80 backdrop-blur-xl">
-                            <div className="accent-strip absolute left-0 top-0 h-full w-1.5" />
-                            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.24em] text-white/45">
-                                <span>{isGenerating ? "Flashcards" : "Embedding"}</span>
-                                <button
-                                    type="button"
-                                    onClick={closeToast}
-                                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] tracking-[0.16em] text-white/50 transition hover:text-white"
-                                >
-                                    <span>Close</span>
-                                    <X className="size-3" />
-                                </button>
-                            </div>
-                            <div className="mt-2 text-[13px] font-medium text-white">
-                                {loadingMessage || (isGenerating ? "Generating flashcards..." : "Preparing embeddings...")}
-                            </div>
-                            {isUploading || isGenerating ? (
-                                <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
-                                    <div className="progress-flow h-full w-[60%] rounded-full" />
-                                </div>
-                            ) : null}
-                            <div className="mt-2.5 flex items-center justify-between text-[10px] text-white/45">
-                                <div className="flex items-center gap-2">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--accent)/0.6)] opacity-75" />
-                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(var(--accent)/0.9)]" />
-                                    </span>
-                                    <span>
-                                        {isGenerating ? "Generating flashcards" : "Storing vector embeddings"}
-                                    </span>
-                                </div>
-                                <span>
-                                    {isGenerating ? "…" : `${completedFiles}/${totalFiles}`}
-                                </span>
-                            </div>
+                        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-white/40">
+                            <span>{isGenerating ? "Flashcards" : "Embedding"}</span>
+                            <button
+                                type="button"
+                                onClick={closeToast}
+                                className="rounded-md p-0.5 text-white/40 transition hover:text-white"
+                                aria-label="Close"
+                            >
+                                <X className="size-3.5" />
+                            </button>
                         </div>
+                        <div className="mt-1.5 text-[13px] font-medium text-white/90">
+                            {loadingMessage || (isGenerating ? "Generating flashcards..." : "Preparing embeddings...")}
+                        </div>
+                        {isUploading || isGenerating ? (
+                            <div className="mt-2.5 h-0.5 overflow-hidden rounded-full bg-white/10">
+                                <div className="status-progress h-full w-[55%] rounded-full" />
+                            </div>
+                        ) : null}
+                        {!isGenerating && totalFiles > 0 ? (
+                            <div className="mt-2 text-[11px] text-white/35">
+                                {completedFiles}/{totalFiles}
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             ) : null}
