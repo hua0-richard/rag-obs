@@ -1,16 +1,23 @@
+import { Link } from "react-router-dom";
 import { cn } from "@/shared/utils/classNames";
 
 type BrandMarkProps = {
   className?: string;
   size?: "sm" | "md";
   showWordmark?: boolean;
+  to?: string;
 };
 
-export function BrandMark({ className, size = "sm", showWordmark = true }: BrandMarkProps) {
+export function BrandMark({
+  className,
+  size = "sm",
+  showWordmark = true,
+  to = "/",
+}: BrandMarkProps) {
   const logoSize = size === "md" ? "h-8 w-8" : "h-6 w-6";
 
-  return (
-    <span className={cn("inline-flex items-center gap-2 min-w-0", className)}>
+  const content = (
+    <>
       <img
         src="/obsidian-logo.png"
         alt=""
@@ -22,6 +29,21 @@ export function BrandMark({ className, size = "sm", showWordmark = true }: Brand
           Obsidian
         </span>
       ) : null}
-    </span>
+    </>
   );
+
+  const sharedClass = cn(
+    "inline-flex items-center gap-2 min-w-0 rounded-md transition-opacity hover:opacity-80",
+    className
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className={sharedClass} aria-label="Obsidian home">
+        {content}
+      </Link>
+    );
+  }
+
+  return <span className={sharedClass}>{content}</span>;
 }

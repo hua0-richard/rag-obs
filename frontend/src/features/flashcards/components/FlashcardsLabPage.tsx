@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps } from "react";
 import { Check, FileText, Wand2, X, Layers, Clock, ArrowRight, UploadCloud } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Button } from "@/shared/components/ui/Button";
 import { BrandMark } from "@/shared/components/BrandMark";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/components/ui/Select";
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, markDeckStudied, upsertDeck, type FlashcardDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
 import { apiUrl } from "@/shared/utils/api";
+import { StatusToast } from "@/shared/components/StatusToast";
 import type { ApiFile } from "@/features/flashcards/types";
 
 type Document = {
@@ -557,7 +558,8 @@ export function FlashcardsLabPage() {
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => navigate('/upload')}
+                    onClick={() => navigate("/upload")}
+                    aria-label="Back to upload"
                 >
                     <X className="size-4" />
                 </Button>
@@ -585,7 +587,7 @@ export function FlashcardsLabPage() {
                                     <motion.div
                                         layoutId="activeTab"
                                         className="absolute inset-0 bg-[var(--fill-secondary)] rounded"
-                                        transition={{ type: "spring", bounce: 0.15, duration: 0.35 }}
+                                        transition={{ type: "spring", bounce: 0.08, duration: 0.28 }}
                                     />
                                 )}
                                 <tab.icon className="size-3.5 relative" />
@@ -595,121 +597,101 @@ export function FlashcardsLabPage() {
                     </div>
                 </div>
 
-                <AnimatePresence mode="wait">
-                    {activeTab === "create" ? (
-                        <motion.section
-                            key="create"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.15 }}
+                {activeTab === "create" ? (
+                        <section
                             className="flex w-full flex-col rounded-[10px] border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] h-[min(68vh,640px)] min-h-[480px] max-h-[700px] overflow-hidden"
                         >
-                            {/* Top Bar */}
-                            <div className="flex flex-col gap-2.5 border-b border-[var(--stroke-tertiary)] px-5 py-3.5">
+                            {/* Primary toolbar: selection + actions */}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--stroke-tertiary)] px-5 py-3">
                                 <div
-                                    className="text-left text-[12px] text-[var(--fg-tertiary)] line-clamp-1"
+                                    className="text-[12px] text-[var(--fg-tertiary)]"
                                     title={`${selectedCount} / ${totalDocs} selected`}
                                 >
-                                    <span className="text-[var(--fg-secondary)]">{selectedCount}</span>
+                                    <span className="text-[var(--fg-secondary)] tabular-nums">{selectedCount}</span>
                                     <span className="text-[var(--fg-quaternary)]"> / </span>
-                                    {totalDocs} selected
+                                    <span className="tabular-nums">{totalDocs}</span>
+                                    <span className="ml-1">selected</span>
                                 </div>
+                                <div className="flex items-center gap-3 text-[12px]">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (documentsLoading) return;
+                                            setSelected(documents.map((doc) => doc.id));
+                                        }}
+                                        className="text-[var(--fg-tertiary)] transition-colors hover:text-[var(--fg)] whitespace-nowrap"
+                                    >
+                                        Select all
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (documentsLoading) return;
+                                            setSelected([]);
+                                        }}
+                                        className="text-[var(--fg-tertiary)] transition-colors hover:text-[var(--fg)] whitespace-nowrap"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                                <Button
+                                    onClick={handleUploadClick}
+                                    disabled={isUploading || documentsLoading}
+                                    variant="outline"
+                                    size="sm"
+                                    className="ml-auto"
+                                >
+                                    <UploadCloud className="size-3.5" />
+                                    <span>{isUploading ? "Uploading..." : "Upload"}</span>
+                                </Button>
+                            </div>
 
-                                <div className="flex w-full flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
-                                    <div className="flex w-full min-w-0 flex-col gap-1.5 lg:max-w-[340px] lg:flex-row lg:items-center lg:gap-2">
-                                        <label
-                                            htmlFor="study-focus"
-                                            className="shrink-0 text-label"
+                            {/* Secondary: focus + amount */}
+                            <div className="flex flex-col gap-2 border-b border-[var(--stroke-tertiary)] px-5 py-2.5 sm:flex-row sm:items-center sm:gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <input
+                                        id="study-focus"
+                                        value={studyFocus}
+                                        onChange={(event) => setStudyFocus(event.target.value)}
+                                        placeholder="Focus (optional)"
+                                        disabled={isUploading || isGenerating || documentsLoading}
+                                        maxLength={160}
+                                        aria-label="Study focus"
+                                        className="h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-[13px] text-[var(--fg-secondary)] outline-none transition-colors hover:border-[var(--stroke-tertiary)] focus:border-[var(--stroke-secondary)] focus:bg-[var(--bg-chrome)] focus:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-[var(--fg-quaternary)]"
+                                    />
+                                </div>
+                                <div className="w-full sm:w-[128px] sm:flex-none">
+                                    <Select
+                                        value={flashcardAmount}
+                                        onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
+                                        disabled={isUploading || isGenerating}
+                                    >
+                                        <SelectTrigger
+                                            id="flashcard-amount"
+                                            aria-label="Flashcard amount"
+                                            className="h-8 rounded-md border border-transparent bg-transparent px-2 text-[13px] text-[var(--fg-tertiary)] hover:border-[var(--stroke-tertiary)] hover:text-[var(--fg-secondary)] focus:ring-0 focus:outline-none whitespace-nowrap"
+                                            title={selectedAmountOption.label}
                                         >
-                                            Focus
-                                        </label>
-                                        <div className="min-w-0 flex-1">
-                                            <input
-                                                id="study-focus"
-                                                value={studyFocus}
-                                                onChange={(event) => setStudyFocus(event.target.value)}
-                                                placeholder="Optional: recursion, formulas, React hooks"
-                                                disabled={isUploading || isGenerating || documentsLoading}
-                                                maxLength={160}
-                                                className="h-9 w-full rounded-lg border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-3 text-[14px] text-[var(--fg-secondary)] outline-none transition-colors hover:border-[var(--stroke-primary)] focus:border-[var(--accent-hex)] focus:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-[var(--fg-quaternary)]"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex w-full min-w-0 flex-col gap-2.5 lg:w-auto lg:flex-row lg:items-center lg:justify-end lg:gap-3">
-                                        <div className="flex w-full min-w-0 flex-col gap-1.5 lg:w-auto lg:flex-row lg:items-center lg:gap-2">
-                                            <span className="shrink-0 text-label">
-                                                Amount
-                                            </span>
-                                            <div className="min-w-0 w-full lg:w-[140px] lg:flex-none">
-                                                <Select
-                                                    value={flashcardAmount}
-                                                    onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
-                                                    disabled={isUploading || isGenerating}
+                                            <span className="truncate">{selectedAmountOption.label}</span>
+                                        </SelectTrigger>
+                                        <SelectContent className="w-[min(90vw,220px)] rounded-md border border-[var(--stroke-secondary)] bg-[var(--bg-elevated)] p-1 shadow-none">
+                                            {FLASHCARD_AMOUNT_OPTIONS.map((option) => (
+                                                <SelectItem
+                                                    key={option.value}
+                                                    value={option.value}
+                                                    textValue={option.label}
+                                                    className="items-start py-2 pr-8"
                                                 >
-                                                    <SelectTrigger
-                                                        id="flashcard-amount"
-                                                        aria-label="Flashcard amount"
-                                                        className="h-9 rounded-lg border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-3 text-[14px] text-[var(--fg-secondary)] hover:border-[var(--stroke-primary)] focus:ring-0 focus:outline-none whitespace-nowrap"
-                                                        title={selectedAmountOption.label}
-                                                    >
-                                                        <span className="truncate">{selectedAmountOption.label}</span>
-                                                    </SelectTrigger>
-                                                    <SelectContent className="w-[min(90vw,220px)] rounded-md border border-[var(--stroke-secondary)] bg-[var(--bg-elevated)] p-1 shadow-none">
-                                                        {FLASHCARD_AMOUNT_OPTIONS.map((option) => (
-                                                            <SelectItem
-                                                                key={option.value}
-                                                                value={option.value}
-                                                                textValue={option.label}
-                                                                className="items-start py-2 pr-8"
-                                                            >
-                                                                <div className="flex min-w-0 flex-col gap-0.5">
-                                                                    <span className="line-clamp-1 text-[13px] text-[var(--fg)]">{option.label}</span>
-                                                                    <span className="line-clamp-2 text-[12px] leading-4 text-[var(--fg-tertiary)]">
-                                                                        {option.description}
-                                                                    </span>
-                                                                </div>
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex w-full items-center gap-3 lg:w-auto">
-                                            <div className="flex items-center gap-3 text-[12px]">
-                                                <button
-                                                    onClick={() => {
-                                                        if (documentsLoading) return;
-                                                        setSelected(documents.map((doc) => doc.id));
-                                                    }}
-                                                    className="text-[var(--fg-tertiary)] transition-colors hover:text-[var(--fg)] whitespace-nowrap"
-                                                >
-                                                    Select All
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (documentsLoading) return;
-                                                        setSelected([]);
-                                                    }}
-                                                    className="text-[var(--fg-tertiary)] transition-colors hover:text-[var(--fg)] whitespace-nowrap"
-                                                >
-                                                    Clear
-                                                </button>
-                                            </div>
-                                            <Button
-                                                onClick={handleUploadClick}
-                                                disabled={isUploading || documentsLoading}
-                                                variant="outline"
-                                                size="sm"
-                                                className="ml-auto lg:ml-0"
-                                            >
-                                                <UploadCloud className="size-3.5" />
-                                                <span>{isUploading ? "Uploading..." : "Upload"}</span>
-                                            </Button>
-                                        </div>
-                                    </div>
+                                                    <div className="flex min-w-0 flex-col gap-0.5">
+                                                        <span className="line-clamp-1 text-[13px] text-[var(--fg)]">{option.label}</span>
+                                                        <span className="line-clamp-2 text-[12px] leading-4 text-[var(--fg-tertiary)]">
+                                                            {option.description}
+                                                        </span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
@@ -747,15 +729,37 @@ export function FlashcardsLabPage() {
                                         ))}
                                     </div>
                                 ) : documentsError ? (
-                                    <div
-                                        className="px-4 py-8 text-center text-[14px] text-[var(--fg-tertiary)] line-clamp-2"
-                                        title={documentsError}
-                                    >
-                                        {documentsError}
+                                    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+                                        <p className="text-[14px] text-[var(--fg-secondary)] max-w-[320px]" title={documentsError}>
+                                            {documentsError}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate("/upload")}
+                                            className="luminous-btn inline-flex h-9 items-center gap-2 px-4 text-[14px]"
+                                        >
+                                            <UploadCloud className="size-3.5" />
+                                            Upload notes
+                                        </button>
                                     </div>
                                 ) : documents.length === 0 ? (
-                                    <div className="px-4 py-8 text-center text-[14px] text-[var(--fg-tertiary)]">
-                                        No documents found for this session.
+                                    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+                                        <FileText className="size-5 text-[var(--fg-quaternary)]" />
+                                        <div className="space-y-1">
+                                            <p className="text-[14px] text-[var(--fg-secondary)]">No notes in this session</p>
+                                            <p className="text-[12px] text-[var(--fg-tertiary)] max-w-[260px] leading-4">
+                                                Upload Markdown notes to generate your first deck.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleUploadClick}
+                                            disabled={isUploading}
+                                            className="luminous-btn inline-flex h-9 items-center gap-2 px-4 text-[14px]"
+                                        >
+                                            <UploadCloud className="size-3.5" />
+                                            Upload notes
+                                        </button>
                                     </div>
                                 ) : (
                                     documents.map((doc) => {
@@ -821,6 +825,10 @@ export function FlashcardsLabPage() {
                                         <div className="text-[12px] text-[var(--fg-tertiary)]">
                                             Generating deck…
                                         </div>
+                                    ) : selectedCount > 0 ? (
+                                        <div className="text-[12px] text-[var(--fg-tertiary)]">
+                                            Ready to generate from {selectedCount} note{selectedCount === 1 ? "" : "s"}
+                                        </div>
                                     ) : null}
                                 </div>
                                 <button
@@ -849,23 +857,28 @@ export function FlashcardsLabPage() {
                                 accept=".md,.markdown,.txt"
                                 onChange={handleUploadChange}
                             />
-                        </motion.section>
+                        </section>
                     ) : (
-                        <motion.div
-                            key="decks"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.15 }}
+                        <div
                             className="mx-auto grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3"
                         >
                             {sortedDecks.length === 0 ? (
-                                <div className="col-span-full flex flex-col items-center justify-center gap-2 min-h-[200px] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] p-8 text-center">
-                                    <Layers className="size-5 text-[var(--fg-quaternary)] mb-1" />
-                                    <p className="text-[14px] text-[var(--fg-secondary)]">No decks yet</p>
-                                    <p className="text-[12px] text-[var(--fg-tertiary)] max-w-[240px] leading-4">
-                                        Select notes in Create Deck and generate your first set.
-                                    </p>
+                                <div className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] p-8 text-center">
+                                    <Layers className="size-5 text-[var(--fg-quaternary)]" />
+                                    <div className="space-y-1">
+                                        <p className="text-[14px] text-[var(--fg-secondary)]">No decks yet</p>
+                                        <p className="text-[12px] text-[var(--fg-tertiary)] max-w-[260px] leading-4 mx-auto">
+                                            Select notes and generate your first set of flashcards.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab("create")}
+                                        className="luminous-btn inline-flex h-9 items-center gap-2 px-4 text-[14px]"
+                                    >
+                                        <Wand2 className="size-3.5" />
+                                        Create your first deck
+                                    </button>
                                 </div>
                             ) : (
                                 sortedDecks.map((deck) => {
@@ -926,56 +939,29 @@ export function FlashcardsLabPage() {
                                     );
                                 })
                             )}
-                        </motion.div>
+                        </div>
                     )}
-                </AnimatePresence>
             </main>
-            {showToast ? (
-                <div
-                    className="fixed z-50 w-[min(92vw,280px)] left-1/2 -translate-x-1/2 top-16 sm:left-auto sm:translate-x-0 sm:top-4 sm:right-4"
-                    role="status"
-                    aria-live="polite"
-                    onMouseEnter={() => setIsHoveringToast(true)}
-                    onMouseLeave={() => setIsHoveringToast(false)}
-                    onFocusCapture={() => setIsHoveringToast(true)}
-                    onBlurCapture={() => setIsHoveringToast(false)}
-                >
-                    <div
-                        className={`status-toast relative overflow-hidden px-3 py-2.5 text-left ${
-                            isClosing ? "status-toast-exit" : "status-toast-enter"
-                        }`}
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-label">
-                                {isGenerating ? "Flashcards" : "Embedding"}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={closeToast}
-                                className="rounded-md p-0.5 text-[var(--fg-tertiary)] transition hover:text-[var(--fg)]"
-                                aria-label="Close"
-                            >
-                                <X className="size-3.5" />
-                            </button>
-                        </div>
-                        <div className="mt-1.5 text-[14px] leading-5 text-[var(--fg)]">
-                            {loadingMessage || (isGenerating ? "Generating flashcards..." : "Preparing embeddings...")}
-                        </div>
-                        {isUploading || isGenerating ? (
-                            <div className="status-progress-track mt-2.5">
-                                <div className="status-progress" />
-                            </div>
-                        ) : null}
-                        {!isGenerating && totalFiles > 0 ? (
-                            <div className="mt-2 text-[12px] leading-4 text-[var(--fg-tertiary)] font-mono">
-                                {completedFiles}/{totalFiles}
-                            </div>
-                        ) : null}
-                    </div>
-                </div>
-            ) : null}
+            <StatusToast
+                open={showToast}
+                isClosing={isClosing}
+                label={isGenerating ? "Flashcards" : "Embedding"}
+                message={
+                    loadingMessage ||
+                    (isGenerating ? "Generating flashcards..." : "Preparing embeddings...")
+                }
+                busy={isUploading || isGenerating}
+                progressText={
+                    !isGenerating && totalFiles > 0
+                        ? `${completedFiles}/${totalFiles}`
+                        : null
+                }
+                onClose={closeToast}
+                onHoverChange={setIsHoveringToast}
+            />
         </div>
     );
+
 }
 
 function PlusCircle(props: ComponentProps<"svg">) {

@@ -186,9 +186,9 @@ body {
     width: 34%;
     border-radius: 1px;
     background: var(--accent-hex);
-    opacity: 0.85;
+    opacity: 0.8;
     transform-origin: left center;
-    animation: progressIndeterminate 2.4s ease-in-out infinite;
+    animation: progressIndeterminate 2.8s ease-in-out infinite;
   }
 
   /* Thin deliberate spinner */
@@ -199,7 +199,7 @@ body {
     border: 1.5px solid var(--stroke-secondary);
     border-top-color: var(--accent-hex);
     border-radius: 9999px;
-    animation: loaderSpin 1.05s linear infinite;
+    animation: loaderSpin 1.15s linear infinite;
   }
 
   .loader-ring-sm {
@@ -221,12 +221,12 @@ body {
   /* Soft skeleton pulse */
   .skeleton {
     background: var(--fill-tertiary);
-    animation: skeletonPulse 2s ease-in-out infinite;
+    animation: skeletonPulse 2.4s ease-in-out infinite;
   }
 
   .skeleton-strong {
     background: var(--fill-secondary);
-    animation: skeletonPulse 2s ease-in-out infinite;
+    animation: skeletonPulse 2.4s ease-in-out infinite;
   }
 
   @keyframes toastIn {
@@ -293,6 +293,23 @@ body {
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--fg-tertiary);
+  }
+
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.35rem;
+    border: 1px solid var(--stroke-tertiary);
+    border-radius: 4px;
+    background: var(--fill-quaternary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: var(--fg-secondary);
   }
 
   .brand-mark {
