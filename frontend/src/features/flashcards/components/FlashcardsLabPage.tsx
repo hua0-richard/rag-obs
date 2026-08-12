@@ -131,7 +131,6 @@ const readErrorMessage = async (response: Response, fallback: string) => {
 export function FlashcardsLabPage() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const pulseTimeoutRef = useRef<number | null>(null);
     const closeTimeoutRef = useRef<number | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("create");
     const [selected, setSelected] = useState<string[]>([]);
@@ -143,7 +142,6 @@ export function FlashcardsLabPage() {
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
     const [completedFiles, setCompletedFiles] = useState(0);
-    const [pulseComplete, setPulseComplete] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
     const [isHoveringToast, setIsHoveringToast] = useState(false);
@@ -487,13 +485,6 @@ export function FlashcardsLabPage() {
                             `Embedded ${filename} (${completed}/${fileList.length})`
                         );
                         embeddedCount += 1;
-                        setPulseComplete(true);
-                        if (pulseTimeoutRef.current) {
-                            window.clearTimeout(pulseTimeoutRef.current);
-                        }
-                        pulseTimeoutRef.current = window.setTimeout(() => {
-                            setPulseComplete(false);
-                        }, 900);
                         continue;
                     }
                     if (payload?.status === "skipped") {
@@ -554,27 +545,28 @@ export function FlashcardsLabPage() {
     };
 
     return (
-        <div className="min-h-screen w-full overflow-x-hidden bg-[#09090b] text-white/90 selection:bg-[hsl(var(--accent)/0.3)] relative">
+        <div className="min-h-screen w-full overflow-x-hidden bg-[var(--bg-chrome)] text-[var(--fg)] relative">
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-5 border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-md">
-                <div className="text-white/40 font-medium text-sm tracking-widest uppercase font-mono">
-                    <span className="text-[hsl(var(--accent))]">Flashcards</span> <span className="text-white/20 mx-2">/</span> Lab
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-12 px-4 sm:px-5 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
+                <div className="flex items-center gap-1.5 text-[13px]">
+                    <span className="text-[var(--accent-hex)] text-heading">Flashcards</span>
+                    <span className="text-[var(--fg-quaternary)]">/</span>
+                    <span className="text-[var(--fg-tertiary)]">Lab</span>
                 </div>
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => navigate('/upload')}
-                    className="text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-200"
                 >
-                    <X className="size-5" />
+                    <X className="size-4" />
                 </Button>
             </nav>
 
-            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1400px] flex-col items-center px-4 pb-20 pt-28 sm:px-6">
+            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1100px] flex-col items-stretch px-4 pb-16 pt-20 sm:px-5">
 
                 {/* Tabs */}
-                <div className="flex justify-center mb-8">
-                    <div className="p-1 bg-[#18181b] border border-white/5 rounded-full inline-flex relative">
+                <div className="flex mb-5">
+                    <div className="p-0.5 bg-[var(--fill-quaternary)] border border-[var(--stroke-tertiary)] rounded-md inline-flex relative">
                         {[
                             { id: "create", label: "Create Deck", icon: PlusCircle },
                             { id: "decks", label: "My Decks", icon: Layers },
@@ -582,18 +574,21 @@ export function FlashcardsLabPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as Tab)}
-                                className={`relative px-5 py-2 rounded-full text-sm font-medium transition-colors duration-200 z-10 flex items-center gap-2 ${activeTab === tab.id ? "text-white" : "text-white/40 hover:text-white/60"
-                                    }`}
+                                className={`relative h-7 px-3 rounded text-[13px] transition-colors duration-120 z-10 flex items-center gap-1.5 ${
+                                    activeTab === tab.id
+                                        ? "text-[var(--fg)]"
+                                        : "text-[var(--fg-tertiary)] hover:text-[var(--fg-secondary)]"
+                                }`}
                             >
                                 {activeTab === tab.id && (
                                     <motion.div
                                         layoutId="activeTab"
-                                        className="absolute inset-0 bg-white/10 rounded-full"
-                                        transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                                        className="absolute inset-0 bg-[var(--fill-secondary)] rounded"
+                                        transition={{ type: "spring", bounce: 0.15, duration: 0.35 }}
                                     />
                                 )}
-                                <tab.icon className="size-4" />
-                                <span>{tab.label}</span>
+                                <tab.icon className="size-3.5 relative" />
+                                <span className="relative">{tab.label}</span>
                             </button>
                         ))}
                     </div>
@@ -603,26 +598,28 @@ export function FlashcardsLabPage() {
                     {activeTab === "create" ? (
                         <motion.section
                             key="create"
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -8 }}
-                            transition={{ duration: 0.25 }}
-                            className="group relative mx-auto flex w-full max-w-[1100px] flex-col rounded-2xl border border-white/8 bg-[#121215] h-[min(72vh,720px)] min-h-[500px] sm:min-h-[540px] max-h-[760px] overflow-hidden"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex w-full flex-col rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] h-[min(70vh,680px)] min-h-[460px] max-h-[720px] overflow-hidden"
                         >
                             {/* Top Bar */}
-                            <div className="flex flex-col gap-2.5 border-b border-white/5 px-6 py-3">
+                            <div className="flex flex-col gap-2 border-b border-[var(--stroke-tertiary)] px-4 py-3">
                                 <div
-                                    className="text-left text-xs font-mono text-white/40 line-clamp-1"
+                                    className="text-left text-[12px] text-[var(--fg-tertiary)] line-clamp-1"
                                     title={`${selectedCount} / ${totalDocs} selected`}
                                 >
-                                    <span className="text-white/70">{selectedCount}</span> <span className="opacity-50">/</span> {totalDocs} selected
+                                    <span className="text-[var(--fg-secondary)]">{selectedCount}</span>
+                                    <span className="text-[var(--fg-quaternary)]"> / </span>
+                                    {totalDocs} selected
                                 </div>
 
-                                <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                    <div className="flex w-full min-w-0 flex-col gap-2 px-1 py-1.5 lg:max-w-[360px] lg:flex-row lg:items-center lg:gap-2.5">
+                                <div className="flex w-full flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="flex w-full min-w-0 flex-col gap-1.5 lg:max-w-[340px] lg:flex-row lg:items-center lg:gap-2">
                                         <label
                                             htmlFor="study-focus"
-                                            className="shrink-0 text-[9px] font-mono uppercase tracking-[0.2em] text-white/25"
+                                            className="shrink-0 text-label"
                                         >
                                             Focus
                                         </label>
@@ -634,17 +631,17 @@ export function FlashcardsLabPage() {
                                                 placeholder="Optional: recursion, formulas, React hooks"
                                                 disabled={isUploading || isGenerating || documentsLoading}
                                                 maxLength={160}
-                                                className="h-8 w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-0 text-xs text-white/55 outline-none transition-colors duration-150 hover:border-white/15 hover:text-white/75 focus:border-[hsl(var(--accent)/0.35)] focus:text-white/75 focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-white/28"
+                                                className="h-7 w-full rounded-md border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-2.5 text-[13px] text-[var(--fg-secondary)] outline-none transition-colors hover:border-[var(--stroke-primary)] focus:border-[var(--accent-hex)] focus:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-[var(--fg-quaternary)]"
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="flex w-full min-w-0 flex-col gap-3 px-1 lg:w-auto lg:flex-row lg:items-center lg:justify-end lg:pl-6">
-                                        <div className="flex w-full min-w-0 flex-col gap-2 py-1.5 lg:max-w-[260px] lg:flex-row lg:items-center lg:gap-2.5">
-                                            <span className="shrink-0 text-[9px] font-mono uppercase tracking-[0.2em] text-white/25">
+                                    <div className="flex w-full min-w-0 flex-col gap-2.5 lg:w-auto lg:flex-row lg:items-center lg:justify-end lg:gap-3">
+                                        <div className="flex w-full min-w-0 flex-col gap-1.5 lg:w-auto lg:flex-row lg:items-center lg:gap-2">
+                                            <span className="shrink-0 text-label">
                                                 Amount
                                             </span>
-                                            <div className="min-w-0 w-full lg:w-[160px] lg:flex-none">
+                                            <div className="min-w-0 w-full lg:w-[140px] lg:flex-none">
                                                 <Select
                                                     value={flashcardAmount}
                                                     onValueChange={(value) => setFlashcardAmount(value as FlashcardAmountOption)}
@@ -653,22 +650,22 @@ export function FlashcardsLabPage() {
                                                     <SelectTrigger
                                                         id="flashcard-amount"
                                                         aria-label="Flashcard amount"
-                                                        className="h-8 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-0 text-xs text-white/55 transition-colors hover:border-white/15 hover:text-white/75 focus:ring-0 focus:outline-none whitespace-nowrap"
+                                                        className="h-7 rounded-md border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-2.5 text-[13px] text-[var(--fg-secondary)] hover:border-[var(--stroke-primary)] focus:ring-0 focus:outline-none whitespace-nowrap"
                                                         title={selectedAmountOption.label}
                                                     >
                                                         <span className="truncate">{selectedAmountOption.label}</span>
                                                     </SelectTrigger>
-                                                    <SelectContent className="w-[min(90vw,220px)] rounded-xl border border-white/[0.08] bg-[#111113] p-1 shadow-xl">
+                                                    <SelectContent className="w-[min(90vw,220px)] rounded-md border border-[var(--stroke-secondary)] bg-[var(--bg-elevated)] p-1 shadow-none">
                                                         {FLASHCARD_AMOUNT_OPTIONS.map((option) => (
                                                             <SelectItem
                                                                 key={option.value}
                                                                 value={option.value}
                                                                 textValue={option.label}
-                                                                className="items-start py-2.5 pr-8"
+                                                                className="items-start py-2 pr-8"
                                                             >
-                                                                <div className="flex min-w-0 flex-col gap-1">
-                                                                    <span className="line-clamp-1 text-xs text-white/80">{option.label}</span>
-                                                                    <span className="line-clamp-2 text-[10px] leading-snug text-white/35">
+                                                                <div className="flex min-w-0 flex-col gap-0.5">
+                                                                    <span className="line-clamp-1 text-[13px] text-[var(--fg)]">{option.label}</span>
+                                                                    <span className="line-clamp-2 text-[12px] leading-4 text-[var(--fg-tertiary)]">
                                                                         {option.description}
                                                                     </span>
                                                                 </div>
@@ -679,27 +676,23 @@ export function FlashcardsLabPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex w-full flex-col gap-2.5 lg:w-auto lg:flex-row lg:flex-nowrap lg:items-center">
-                                            <div className="flex items-center gap-3 text-[11px]">
+                                        <div className="flex w-full items-center gap-3 lg:w-auto">
+                                            <div className="flex items-center gap-3 text-[12px]">
                                                 <button
                                                     onClick={() => {
-                                                        if (documentsLoading) {
-                                                            return;
-                                                        }
+                                                        if (documentsLoading) return;
                                                         setSelected(documents.map((doc) => doc.id));
                                                     }}
-                                                    className="font-medium text-white/30 transition-colors hover:text-white whitespace-nowrap"
+                                                    className="text-[var(--fg-tertiary)] transition-colors hover:text-[var(--fg)] whitespace-nowrap"
                                                 >
                                                     Select All
                                                 </button>
                                                 <button
                                                     onClick={() => {
-                                                        if (documentsLoading) {
-                                                            return;
-                                                        }
+                                                        if (documentsLoading) return;
                                                         setSelected([]);
                                                     }}
-                                                    className="font-medium text-white/30 transition-colors hover:text-white whitespace-nowrap"
+                                                    className="text-[var(--fg-tertiary)] transition-colors hover:text-[var(--fg)] whitespace-nowrap"
                                                 >
                                                     Clear
                                                 </button>
@@ -707,12 +700,12 @@ export function FlashcardsLabPage() {
                                             <Button
                                                 onClick={handleUploadClick}
                                                 disabled={isUploading || documentsLoading}
-                                                variant="ghost"
+                                                variant="outline"
                                                 size="sm"
-                                                className="group w-full justify-center rounded-full border border-white/10 bg-[#18181b] px-4 text-[11px] text-white/70 transition-colors duration-150 hover:border-white/20 hover:bg-[#1f1f23] hover:text-white/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-30 lg:w-auto lg:min-w-[120px]"
+                                                className="ml-auto lg:ml-0"
                                             >
-                                                <UploadCloud className="size-3.5 text-white/70 transition-colors group-hover:text-white/90" />
-                                                <span>{isUploading ? "Uploading..." : "Upload More"}</span>
+                                                <UploadCloud className="size-3.5" />
+                                                <span>{isUploading ? "Uploading..." : "Upload"}</span>
                                             </Button>
                                         </div>
                                     </div>
@@ -720,35 +713,35 @@ export function FlashcardsLabPage() {
                             </div>
 
                             {/* List */}
-                            <div className="flex-1 min-h-0 divide-y divide-white/5 overflow-y-auto">
+                            <div className="flex-1 min-h-0 divide-y divide-[var(--stroke-tertiary)] overflow-y-auto">
                                 {documentsLoading ? (
-                                    <div className="divide-y divide-white/5">
+                                    <div className="divide-y divide-[var(--stroke-tertiary)]">
                                         {[...Array(4)].map((_, i) => (
                                             <div
                                                 key={i}
-                                                className="flex h-20 items-center justify-between gap-4 px-6 py-3"
+                                                className="flex h-14 items-center justify-between gap-3 px-4"
                                                 style={{ opacity: 1 - i * 0.18 }}
                                             >
-                                                <div className="flex items-center gap-4 min-w-0 flex-1">
-                                                    <div className="h-10 w-10 shrink-0 rounded-lg bg-white/[0.04] animate-pulse" />
-                                                    <div className="min-w-0 flex-1 space-y-2.5">
-                                                        <div className="h-3 bg-white/[0.05] rounded-full animate-pulse" style={{ width: `${32 + (i % 3) * 14}%` }} />
-                                                        <div className="h-2 bg-white/[0.03] rounded-full animate-pulse" style={{ width: `${18 + (i % 2) * 10}%` }} />
+                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                    <div className="h-7 w-7 shrink-0 rounded bg-[var(--fill-tertiary)] animate-pulse" />
+                                                    <div className="min-w-0 flex-1 space-y-2">
+                                                        <div className="h-2.5 bg-[var(--fill-secondary)] rounded animate-pulse" style={{ width: `${32 + (i % 3) * 14}%` }} />
+                                                        <div className="h-2 bg-[var(--fill-quaternary)] rounded animate-pulse" style={{ width: `${18 + (i % 2) * 10}%` }} />
                                                     </div>
                                                 </div>
-                                                <div className="h-5 w-5 rounded-full bg-white/[0.04] animate-pulse" />
+                                                <div className="h-4 w-4 rounded bg-[var(--fill-tertiary)] animate-pulse" />
                                             </div>
                                         ))}
                                     </div>
                                 ) : documentsError ? (
                                     <div
-                                        className="px-6 py-10 text-center text-sm text-white/40 line-clamp-2"
+                                        className="px-4 py-8 text-center text-[14px] text-[var(--fg-tertiary)] line-clamp-2"
                                         title={documentsError}
                                     >
                                         {documentsError}
                                     </div>
                                 ) : documents.length === 0 ? (
-                                    <div className="px-6 py-10 text-center text-sm text-white/40 line-clamp-2">
+                                    <div className="px-4 py-8 text-center text-[14px] text-[var(--fg-tertiary)]">
                                         No documents found for this session.
                                     </div>
                                 ) : (
@@ -758,36 +751,45 @@ export function FlashcardsLabPage() {
                                             <button
                                                 key={doc.id}
                                                 onClick={() => toggleSelection(doc.id)}
-                                                className={`w-full flex h-20 items-center justify-between gap-4 px-6 py-3 text-left transition-colors duration-150 overflow-hidden ${isSelected ? "bg-white/[0.03]" : "hover:bg-white/[0.015]"
-                                                    }`}
+                                                className={`w-full flex h-14 items-center justify-between gap-3 px-4 text-left transition-colors duration-100 overflow-hidden ${
+                                                    isSelected
+                                                        ? "bg-[var(--fill-quaternary)]"
+                                                        : "hover:bg-[var(--fill-quaternary)]"
+                                                }`}
                                             >
-                                                <div className="flex min-w-0 items-center gap-4">
-                                                    <div className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors duration-150 ${isSelected
-                                                        ? "bg-white/[0.06] border-white/10 text-white/70"
-                                                        : "bg-transparent border-white/5 text-white/20"
-                                                        }`}>
-                                                        <FileText className="size-4" />
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <div className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
+                                                        isSelected
+                                                            ? "bg-[var(--fill-tertiary)] border-[var(--stroke-secondary)] text-[var(--fg-secondary)]"
+                                                            : "bg-transparent border-[var(--stroke-tertiary)] text-[var(--fg-quaternary)]"
+                                                    }`}>
+                                                        <FileText className="size-3.5" />
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div
-                                                            className={`text-sm transition-colors duration-150 line-clamp-1 ${isSelected ? "text-white font-medium" : "text-white/60"}`}
+                                                            className={`text-[13px] leading-[18px] line-clamp-1 ${
+                                                                isSelected
+                                                                    ? "text-[var(--fg)] text-heading"
+                                                                    : "text-[var(--fg-secondary)]"
+                                                            }`}
                                                             title={doc.title}
                                                         >
                                                             {doc.title}
                                                         </div>
-                                                        <div className="text-[11px] text-white/20 mt-0.5 font-mono line-clamp-1" title={doc.meta}>
+                                                        <div className="text-[12px] leading-4 text-[var(--fg-quaternary)] mt-0.5 line-clamp-1" title={doc.meta}>
                                                             {doc.meta}
                                                         </div>
                                                     </div>
                                                 </div>
 
                                                 <div
-                                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ${isSelected
-                                                        ? "bg-[hsl(var(--accent))] border-[hsl(var(--accent))] text-white"
-                                                        : "bg-transparent border-white/10 text-transparent"
-                                                        }`}
+                                                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                                                        isSelected
+                                                            ? "bg-[var(--accent-hex)] border-[var(--accent-hex)] text-[var(--on-accent)]"
+                                                            : "bg-transparent border-[var(--stroke-secondary)] text-transparent"
+                                                    }`}
                                                 >
-                                                    <Check className="size-3 stroke-[3]" />
+                                                    <Check className="size-2.5 stroke-[3]" />
                                                 </div>
                                             </button>
                                         );
@@ -796,14 +798,14 @@ export function FlashcardsLabPage() {
                             </div>
 
                             {/* Bottom Action Bar */}
-                            <div className="flex flex-col gap-3 border-t border-white/5 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-2 border-t border-[var(--stroke-tertiary)] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                     {generateError ? (
-                                        <div className="text-[11px] font-mono text-rose-300/70 line-clamp-2 sm:line-clamp-1" title={generateError}>
+                                        <div className="text-[12px] text-[var(--destructive)] line-clamp-2 sm:line-clamp-1" title={generateError}>
                                             {generateError}
                                         </div>
                                     ) : isGenerating ? (
-                                        <div className="text-[11px] font-mono text-white/30 line-clamp-2 sm:line-clamp-1">
+                                        <div className="text-[12px] text-[var(--fg-tertiary)]">
                                             Generating deck…
                                         </div>
                                     ) : null}
@@ -811,8 +813,11 @@ export function FlashcardsLabPage() {
                                 <button
                                     onClick={handleGenerate}
                                     disabled={selectedCount === 0 || isGenerating || isUploading || documentsLoading || documents.length === 0 || !!documentsError}
-                                    className={`luminous-btn flex h-10 w-full items-center justify-center gap-2 px-6 text-sm transition-all duration-200 whitespace-nowrap sm:w-auto sm:min-w-[170px] ${selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError ? "cursor-not-allowed opacity-30 grayscale" : ""
-                                        }`}
+                                    className={`luminous-btn flex h-7 w-full items-center justify-center gap-1.5 px-3 text-[13px] whitespace-nowrap sm:w-auto ${
+                                        selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError
+                                            ? "cursor-not-allowed opacity-40"
+                                            : ""
+                                    }`}
                                 >
                                     {isGenerating ? (
                                         <Loader2 className="size-3.5 animate-spin" />
@@ -835,20 +840,18 @@ export function FlashcardsLabPage() {
                     ) : (
                         <motion.div
                             key="decks"
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -8 }}
-                            transition={{ duration: 0.25 }}
-                            className="mx-auto grid w-full min-w-0 max-w-[1200px] grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="mx-auto grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3"
                         >
                             {sortedDecks.length === 0 ? (
-                                <div className="col-span-full flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border border-white/8 bg-[#121215] p-10 text-center">
-                                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/[0.04] text-white/20 mb-1">
-                                        <Layers className="size-5" />
-                                    </div>
-                                    <p className="text-sm text-white/40">No decks yet</p>
-                                    <p className="text-xs text-white/25 max-w-[220px] leading-relaxed">
-                                        Select notes in Create Deck and generate your first flashcard set.
+                                <div className="col-span-full flex flex-col items-center justify-center gap-2 min-h-[200px] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] p-8 text-center">
+                                    <Layers className="size-5 text-[var(--fg-quaternary)] mb-1" />
+                                    <p className="text-[14px] text-[var(--fg-secondary)]">No decks yet</p>
+                                    <p className="text-[12px] text-[var(--fg-tertiary)] max-w-[240px] leading-4">
+                                        Select notes in Create Deck and generate your first set.
                                     </p>
                                 </div>
                             ) : (
@@ -857,56 +860,52 @@ export function FlashcardsLabPage() {
                                         typeof deck.mastery === "number" && Number.isFinite(deck.mastery)
                                             ? Math.min(100, Math.max(0, deck.mastery))
                                             : 0;
-                                    const masteryLabel = masteryValue > 0 ? `${masteryValue}% Mastery` : "New";
+                                    const masteryLabel = masteryValue > 0 ? `${masteryValue}%` : "New";
                                     const timeLabel = deck.lastStudiedAt
                                         ? `Studied ${formatRelativeTime(deck.lastStudiedAt)}`
                                         : `Created ${formatRelativeTime(deck.createdAt)}`;
-                                    const notesLabel = `${deck.noteCount} Note${deck.noteCount === 1 ? "" : "s"}`;
-                                    const cardLabel = `${deck.cardCount} Card${deck.cardCount === 1 ? "" : "s"}`;
+                                    const notesLabel = `${deck.noteCount} note${deck.noteCount === 1 ? "" : "s"}`;
+                                    const cardLabel = `${deck.cardCount} card${deck.cardCount === 1 ? "" : "s"}`;
 
                                     return (
                                         <div
                                             key={deck.id}
-                                            className="group relative flex h-[240px] min-h-[240px] max-h-[240px] flex-col justify-between overflow-hidden rounded-2xl border border-white/8 bg-[#121215] p-5 cursor-pointer
-                                                       transition-colors duration-200
-                                                       hover:bg-[#16161a] hover:border-white/15"
+                                            className="group relative flex flex-col justify-between overflow-hidden rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] p-4 cursor-pointer
+                                                       transition-colors duration-120
+                                                       hover:border-[var(--stroke-secondary)] hover:bg-[var(--fill-quaternary)]"
                                             onClick={() => handleStudyDeck(deck)}
                                         >
                                             <div>
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] text-white/45 transition-colors duration-200 group-hover:text-white/70">
-                                                        <Layers className="size-4" />
-                                                    </div>
-                                                    <div className="text-[10px] font-mono text-white/35 uppercase tracking-wider bg-white/[0.04] px-2 py-1 rounded-md line-clamp-1 max-w-[110px]" title={cardLabel}>
+                                                <div className="flex items-start justify-between mb-2.5 gap-2">
+                                                    <h3 className="text-[14px] leading-5 text-heading text-[var(--fg)] line-clamp-2" title={deck.title}>
+                                                        {deck.title}
+                                                    </h3>
+                                                    <span className="shrink-0 text-[12px] leading-4 text-[var(--fg-tertiary)]" title={cardLabel}>
                                                         {cardLabel}
-                                                    </div>
+                                                    </span>
                                                 </div>
 
-                                                <h3 className="text-base font-medium text-white/90 mb-1 line-clamp-2 group-hover:text-white transition-colors duration-200" title={deck.title}>
-                                                    {deck.title}
-                                                </h3>
-
-                                                <div className="flex items-center gap-2.5 text-[11px] text-white/35 mb-5 min-w-0 overflow-hidden">
-                                                    <span className="flex min-w-0 items-center gap-1.5">
-                                                        <Clock className="size-3 flex-none" />
+                                                <div className="flex items-center gap-2 text-[12px] leading-4 text-[var(--fg-tertiary)] min-w-0 overflow-hidden mb-4">
+                                                    <span className="flex min-w-0 items-center gap-1">
+                                                        <Clock className="size-3 flex-none opacity-60" />
                                                         <span className="line-clamp-1" title={timeLabel}>{timeLabel}</span>
                                                     </span>
-                                                    <span className="w-1 h-1 rounded-full bg-white/15 flex-none" />
+                                                    <span className="text-[var(--fg-quaternary)]">·</span>
                                                     <span className="line-clamp-1 min-w-0" title={notesLabel}>{notesLabel}</span>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/[0.06]">
-                                                <div className="flex-1 mr-4">
-                                                    <div className="w-full bg-white/[0.06] h-0.5 rounded-full overflow-hidden">
+                                            <div className="flex items-center justify-between pt-3 border-t border-[var(--stroke-tertiary)]">
+                                                <div className="flex-1 mr-3">
+                                                    <div className="w-full bg-[var(--fill-tertiary)] h-px overflow-hidden">
                                                         <div
-                                                            className="h-full bg-[hsl(var(--accent))] opacity-70 rounded-full transition-all duration-500"
+                                                            className="h-full bg-[var(--accent-hex)] transition-all duration-300"
                                                             style={{ width: `${masteryValue}%` }}
                                                         />
                                                     </div>
-                                                    <div className="mt-1.5 text-[10px] font-mono text-white/20">{masteryLabel}</div>
+                                                    <div className="mt-1.5 text-[12px] text-[var(--fg-quaternary)]">{masteryLabel}</div>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 text-xs font-medium text-white/40 group-hover:text-white/75 transition-colors duration-200">
+                                                <div className="flex items-center gap-1 text-[12px] text-[var(--fg-tertiary)] group-hover:text-[var(--fg-secondary)] transition-colors">
                                                     Study <ArrowRight className="size-3" />
                                                 </div>
                                             </div>
@@ -920,7 +919,7 @@ export function FlashcardsLabPage() {
             </main>
             {showToast ? (
                 <div
-                    className="fixed z-50 w-[min(92vw,300px)] left-1/2 -translate-x-1/2 top-20 sm:left-auto sm:translate-x-0 sm:top-6 sm:right-6"
+                    className="fixed z-50 w-[min(92vw,280px)] left-1/2 -translate-x-1/2 top-16 sm:left-auto sm:translate-x-0 sm:top-4 sm:right-4"
                     role="status"
                     aria-live="polite"
                     onMouseEnter={() => setIsHoveringToast(true)}
@@ -929,31 +928,33 @@ export function FlashcardsLabPage() {
                     onBlurCapture={() => setIsHoveringToast(false)}
                 >
                     <div
-                        className={`status-toast relative overflow-hidden px-4 py-3 text-left ${
+                        className={`status-toast relative overflow-hidden px-3 py-2.5 text-left ${
                             isClosing ? "status-toast-exit" : "status-toast-enter"
-                        } ${pulseComplete ? "ring-1 ring-[hsl(var(--accent)/0.35)]" : ""}`}
+                        }`}
                     >
-                        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-white/40">
-                            <span>{isGenerating ? "Flashcards" : "Embedding"}</span>
+                        <div className="flex items-center justify-between">
+                            <span className="text-label">
+                                {isGenerating ? "Flashcards" : "Embedding"}
+                            </span>
                             <button
                                 type="button"
                                 onClick={closeToast}
-                                className="rounded-md p-0.5 text-white/40 transition hover:text-white"
+                                className="rounded p-0.5 text-[var(--fg-tertiary)] transition hover:text-[var(--fg)]"
                                 aria-label="Close"
                             >
                                 <X className="size-3.5" />
                             </button>
                         </div>
-                        <div className="mt-1.5 text-[13px] font-medium text-white/90">
+                        <div className="mt-1 text-[13px] leading-[18px] text-[var(--fg)]">
                             {loadingMessage || (isGenerating ? "Generating flashcards..." : "Preparing embeddings...")}
                         </div>
                         {isUploading || isGenerating ? (
-                            <div className="mt-2.5 h-0.5 overflow-hidden rounded-full bg-white/10">
-                                <div className="status-progress h-full w-[55%] rounded-full" />
+                            <div className="mt-2 h-px overflow-hidden bg-[var(--fill-secondary)]">
+                                <div className="status-progress h-full w-[55%]" />
                             </div>
                         ) : null}
                         {!isGenerating && totalFiles > 0 ? (
-                            <div className="mt-2 text-[11px] text-white/35">
+                            <div className="mt-1.5 text-[12px] text-[var(--fg-tertiary)]">
                                 {completedFiles}/{totalFiles}
                             </div>
                         ) : null}

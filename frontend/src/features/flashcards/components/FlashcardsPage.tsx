@@ -214,53 +214,50 @@ export function FlashcardsPage() {
     const deckSubtitle = deckSourceLabel || fallbackSourceLabel ? "Flashcards" : "Study";
 
     return (
-        <div className="min-h-screen w-screen bg-[#09090b] flex flex-col relative overflow-hidden selection:bg-white/10 selection:text-white">
+        <div className="min-h-screen w-screen bg-[var(--bg-chrome)] flex flex-col relative overflow-hidden">
 
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 py-5 sm:py-6">
-                <div className="flex items-center gap-2 min-w-0 font-mono text-sm font-medium tracking-widest uppercase">
-                    <span className="text-[hsl(var(--accent))] truncate max-w-[40vw] sm:max-w-[55vw]" title={deckLabel}>
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-12 px-4 sm:px-5 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
+                <div className="flex items-center gap-1.5 min-w-0 text-[13px]">
+                    <span className="text-[var(--accent-hex)] truncate max-w-[40vw] sm:max-w-[55vw] text-heading" title={deckLabel}>
                         {deckLabel}
                     </span>
-                    <span className="text-white/20 flex-shrink-0">/</span>
-                    <span className="text-white/40 flex-shrink-0">{deckSubtitle}</span>
+                    <span className="text-[var(--fg-quaternary)] flex-shrink-0">/</span>
+                    <span className="text-[var(--fg-tertiary)] flex-shrink-0">{deckSubtitle}</span>
                 </div>
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => navigate('/upload')}
-                    className="flex-shrink-0 text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-colors duration-200"
+                    className="flex-shrink-0"
                 >
-                    <X className="size-5" />
+                    <X className="size-4" />
                 </Button>
             </nav>
 
-            <main className="flex-1 flex flex-col items-center justify-center w-full px-4 md:px-8 relative z-10 pt-20 pb-4">
+            <main className="flex-1 flex flex-col items-center justify-center w-full px-4 md:px-8 relative z-10 pt-16 pb-4">
 
                 {/* Sources */}
                 <AnimatePresence>
                     {uniqueDeckSources.length > 0 && (
                         <motion.div
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.3 }}
-                            className="relative w-full max-w-3xl mb-4 sm:mb-6"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="relative w-full max-w-2xl mb-4"
                         >
-                            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-[#09090b] to-transparent z-10 pointer-events-none" />
-                            <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[#09090b] to-transparent z-10 pointer-events-none" />
-
                             <div
                                 ref={sourcesRef}
-                                className="flex items-center gap-2 overflow-x-auto px-2 pb-1 scrollbar-none"
+                                className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none"
                             >
-                                <span className="flex-none text-[10px] uppercase tracking-[0.16em] font-mono text-white/25 pr-1">
+                                <span className="flex-none text-label pr-1">
                                     Sources
                                 </span>
                                 {uniqueDeckSources.map((source, index) => (
                                     <span
                                         key={source.id ?? source.filename ?? `source-${index}`}
-                                        className="flex-none rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] font-mono text-white/45 whitespace-nowrap"
+                                        className="flex-none rounded border border-[var(--stroke-tertiary)] bg-[var(--fill-quaternary)] px-2 py-0.5 text-[12px] leading-4 text-[var(--fg-secondary)] whitespace-nowrap"
                                         title={source.filename ?? undefined}
                                     >
                                         {formatFilename(source.filename ?? null)}
@@ -272,7 +269,7 @@ export function FlashcardsPage() {
                 </AnimatePresence>
 
                 {/* Card */}
-                <div className="w-full flex justify-center mb-6 sm:mb-10 relative">
+                <div className="w-full flex justify-center mb-6 relative">
                     <AnimatePresence mode="wait" custom={direction}>
                         {isLoading ? (
                             <motion.div
@@ -280,12 +277,12 @@ export function FlashcardsPage() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                transition={{ duration: 0.25 }}
+                                transition={{ duration: 0.2 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-3">
-                                    <div className="h-6 w-6 rounded-full border-2 border-white/10 border-t-[hsl(var(--accent)/0.7)] animate-spin" />
-                                    <span className="text-[10px] font-mono uppercase tracking-widest text-white/25">Loading</span>
+                                <div className="w-full max-w-2xl h-[clamp(240px,40vh,360px)] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-2">
+                                    <div className="h-4 w-4 rounded-full border border-[var(--stroke-secondary)] border-t-[var(--accent-hex)] animate-spin" />
+                                    <span className="text-label">Loading</span>
                                 </div>
                             </motion.div>
                         ) : error ? (
@@ -296,17 +293,17 @@ export function FlashcardsPage() {
                                 initial="enter"
                                 animate="center"
                                 exit="exit"
-                                transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                                transition={{ duration: 0.2 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
-                                    <p className="text-white/40 text-sm">{error}</p>
+                                <div className="w-full max-w-2xl h-[clamp(240px,40vh,360px)] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-3 px-8 text-center">
+                                    <p className="text-[14px] text-[var(--fg-secondary)]">{error}</p>
                                     <button
                                         type="button"
                                         onClick={() => navigate("/upload")}
-                                        className="text-sm text-[hsl(var(--accent))] hover:text-white transition-colors duration-200"
+                                        className="text-[13px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
                                     >
-                                        Go to upload →
+                                        Go to upload
                                     </button>
                                 </div>
                             </motion.div>
@@ -318,30 +315,30 @@ export function FlashcardsPage() {
                                 initial="enter"
                                 animate="center"
                                 exit="exit"
-                                transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                                transition={{ duration: 0.2 }}
                                 className="w-full flex justify-center"
                             >
-                                <div className="w-full max-w-3xl h-[clamp(260px,42vh,384px)] rounded-2xl border border-white/10 bg-[#18181b] flex flex-col items-center justify-center gap-4 px-10 text-center">
+                                <div className="w-full max-w-2xl h-[clamp(240px,40vh,360px)] rounded-lg border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] flex flex-col items-center justify-center gap-3 px-8 text-center">
                                     {loadDecks().length === 0 ? (
                                         <>
-                                            <p className="text-white/40 text-sm">No flashcards yet.</p>
+                                            <p className="text-[14px] text-[var(--fg-secondary)]">No flashcards yet.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => navigate("/upload")}
-                                                className="text-sm text-[hsl(var(--accent))] hover:text-white transition-colors duration-200"
+                                                className="text-[13px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
                                             >
-                                                Upload your notes to get started →
+                                                Upload your notes to get started
                                             </button>
                                         </>
                                     ) : (
                                         <>
-                                            <p className="text-white/40 text-sm">No flashcards found for this deck.</p>
+                                            <p className="text-[14px] text-[var(--fg-secondary)]">No flashcards found for this deck.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => navigate("/flashcards-lab")}
-                                                className="text-sm text-[hsl(var(--accent))] hover:text-white transition-colors duration-200"
+                                                className="text-[13px] text-[var(--accent-hex)] hover:opacity-80 transition-opacity"
                                             >
-                                                Select a different deck →
+                                                Select a different deck
                                             </button>
                                         </>
                                     )}
@@ -355,12 +352,13 @@ export function FlashcardsPage() {
                                 initial="enter"
                                 animate="center"
                                 exit="exit"
-                                transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                                transition={{ duration: 0.2 }}
                                 className="w-full flex justify-center"
                             >
                                 <Flashcard
                                     front={cards[currentIndex].question}
                                     back={cards[currentIndex].answer}
+                                    className="max-w-2xl"
                                 />
                             </motion.div>
                         )}
@@ -368,63 +366,40 @@ export function FlashcardsPage() {
                 </div>
 
                 {/* Controls */}
-                <div className="flex items-center gap-6 sm:gap-10 z-20">
+                <div className="flex items-center gap-4 z-20">
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
                         onClick={handlePrev}
                         disabled={!hasCards || currentIndex === 0}
-                        className="h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-[#18181b]
-                                   border border-white/10
-                                   hover:bg-[#1f1f23] hover:border-white/20
-                                   active:scale-95
-                                   disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#18181b]
-                                   transition-all duration-150 group"
                     >
-                        <ChevronLeft className="size-5 text-white/45 group-hover:text-white transition-colors" />
+                        <ChevronLeft className="size-4" />
                     </Button>
 
-                    <div className="w-14 flex items-center justify-center text-xs font-mono tracking-widest uppercase text-white/25">
+                    <div className="w-12 flex items-center justify-center text-[12px] tabular-nums text-[var(--fg-tertiary)]">
                         {hasCards ? (
                             <span className="flex items-center gap-1">
-                                <AnimatePresence mode="wait" initial={false}>
-                                    <motion.span
-                                        key={currentIndex}
-                                        initial={{ opacity: 0, y: direction > 0 ? 6 : -6 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: direction > 0 ? -6 : 6 }}
-                                        transition={{ duration: 0.15, ease: "easeOut" }}
-                                        className="text-[hsl(var(--accent))] inline-block w-5 text-center"
-                                    >
-                                        {currentIndex + 1}
-                                    </motion.span>
-                                </AnimatePresence>
-                                <span className="opacity-40">/</span>
+                                <span className="text-[var(--accent-hex)]">{currentIndex + 1}</span>
+                                <span>/</span>
                                 <span>{cards.length}</span>
                             </span>
                         ) : (
-                            <span className="opacity-30">— / —</span>
+                            <span>— / —</span>
                         )}
                     </div>
 
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
                         onClick={handleNext}
                         disabled={!hasCards || currentIndex === cards.length - 1}
-                        className="h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-[#18181b]
-                                   border border-white/10
-                                   hover:bg-[#1f1f23] hover:border-white/20
-                                   active:scale-95
-                                   disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#18181b]
-                                   transition-all duration-150 group"
                     >
-                        <ChevronRight className="size-5 text-white/45 group-hover:text-white transition-colors" />
+                        <ChevronRight className="size-4" />
                     </Button>
                 </div>
 
-                <p className="hidden sm:block mt-6 text-[10px] font-mono text-white/20 tracking-widest uppercase">
-                    ← → to navigate · click card to flip
+                <p className="hidden sm:block mt-5 text-label">
+                    ← → navigate · click to flip
                 </p>
             </main>
         </div>

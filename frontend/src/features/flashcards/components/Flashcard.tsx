@@ -131,7 +131,7 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                 rotateX,
                 rotateY,
                 transformStyle: "preserve-3d",
-                height: "clamp(260px, 42vh, 384px)",
+                height: "clamp(240px, 40vh, 360px)",
             }}
         >
             <motion.div
@@ -143,20 +143,19 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
             >
                 {/* Front */}
                 <div className="absolute inset-0 w-full h-full backface-hidden">
-                    <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:p-10 bg-[#18181b]
-                                    border border-white/10 rounded-2xl overflow-hidden
-                                    shadow-[0_12px_32px_-16px_rgba(0,0,0,0.65)]
-                                    group-hover:border-white/15
-                                    transition-colors duration-200">
+                    <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:px-8 sm:py-10 bg-[var(--bg-elevated)]
+                                    border border-[var(--stroke-tertiary)] rounded-lg overflow-hidden
+                                    group-hover:border-[var(--stroke-secondary)]
+                                    transition-colors duration-150">
 
-                        <div className="w-full max-h-[55%] overflow-y-auto px-1 flex items-center justify-center">
+                        <div className="w-full max-h-[60%] overflow-y-auto px-1 flex items-center justify-center">
                             <MarkdownContent
                                 content={front}
-                                className="text-xl sm:text-2xl md:text-3xl font-medium text-white/90 select-none tracking-tight text-center"
+                                className="text-[18px] sm:text-[20px] md:text-[22px] leading-[1.35] text-heading text-[var(--fg)] select-none text-center"
                             />
                         </div>
 
-                        <div className="absolute bottom-4 sm:bottom-6 text-white/20 text-[10px] font-mono uppercase tracking-[0.16em] group-hover:text-white/35 transition-colors">
+                        <div className="absolute bottom-4 text-label group-hover:text-[var(--fg-secondary)] transition-colors">
                             Tap to reveal
                         </div>
                     </div>
@@ -167,18 +166,17 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                     className="absolute inset-0 w-full h-full backface-hidden"
                     style={{ transform: "rotateX(180deg)" }}
                 >
-                    <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:p-10 bg-[#18181b]
-                                    border border-[hsl(var(--accent)_/_0.2)] rounded-2xl overflow-hidden
-                                    shadow-[0_12px_32px_-16px_rgba(0,0,0,0.65)]">
+                    <div className="relative flex flex-col items-center justify-center w-full h-full px-6 py-8 sm:px-8 sm:py-10 bg-[var(--bg-elevated)]
+                                    border border-[var(--stroke-secondary)] rounded-lg overflow-hidden">
 
-                        <div className="w-full max-h-[55%] overflow-y-auto px-1 flex items-center justify-center relative z-10">
+                        <div className="w-full max-h-[60%] overflow-y-auto px-1 flex items-center justify-center relative z-10">
                             <MarkdownContent
                                 content={back}
-                                className="text-base sm:text-xl md:text-2xl text-white/80 leading-relaxed select-none font-normal text-center"
+                                className="text-[15px] sm:text-[16px] md:text-[18px] leading-[1.45] text-[var(--fg-secondary)] select-none font-normal text-center"
                             />
                         </div>
 
-                        <div className="absolute bottom-4 sm:bottom-6 text-white/30 text-[10px] font-mono uppercase tracking-[0.16em]">
+                        <div className="absolute bottom-4 text-label text-[var(--accent-hex)]">
                             Answer
                         </div>
                     </div>
