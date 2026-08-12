@@ -1,10 +1,10 @@
-import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, X } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { buildDeckTitle, loadDecks, upsertDeck } from "@/features/flashcards/utils/flashcardDecks";
 import { formatModelLabel } from "@/shared/utils/modelLabel";
 import { apiUrl } from "@/shared/utils/api";
+import { StatusToast } from "@/shared/components/StatusToast";
 
 export function HeroSection() {
     const navigate = useNavigate();
@@ -320,25 +320,15 @@ export function HeroSection() {
 
     return (
         <section className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full px-6 text-center bg-[var(--bg-chrome)] overflow-hidden">
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-                className="relative z-10 mb-10"
-            >
+            <div className="relative z-10 mb-10">
                 <img
                     src="/obsidian-logo.png"
                     alt="Obsidian"
                     className="w-20 h-20 md:w-24 md:h-24 object-contain mx-auto"
                 />
-            </motion.div>
+            </div>
 
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: 0.06, ease: [0.23, 1, 0.32, 1] }}
-                className="relative z-20 flex flex-col items-center gap-4 max-w-[360px]"
-            >
+            <div className="relative z-20 flex flex-col items-center gap-4 max-w-[360px]">
                 <div className="flex flex-col items-center gap-2">
                     <p className="text-label text-[var(--accent-hex)]">Flashcards</p>
                     <h1 className="text-display text-[32px] leading-[38px] md:text-[36px] md:leading-[42px] text-[var(--fg)]">
@@ -353,7 +343,7 @@ export function HeroSection() {
                     type="button"
                     onClick={handleUploadClick}
                     disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
-                    className="luminous-btn mt-2 h-9 px-4 text-[14px] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="luminous-btn mt-2 h-10 px-5 text-[14px] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <UploadCloud className="size-4" />
                     {isSessionLoading ? "Initializing…" : "Upload notes"}
@@ -368,7 +358,7 @@ export function HeroSection() {
                         {existingDecks.length} saved deck{existingDecks.length !== 1 ? "s" : ""} — open lab
                     </button>
                 )}
-            </motion.div>
+            </div>
 
             <input
                 type="file"
@@ -379,53 +369,23 @@ export function HeroSection() {
                 multiple
             />
 
-            {showToast ? (
-                <div
-                    className="fixed right-5 top-5 z-50 w-[min(84vw,300px)]"
-                    role="status"
-                    aria-live="polite"
-                    onMouseEnter={() => setIsHoveringToast(true)}
-                    onMouseLeave={() => setIsHoveringToast(false)}
-                    onFocusCapture={() => setIsHoveringToast(true)}
-                    onBlurCapture={() => setIsHoveringToast(false)}
-                >
-                    <div
-                        className={`status-toast relative overflow-hidden px-3.5 py-3 text-left ${
-                            isClosing ? "status-toast-exit" : "status-toast-enter"
-                        }`}
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-label inline-flex items-center gap-2">
-                                {(isUploading || isGeneratingFlashcards) ? (
-                                    <span className="loader-ring loader-ring-sm" aria-hidden />
-                                ) : null}
-                                {isGeneratingFlashcards ? "Flashcards" : "Embedding"}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={closeToast}
-                                className="rounded-md p-0.5 text-[var(--fg-tertiary)] transition hover:text-[var(--fg)]"
-                                aria-label="Close"
-                            >
-                                <X className="size-3.5" />
-                            </button>
-                        </div>
-                        <div className="mt-1.5 text-[14px] leading-5 text-[var(--fg)]">
-                            {loadingMessage || (isGeneratingFlashcards ? "Generating flashcards..." : "Preparing embeddings...")}
-                        </div>
-                        {isUploading || isGeneratingFlashcards ? (
-                            <div className="status-progress-track mt-2.5">
-                                <div className="status-progress" />
-                            </div>
-                        ) : null}
-                        {!isGeneratingFlashcards && totalFiles > 0 ? (
-                            <div className="mt-2 text-[12px] leading-4 text-[var(--fg-tertiary)] font-mono">
-                                {completedFiles}/{totalFiles}
-                            </div>
-                        ) : null}
-                    </div>
-                </div>
-            ) : null}
+            <StatusToast
+                open={showToast}
+                isClosing={isClosing}
+                label={isGeneratingFlashcards ? "Flashcards" : "Embedding"}
+                message={
+                    loadingMessage ||
+                    (isGeneratingFlashcards ? "Generating flashcards..." : "Preparing embeddings...")
+                }
+                busy={isUploading || isGeneratingFlashcards}
+                progressText={
+                    !isGeneratingFlashcards && totalFiles > 0
+                        ? `${completedFiles}/${totalFiles}`
+                        : null
+                }
+                onClose={closeToast}
+                onHoverChange={setIsHoveringToast}
+            />
         </section>
     );
 }

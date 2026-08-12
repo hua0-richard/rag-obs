@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -78,31 +78,6 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
     const [isFlipped, setIsFlipped] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
 
-    // Tilt State
-    const x = useMotionValue(0);
-    const y = useMotionValue(0);
-    const rotateX = useTransform(y, [-0.5, 0.5], [2, -2]); // Very subtle tilt
-    const rotateY = useTransform(x, [-0.5, 0.5], [-2, 2]);
-
-    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const width = rect.width;
-        const height = rect.height;
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        const xPct = (mouseX / width) - 0.5;
-        const yPct = (mouseY / height) - 0.5;
-
-        x.set(xPct);
-        y.set(yPct);
-    };
-
-    const handleMouseLeave = () => {
-        x.set(0);
-        y.set(0);
-    };
-
     const handleFlip = () => {
         if (!isAnimating) {
             setIsFlipped(!isFlipped);
@@ -122,15 +97,10 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
     }, [isAnimating, isFlipped]);
 
     return (
-        <motion.div
+        <div
             className={cn("perspective-1000 w-full max-w-3xl cursor-pointer group relative z-10", className)}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
             onClick={handleFlip}
             style={{
-                rotateX,
-                rotateY,
-                transformStyle: "preserve-3d",
                 height: "clamp(280px, 44vh, 400px)",
             }}
         >
@@ -138,7 +108,7 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                 className="relative w-full h-full text-center transform-style-3d will-change-transform"
                 initial={false}
                 animate={{ rotateX: isFlipped ? 180 : 0 }}
-                transition={{ duration: 0.2, ease: "linear" }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 onAnimationComplete={() => setIsAnimating(false)}
             >
                 {/* Front */}
@@ -182,6 +152,6 @@ export function Flashcard({ front, back, className }: FlashcardProps) {
                     </div>
                 </div>
             </motion.div>
-        </motion.div>
+        </div>
     );
 }
