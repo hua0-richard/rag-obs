@@ -353,7 +353,7 @@ export function HeroSection() {
                     type="button"
                     onClick={handleUploadClick}
                     disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
-                    className="luminous-btn mt-2 h-9 px-4 text-[14px] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="luminous-btn mt-2 h-10 px-5 text-[14px] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <UploadCloud className="size-4" />
                     {isSessionLoading ? "Initializing…" : "Upload notes"}

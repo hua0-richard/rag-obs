@@ -548,7 +548,7 @@ export function FlashcardsLabPage() {
     return (
         <div className="min-h-screen w-full overflow-x-hidden bg-[var(--bg-chrome)] text-[var(--fg)] relative">
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-5 sm:px-6 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-16 px-5 sm:px-6 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
                 <div className="flex items-center gap-3 text-[14px]">
                     <BrandMark />
                     <span className="text-[var(--fg-quaternary)]">/</span>
@@ -563,7 +563,7 @@ export function FlashcardsLabPage() {
                 </Button>
             </nav>
 
-            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1040px] flex-col items-stretch px-5 pb-20 pt-24 sm:px-6">
+            <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1040px] flex-col items-stretch px-5 pb-20 pt-28 sm:px-6">
 
                 {/* Tabs */}
                 <div className="flex mb-6">
@@ -575,7 +575,7 @@ export function FlashcardsLabPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as Tab)}
-                                className={`relative h-8 px-3.5 rounded-md text-[14px] transition-colors duration-150 z-10 flex items-center gap-1.5 ${
+                                className={`relative h-9 px-4 rounded-md text-[14px] transition-colors duration-150 z-10 flex items-center gap-2 ${
                                     activeTab === tab.id
                                         ? "text-[var(--fg)]"
                                         : "text-[var(--fg-tertiary)] hover:text-[var(--fg-secondary)]"
@@ -606,7 +606,7 @@ export function FlashcardsLabPage() {
                             className="flex w-full flex-col rounded-[10px] border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] h-[min(68vh,640px)] min-h-[480px] max-h-[700px] overflow-hidden"
                         >
                             {/* Top Bar */}
-                            <div className="flex flex-col gap-2 border-b border-[var(--stroke-tertiary)] px-4 py-3">
+                            <div className="flex flex-col gap-2.5 border-b border-[var(--stroke-tertiary)] px-5 py-3.5">
                                 <div
                                     className="text-left text-[12px] text-[var(--fg-tertiary)] line-clamp-1"
                                     title={`${selectedCount} / ${totalDocs} selected`}
@@ -632,7 +632,7 @@ export function FlashcardsLabPage() {
                                                 placeholder="Optional: recursion, formulas, React hooks"
                                                 disabled={isUploading || isGenerating || documentsLoading}
                                                 maxLength={160}
-                                                className="h-8 w-full rounded-lg border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-3 text-[14px] text-[var(--fg-secondary)] outline-none transition-colors hover:border-[var(--stroke-primary)] focus:border-[var(--accent-hex)] focus:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-[var(--fg-quaternary)]"
+                                                className="h-9 w-full rounded-lg border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-3 text-[14px] text-[var(--fg-secondary)] outline-none transition-colors hover:border-[var(--stroke-primary)] focus:border-[var(--accent-hex)] focus:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-[var(--fg-quaternary)]"
                                             />
                                         </div>
                                     </div>
@@ -651,7 +651,7 @@ export function FlashcardsLabPage() {
                                                     <SelectTrigger
                                                         id="flashcard-amount"
                                                         aria-label="Flashcard amount"
-                                                        className="h-8 rounded-lg border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-3 text-[14px] text-[var(--fg-secondary)] hover:border-[var(--stroke-primary)] focus:ring-0 focus:outline-none whitespace-nowrap"
+                                                        className="h-9 rounded-lg border border-[var(--stroke-secondary)] bg-[var(--bg-chrome)] px-3 text-[14px] text-[var(--fg-secondary)] hover:border-[var(--stroke-primary)] focus:ring-0 focus:outline-none whitespace-nowrap"
                                                         title={selectedAmountOption.label}
                                                     >
                                                         <span className="truncate">{selectedAmountOption.label}</span>
@@ -720,11 +720,11 @@ export function FlashcardsLabPage() {
                                         {[...Array(4)].map((_, i) => (
                                             <div
                                                 key={i}
-                                                className="flex h-16 items-center justify-between gap-3 px-5"
+                                                className="flex h-[4.5rem] items-center justify-between gap-3 px-5"
                                                 style={{ animationDelay: `${i * 90}ms` }}
                                             >
                                                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                                                    <div className="h-7 w-7 shrink-0 rounded-md skeleton" />
+                                                    <div className="h-8 w-8 shrink-0 rounded-md skeleton" />
                                                     <div className="min-w-0 flex-1 space-y-2">
                                                         <div
                                                             className="h-2.5 rounded skeleton-strong"
@@ -764,19 +764,19 @@ export function FlashcardsLabPage() {
                                             <button
                                                 key={doc.id}
                                                 onClick={() => toggleSelection(doc.id)}
-                                                className={`w-full flex h-16 items-center justify-between gap-3 px-5 text-left transition-colors duration-100 overflow-hidden ${
+                                                className={`w-full flex h-[4.5rem] items-center justify-between gap-3 px-5 text-left transition-colors duration-100 overflow-hidden ${
                                                     isSelected
                                                         ? "bg-[var(--fill-quaternary)]"
                                                         : "hover:bg-[var(--fill-quaternary)]"
                                                 }`}
                                             >
                                                 <div className="flex min-w-0 items-center gap-3">
-                                                    <div className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
+                                                    <div className={`flex h-8 w-8 items-center justify-center rounded-md border transition-colors ${
                                                         isSelected
                                                             ? "bg-[var(--fill-tertiary)] border-[var(--stroke-secondary)] text-[var(--fg-secondary)]"
                                                             : "bg-transparent border-[var(--stroke-tertiary)] text-[var(--fg-quaternary)]"
                                                     }`}>
-                                                        <FileText className="size-3.5" />
+                                                        <FileText className="size-4" />
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div
@@ -811,7 +811,7 @@ export function FlashcardsLabPage() {
                             </div>
 
                             {/* Bottom Action Bar */}
-                            <div className="flex flex-col gap-2 border-t border-[var(--stroke-tertiary)] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-2 border-t border-[var(--stroke-tertiary)] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                     {generateError ? (
                                         <div className="text-[12px] text-[var(--destructive)] line-clamp-2 sm:line-clamp-1" title={generateError}>
@@ -826,7 +826,7 @@ export function FlashcardsLabPage() {
                                 <button
                                     onClick={handleGenerate}
                                     disabled={selectedCount === 0 || isGenerating || isUploading || documentsLoading || documents.length === 0 || !!documentsError}
-                                    className={`luminous-btn flex h-8 w-full items-center justify-center gap-2 px-3.5 text-[14px] whitespace-nowrap sm:w-auto ${
+                                    className={`luminous-btn flex h-9 w-full items-center justify-center gap-2 px-4 text-[14px] whitespace-nowrap sm:w-auto ${
                                         selectedCount === 0 || documentsLoading || documents.length === 0 || !!documentsError
                                             ? "cursor-not-allowed opacity-40"
                                             : ""
@@ -883,7 +883,7 @@ export function FlashcardsLabPage() {
                                     return (
                                         <div
                                             key={deck.id}
-                                            className="group relative flex flex-col justify-between overflow-hidden rounded-[10px] border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] p-5 cursor-pointer
+                                            className="group relative flex flex-col justify-between overflow-hidden rounded-[10px] border border-[var(--stroke-tertiary)] bg-[var(--bg-elevated)] p-6 cursor-pointer
                                                        transition-colors duration-120
                                                        hover:border-[var(--stroke-secondary)] hover:bg-[var(--fill-quaternary)]"
                                             onClick={() => handleStudyDeck(deck)}

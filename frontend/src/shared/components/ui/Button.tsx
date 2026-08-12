@@ -9,7 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "luminous-btn px-3.5",
+        default: "luminous-btn px-4",
         destructive:
           "bg-destructive text-destructive-foreground hover:opacity-90 rounded-lg",
         outline:
@@ -21,12 +21,12 @@ const buttonVariants = cva(
         link: "text-[var(--accent-hex)] underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-8 px-3.5 text-[14px]",
-        sm: "h-7 gap-1.5 px-2.5 text-[13px]",
-        lg: "h-9 px-4 text-[15px]",
-        icon: "size-8",
-        "icon-sm": "size-7",
-        "icon-lg": "size-9",
+        default: "h-9 px-4 text-[14px]",
+        sm: "h-8 gap-1.5 px-3 text-[13px]",
+        lg: "h-10 px-5 text-[15px]",
+        icon: "size-9",
+        "icon-sm": "size-8",
+        "icon-lg": "size-10",
       },
     },
     defaultVariants: {

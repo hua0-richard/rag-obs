@@ -217,7 +217,7 @@ export function FlashcardsPage() {
         <div className="min-h-screen w-screen bg-[var(--bg-chrome)] flex flex-col relative overflow-hidden">
 
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-5 sm:px-6 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-16 px-5 sm:px-6 border-b border-[var(--stroke-tertiary)] bg-[var(--bg-chrome)]">
                 <div className="flex items-center gap-3 min-w-0">
                     <BrandMark />
                     <span className="text-[var(--fg-quaternary)] flex-shrink-0">/</span>
@@ -235,7 +235,7 @@ export function FlashcardsPage() {
                 </Button>
             </nav>
 
-            <main className="flex-1 flex flex-col items-center justify-center w-full px-5 md:px-8 relative z-10 pt-20 pb-6">
+            <main className="flex-1 flex flex-col items-center justify-center w-full px-5 md:px-8 relative z-10 pt-24 pb-8">
 
                 {/* Sources */}
                 <AnimatePresence>

@@ -7,7 +7,7 @@ type BrandMarkProps = {
 };
 
 export function BrandMark({ className, size = "sm", showWordmark = true }: BrandMarkProps) {
-  const logoSize = size === "md" ? "h-7 w-7" : "h-5 w-5";
+  const logoSize = size === "md" ? "h-8 w-8" : "h-6 w-6";
 
   return (
     <span className={cn("inline-flex items-center gap-2 min-w-0", className)}>
