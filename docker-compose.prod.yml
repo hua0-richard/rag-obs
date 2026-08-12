@@ -1,0 +1,91 @@
+# Self-hosted API + DB, exposed to the public internet over Tailscale Funnel.
+# The frontend is NOT hosted on this device — it's built/served elsewhere
+# (e.g. the Netlify path in the README) and just points at this device's
+# Funnel URL for API calls. api joins the tailscale service's network
+# namespace directly (network_mode: service:tailscale), so it publishes no
+# host ports; Tailscale is the only ingress.
+#
+# Postgres+pgvector runs locally as the `db` service below (same image as the
+# dev stack) — no external database is required. Swap DATABASE_URL in the api
+# service back to an external host (e.g. Neon) if you'd rather not self-host it.
+#
+# First-run bootstrap (the Funnel domain isn't known until the node has
+# authenticated once):
+#   1. cp .env.prod.example .env.prod   # fill in TS_AUTHKEY, POSTGRES_PASSWORD, OPENROUTER_API_KEY
+#   2. docker compose -f docker-compose.prod.yml --env-file .env.prod up -d tailscale
+#   3. docker compose -f docker-compose.prod.yml --env-file .env.prod exec tailscale tailscale status
+#      # note the MagicDNS name, e.g. rag-obs.<tailnet>.ts.net
+#   4. Add to .env.prod:
+#        FRONTEND_URL=<url of wherever the frontend is actually hosted>   # for CORS
+#      Point the frontend's own build config at https://rag-obs.<tailnet>.ts.net:8443
+#      as its API URL.
+#   5. docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#   6. docker compose -f docker-compose.prod.yml --env-file .env.prod exec api alembic upgrade head
+
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: ts-rag-obs
+    hostname: rag-obs
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "false"
+    entrypoint: ["/bin/sh", "/etc/tailscale/entrypoint.sh"]
+    volumes:
+      - ts-state:/var/lib/tailscale
+      - ./tailscale/entrypoint.sh:/etc/tailscale/entrypoint.sh:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fastapi_api
+    network_mode: "service:tailscale"
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      ENV: "PROD"
+      DATABASE_URL: "postgresql+psycopg2://${POSTGRES_USER:-raguser}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ragobs}"
+      FRONTEND_URL: ${FRONTEND_URL}
+      EMBEDDING_BACKEND: "openrouter"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_EMBED_MODEL: "openai/text-embedding-3-small"
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat-v3-0324}
+      FLASHCARD_LLM_BACKEND: "openrouter"
+      FLASHCARD_LLM_TIMEOUT_SECONDS: "120"
+      FLASHCARD_MAX_TOKENS_PER_CARD: "110"
+      FLASHCARD_LLM_MAX_TOKENS: "1800"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    depends_on:
+      tailscale:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: pgvector_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ragobs}
+      POSTGRES_USER: ${POSTGRES_USER:-raguser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragobs}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  ts-state:
+  pgdata:
