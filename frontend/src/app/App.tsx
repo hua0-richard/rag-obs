@@ -12,7 +12,7 @@ function RootRedirect() {
 
 function UploadPage() {
   return (
-    <main className="relative min-h-screen w-full overflow-x-hidden selection:bg-[hsl(var(--accent))/30] selection:text-white">
+    <main className="relative min-h-screen w-full overflow-x-hidden">
       <AmbientBackground />
       <HeroSection />
     </main>

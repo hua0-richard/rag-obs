@@ -18,11 +18,9 @@ export function HeroSection() {
     const [loadingMessage, setLoadingMessage] = useState("");
     const [totalFiles, setTotalFiles] = useState(0);
     const [completedFiles, setCompletedFiles] = useState(0);
-    const [pulseComplete, setPulseComplete] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
     const [isHoveringToast, setIsHoveringToast] = useState(false);
-    const pulseTimeoutRef = useRef<number | null>(null);
     const closeTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -202,13 +200,6 @@ export function HeroSection() {
                                         embeddedFileIds.push(payload.file_id);
                                     }
                                     embeddedCount += 1;
-                                    setPulseComplete(true);
-                                    if (pulseTimeoutRef.current) {
-                                        window.clearTimeout(pulseTimeoutRef.current);
-                                    }
-                                    pulseTimeoutRef.current = window.setTimeout(() => {
-                                        setPulseComplete(false);
-                                    }, 900);
                                 }
                                 continue;
                             }
@@ -328,40 +319,42 @@ export function HeroSection() {
     };
 
     return (
-        <section className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full px-4 text-center bg-[#09090b] overflow-hidden">
+        <section className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full px-4 text-center bg-[var(--bg-chrome)] overflow-hidden">
             {/* Logo */}
-            <div className="relative z-10 mb-10">
-                <motion.div
-                    initial={{ scale: 0.92, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
-                    className="relative"
-                >
-                    <div className="absolute inset-0 bg-[hsl(var(--accent))/8] blur-3xl rounded-full opacity-50" />
-                    <motion.img
-                        src="/obsidian-logo.png"
-                        alt="Obsidian Logo"
-                        className="w-44 h-44 md:w-56 md:h-56 object-contain relative z-10"
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                    />
-                </motion.div>
-            </div>
+            <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                className="relative z-10 mb-8"
+            >
+                <img
+                    src="/obsidian-logo.png"
+                    alt="Obsidian Logo"
+                    className="w-28 h-28 md:w-32 md:h-32 object-contain"
+                />
+            </motion.div>
 
             {/* CTA */}
             <motion.div
-                initial={{ opacity: 0, y: 16 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.55, delay: 0.2 }}
-                className="relative z-20 flex flex-col items-center gap-4"
+                transition={{ duration: 0.4, delay: 0.08, ease: [0.23, 1, 0.32, 1] }}
+                className="relative z-20 flex flex-col items-center gap-3"
             >
+                <h1 className="text-heading text-[24px] leading-[30px] text-[var(--fg)]">
+                    Flashcards
+                </h1>
+                <p className="text-[14px] leading-5 text-[var(--fg-secondary)] max-w-[280px]">
+                    Upload Markdown notes and get a deck instantly.
+                </p>
+
                 <button
                     type="button"
                     onClick={handleUploadClick}
                     disabled={isUploading || isGeneratingFlashcards || isSessionLoading}
-                    className="luminous-btn h-12 px-9 text-sm font-medium flex items-center gap-2.5 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed"
+                    className="luminous-btn mt-2 h-7 px-3.5 text-[13px] flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                    <UploadCloud className="size-4" />
+                    <UploadCloud className="size-3.5" />
                     {isSessionLoading ? "Initializing…" : "Upload notes"}
                 </button>
 
@@ -369,18 +362,13 @@ export function HeroSection() {
                     <button
                         type="button"
                         onClick={() => navigate("/flashcards-lab")}
-                        className="text-xs text-white/35 hover:text-white/65 transition-colors duration-200"
+                        className="text-[12px] leading-4 text-[var(--fg-tertiary)] hover:text-[var(--fg-secondary)] transition-colors"
                     >
-                        {existingDecks.length} saved deck{existingDecks.length !== 1 ? "s" : ""} — open lab →
+                        {existingDecks.length} saved deck{existingDecks.length !== 1 ? "s" : ""} — open lab
                     </button>
                 )}
-
-                <p className="text-white/35 text-sm font-light max-w-[260px] leading-relaxed">
-                    Upload Markdown notes and get a flashcard deck instantly.
-                </p>
             </motion.div>
 
-            {/* Hidden File Input */}
             <input
                 type="file"
                 ref={fileInputRef}
@@ -390,10 +378,9 @@ export function HeroSection() {
                 multiple
             />
 
-            {/* Toast */}
             {showToast ? (
                 <div
-                    className="fixed right-6 top-6 z-50 w-[min(84vw,300px)]"
+                    className="fixed right-4 top-4 z-50 w-[min(84vw,280px)]"
                     role="status"
                     aria-live="polite"
                     onMouseEnter={() => setIsHoveringToast(true)}
@@ -402,31 +389,33 @@ export function HeroSection() {
                     onBlurCapture={() => setIsHoveringToast(false)}
                 >
                     <div
-                        className={`status-toast relative overflow-hidden px-4 py-3 text-left ${
+                        className={`status-toast relative overflow-hidden px-3 py-2.5 text-left ${
                             isClosing ? "status-toast-exit" : "status-toast-enter"
-                        } ${pulseComplete ? "ring-1 ring-[hsl(var(--accent)/0.35)]" : ""}`}
+                        }`}
                     >
-                        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-white/40">
-                            <span>{isGeneratingFlashcards ? "Flashcards" : "Embedding"}</span>
+                        <div className="flex items-center justify-between">
+                            <span className="text-label">
+                                {isGeneratingFlashcards ? "Flashcards" : "Embedding"}
+                            </span>
                             <button
                                 type="button"
                                 onClick={closeToast}
-                                className="rounded-md p-0.5 text-white/40 transition hover:text-white"
+                                className="rounded p-0.5 text-[var(--fg-tertiary)] transition hover:text-[var(--fg)]"
                                 aria-label="Close"
                             >
                                 <X className="size-3.5" />
                             </button>
                         </div>
-                        <div className="mt-1.5 text-[13px] font-medium text-white/90">
+                        <div className="mt-1 text-[13px] leading-[18px] text-[var(--fg)]">
                             {loadingMessage || (isGeneratingFlashcards ? "Generating flashcards..." : "Preparing embeddings...")}
                         </div>
                         {isUploading || isGeneratingFlashcards ? (
-                            <div className="mt-2.5 h-0.5 overflow-hidden rounded-full bg-white/10">
-                                <div className="status-progress h-full w-[55%] rounded-full" />
+                            <div className="mt-2 h-px overflow-hidden bg-[var(--fill-secondary)]">
+                                <div className="status-progress h-full w-[55%]" />
                             </div>
                         ) : null}
                         {!isGeneratingFlashcards && totalFiles > 0 ? (
-                            <div className="mt-2 text-[11px] text-white/35">
+                            <div className="mt-1.5 text-[12px] leading-4 text-[var(--fg-tertiary)]">
                                 {completedFiles}/{totalFiles}
                             </div>
                         ) : null}
