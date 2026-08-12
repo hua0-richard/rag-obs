@@ -37,12 +37,12 @@
   --stroke-secondary: #f0eef624;
   --stroke-tertiary: #f0eef614;
 
-  /* Brand violet — richer than Cursor lavender, still restrained */
-  --accent-hex: #8b7cf6;
-  --accent-hover: #9c8ff8;
-  --accent-muted: #8b7cf633;
-  --accent: 248 88% 72%;
-  --accent-secondary: 262 70% 68%;
+  /* Brand violet — muted indigo-violet, less pastel */
+  --accent-hex: #7b74e6;
+  --accent-hover: #8c86ea;
+  --accent-muted: #7b74e633;
+  --accent: 244 68% 68%;
+  --accent-secondary: 255 55% 66%;
   --on-accent: #0b0b0f;
 
   --border-muted: var(--stroke-tertiary);
@@ -83,7 +83,7 @@
   --input: var(--stroke-secondary);
   --ring: var(--accent-hex);
 
-  --chart-1: #8b7cf6;
+  --chart-1: #7b74e6;
   --chart-2: #3fa266;
   --chart-3: #f1b467;
   --chart-4: #7bafe9;
@@ -167,11 +167,11 @@ body {
   }
 
   .status-toast-enter {
-    animation: toastIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: toastIn 180ms ease-out;
   }
 
   .status-toast-exit {
-    animation: toastOut 160ms ease-in;
+    animation: toastOut 140ms ease-in;
   }
 
   /* Quiet indeterminate progress */
@@ -183,11 +183,12 @@ body {
 
   .status-progress {
     height: 100%;
-    width: 38%;
+    width: 34%;
     border-radius: 1px;
     background: var(--accent-hex);
+    opacity: 0.85;
     transform-origin: left center;
-    animation: progressIndeterminate 1.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation: progressIndeterminate 2.4s ease-in-out infinite;
   }
 
   /* Thin deliberate spinner */
@@ -198,7 +199,7 @@ body {
     border: 1.5px solid var(--stroke-secondary);
     border-top-color: var(--accent-hex);
     border-radius: 9999px;
-    animation: loaderSpin 0.9s linear infinite;
+    animation: loaderSpin 1.05s linear infinite;
   }
 
   .loader-ring-sm {
@@ -220,28 +221,27 @@ body {
   /* Soft skeleton pulse */
   .skeleton {
     background: var(--fill-tertiary);
-    animation: skeletonPulse 1.7s ease-in-out infinite;
+    animation: skeletonPulse 2s ease-in-out infinite;
   }
 
   .skeleton-strong {
     background: var(--fill-secondary);
-    animation: skeletonPulse 1.7s ease-in-out infinite;
+    animation: skeletonPulse 2s ease-in-out infinite;
   }
 
   @keyframes toastIn {
-    0% { opacity: 0; transform: translateY(-6px); }
+    0% { opacity: 0; transform: translateY(-3px); }
     100% { opacity: 1; transform: translateY(0); }
   }
 
   @keyframes toastOut {
     0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-4px); }
+    100% { opacity: 0; transform: translateY(-2px); }
   }
 
   @keyframes progressIndeterminate {
-    0% { transform: translateX(-120%); opacity: 0.35; }
-    40% { opacity: 0.95; }
-    100% { transform: translateX(280%); opacity: 0.35; }
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(300%); }
   }
 
   @keyframes loaderSpin {
@@ -249,8 +249,8 @@ body {
   }
 
   @keyframes skeletonPulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.85; }
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.78; }
   }
 
   @media (prefers-reduced-motion: reduce) {

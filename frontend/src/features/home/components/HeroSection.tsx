@@ -395,10 +395,7 @@ export function HeroSection() {
                         }`}
                     >
                         <div className="flex items-center justify-between">
-                            <span className="text-label inline-flex items-center gap-2">
-                                {(isUploading || isGeneratingFlashcards) ? (
-                                    <span className="loader-ring loader-ring-sm" aria-hidden />
-                                ) : null}
+                            <span className="text-label">
                                 {isGeneratingFlashcards ? "Flashcards" : "Embedding"}
                             </span>
                             <button

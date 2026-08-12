@@ -946,10 +946,7 @@ export function FlashcardsLabPage() {
                         }`}
                     >
                         <div className="flex items-center justify-between">
-                            <span className="text-label inline-flex items-center gap-2">
-                                {(isUploading || isGenerating) ? (
-                                    <span className="loader-ring loader-ring-sm" aria-hidden />
-                                ) : null}
+                            <span className="text-label">
                                 {isGenerating ? "Flashcards" : "Embedding"}
                             </span>
                             <button
