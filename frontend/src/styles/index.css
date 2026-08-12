@@ -4,42 +4,46 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Cursor-adjacent type + density */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 20px;
+  /* Premium docs type */
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 24px;
   font-weight: 400;
 
   color-scheme: dark;
   color: var(--fg);
 
-  /* Surfaces — Cursor dark chrome / editor */
-  --bg-chrome: #141414;
-  --bg-elevated: #181818;
+  /* Deep violet-black surfaces */
+  --bg-chrome: #0b0b0f;
+  --bg-elevated: #121218;
   --bg-deep: var(--bg-chrome);
   --bg-surface: var(--bg-elevated);
 
-  /* Single-base alpha hierarchy (#E4E4E4) */
-  --fg: #e4e4e4eb;
-  --fg-secondary: #e4e4e48d;
-  --fg-tertiary: #e4e4e45e;
-  --fg-quaternary: #e4e4e442;
+  /* Soft cool off-white hierarchy */
+  --fg: #f0eef6f0;
+  --fg-secondary: #f0eef699;
+  --fg-tertiary: #f0eef666;
+  --fg-quaternary: #f0eef647;
 
-  --fill-primary: #e4e4e430;
-  --fill-secondary: #e4e4e41f;
-  --fill-tertiary: #e4e4e414;
-  --fill-quaternary: #e4e4e40a;
+  --fill-primary: #f0eef630;
+  --fill-secondary: #f0eef61f;
+  --fill-tertiary: #f0eef614;
+  --fill-quaternary: #f0eef60a;
 
-  --stroke-primary: #e4e4e433;
-  --stroke-secondary: #e4e4e424;
-  --stroke-tertiary: #e4e4e414;
+  --stroke-primary: #f0eef638;
+  --stroke-secondary: #f0eef624;
+  --stroke-tertiary: #f0eef614;
 
-  /* Purple accent — Cursor category purple, kept as brand */
-  --accent-hex: #9386f2;
-  --accent-hover: #a399f5;
-  --accent: 246 81% 74%;
-  --accent-secondary: 255 55% 68%;
-  --on-accent: #141414;
+  /* Brand violet — richer than Cursor lavender, still restrained */
+  --accent-hex: #8b7cf6;
+  --accent-hover: #9c8ff8;
+  --accent-muted: #8b7cf633;
+  --accent: 248 88% 72%;
+  --accent-secondary: 262 70% 68%;
+  --on-accent: #0b0b0f;
 
   --border-muted: var(--stroke-tertiary);
 
@@ -50,7 +54,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --radius: 0.375rem; /* 6px — Cursor md */
+  --radius: 0.5rem; /* 8px — docs-friendly */
 
   --background: var(--bg-chrome);
   --foreground: var(--fg);
@@ -72,18 +76,18 @@
 
   --accent-foreground: var(--fg);
 
-  --destructive: #fc6b83;
-  --destructive-foreground: #141414;
+  --destructive: #f07178;
+  --destructive-foreground: #0b0b0f;
 
   --border: var(--stroke-tertiary);
   --input: var(--stroke-secondary);
   --ring: var(--accent-hex);
 
-  --chart-1: #9386f2;
+  --chart-1: #8b7cf6;
   --chart-2: #3fa266;
   --chart-3: #f1b467;
   --chart-4: #7bafe9;
-  --chart-5: #fc6b83;
+  --chart-5: #f07178;
 
   --sidebar: var(--bg-chrome);
   --sidebar-foreground: var(--fg);
@@ -111,14 +115,14 @@ body {
 }
 
 @layer utilities {
-  /* Flat primary control — Cursor-style solid accent */
   .luminous-btn {
     @apply relative border-none font-medium overflow-hidden;
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--accent-hex);
     color: var(--on-accent);
     box-shadow: none;
-    transition: background-color 0.12s ease, opacity 0.12s ease;
+    letter-spacing: -0.01em;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
   }
 
   .luminous-btn:hover {
@@ -129,25 +133,24 @@ body {
   }
 
   .luminous-btn:active {
-    opacity: 0.9;
+    opacity: 0.88;
     transform: none;
     box-shadow: none;
   }
 
-  /* Flat panel */
   .matte-panel {
     background: var(--bg-elevated);
     border: 1px solid var(--stroke-tertiary);
-    border-radius: 8px;
+    border-radius: 10px;
     box-shadow: none;
   }
 
   .matte-input {
     background: var(--bg-chrome);
     border: 1px solid var(--stroke-secondary);
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--fg);
-    transition: border-color 0.12s ease;
+    transition: border-color 0.15s ease;
   }
 
   .matte-input:focus-visible {
@@ -156,29 +159,77 @@ body {
     box-shadow: none;
   }
 
-  /* Status toast — flat bordered surface */
   .status-toast {
-    border-radius: 8px;
+    border-radius: 10px;
     border: 1px solid var(--stroke-secondary);
     background: var(--bg-elevated);
     box-shadow: none;
   }
 
   .status-toast-enter {
-    animation: toastIn 200ms ease-out;
+    animation: toastIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .status-toast-exit {
     animation: toastOut 160ms ease-in;
   }
 
+  /* Quiet indeterminate progress */
+  .status-progress-track {
+    height: 1px;
+    overflow: hidden;
+    background: var(--fill-secondary);
+  }
+
   .status-progress {
+    height: 100%;
+    width: 38%;
+    border-radius: 1px;
     background: var(--accent-hex);
-    opacity: 0.7;
+    transform-origin: left center;
+    animation: progressIndeterminate 1.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  /* Thin deliberate spinner */
+  .loader-ring {
+    box-sizing: border-box;
+    width: 1rem;
+    height: 1rem;
+    border: 1.5px solid var(--stroke-secondary);
+    border-top-color: var(--accent-hex);
+    border-radius: 9999px;
+    animation: loaderSpin 0.9s linear infinite;
+  }
+
+  .loader-ring-sm {
+    width: 0.875rem;
+    height: 0.875rem;
+    border-width: 1.5px;
+  }
+
+  .loader-ring-lg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .loader-ring-on-accent {
+    border-color: color-mix(in srgb, var(--on-accent) 28%, transparent);
+    border-top-color: var(--on-accent);
+  }
+
+  /* Soft skeleton pulse */
+  .skeleton {
+    background: var(--fill-tertiary);
+    animation: skeletonPulse 1.7s ease-in-out infinite;
+  }
+
+  .skeleton-strong {
+    background: var(--fill-secondary);
+    animation: skeletonPulse 1.7s ease-in-out infinite;
   }
 
   @keyframes toastIn {
-    0% { opacity: 0; transform: translateY(-4px); }
+    0% { opacity: 0; transform: translateY(-6px); }
     100% { opacity: 1; transform: translateY(0); }
   }
 
@@ -187,27 +238,68 @@ body {
     100% { opacity: 0; transform: translateY(-4px); }
   }
 
+  @keyframes progressIndeterminate {
+    0% { transform: translateX(-120%); opacity: 0.35; }
+    40% { opacity: 0.95; }
+    100% { transform: translateX(280%); opacity: 0.35; }
+  }
+
+  @keyframes loaderSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes skeletonPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.85; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .status-toast-enter,
-    .status-toast-exit {
+    .status-toast-exit,
+    .status-progress,
+    .loader-ring,
+    .skeleton,
+    .skeleton-strong {
       animation: none !important;
+    }
+
+    .status-progress {
+      width: 55%;
+      opacity: 0.7;
+      transform: none;
+    }
+
+    .skeleton,
+    .skeleton-strong {
+      opacity: 0.65;
     }
   }
 
-  /* Type helpers */
   .text-heading {
-    font-weight: 590;
-    letter-spacing: -0.01em;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  .text-display {
+    font-weight: 600;
+    letter-spacing: -0.035em;
   }
 
   .text-label {
-    font-size: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
     line-height: 16px;
-    font-weight: 400;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--fg-tertiary);
   }
 
-  /* 3D Utilities */
+  .brand-mark {
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+
   .perspective-1000 {
     perspective: 1000px;
   }
@@ -247,16 +339,17 @@ body {
   }
 
   .flashcard-markdown code {
+    font-family: var(--font-mono);
     background: var(--fill-tertiary);
-    padding: 0.1rem 0.3rem;
+    padding: 0.1rem 0.35rem;
     border-radius: 4px;
-    font-size: 0.92em;
+    font-size: 0.9em;
   }
 
   .flashcard-markdown pre {
     margin: 0.75rem 0;
-    padding: 0.75rem;
-    border-radius: 6px;
+    padding: 0.875rem;
+    border-radius: 8px;
     background: var(--fill-quaternary);
     border: 1px solid var(--stroke-tertiary);
     overflow-x: auto;
@@ -277,9 +370,11 @@ body {
 }
 
 @theme inline {
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
   --radius-xl: 12px;
   --radius-2xl: 12px;
   --radius-3xl: 12px;
@@ -323,11 +418,11 @@ body {
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--accent-hex) 28%, transparent);
+    background: color-mix(in srgb, var(--accent-hex) 32%, transparent);
     color: var(--fg);
   }
 }
