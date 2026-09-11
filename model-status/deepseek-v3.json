@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "label": "DeepSeek V3",
-  "message": "online",
-  "color": "brightgreen",
+  "message": "unavailable",
+  "color": "red",
   "namedLogo": "deepseek",
   "logoColor": "white"
 }
