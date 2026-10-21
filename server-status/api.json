@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "label": "API",
-  "message": "offline",
-  "color": "red",
+  "message": "online",
+  "color": "brightgreen",
   "namedLogo": "microsoftazure",
   "logoColor": "white"
 }
